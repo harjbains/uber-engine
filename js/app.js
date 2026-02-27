@@ -2,7 +2,7 @@ document.getElementById("current-date").innerText =
   new Date().toLocaleDateString();
 
 async function testConnection() {
-  const { data, error } = await supabase
+  const { data, error } = await supabaseClient
     .from("shifts")
     .select("*")
     .limit(1);
