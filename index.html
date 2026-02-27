@@ -23,9 +23,21 @@
       <section id="today" class="tab active">
         <h2>Today</h2>
 
-        <button id="add-shift-btn">+ Add Shift</button>
+        <h3>Add Shift</h3>
 
-        <div id="shift-list"></div>
+<input type="time" id="start-time" />
+<input type="time" id="end-time" />
+<input type="number" id="odo-start" placeholder="Odo Start" />
+<input type="number" id="odo-end" placeholder="Odo End" />
+<input type="number" id="gross" placeholder="Gross (£)" step="0.01" />
+<input type="number" id="tips" placeholder="Tips (£)" step="0.01" />
+
+<button id="save-shift">Save Shift</button>
+
+<hr />
+
+<h3>Today's Shifts</h3>
+<div id="shift-list"></div>
 
         <div class="summary">
           <p>Total Hours: <span id="total-hours">0</span></p>
