@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Uber Engine</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+
+  <div class="app">
+
+    <!-- Header -->
+    <header>
+      <h1>Uber Engine</h1>
+      <div id="current-date"></div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main id="content">
+
+      <!-- TODAY TAB -->
+      <section id="today" class="tab active">
+        <h2>Today</h2>
+
+        <button id="add-shift-btn">+ Add Shift</button>
+
+        <div id="shift-list"></div>
+
+        <div class="summary">
+          <p>Total Hours: <span id="total-hours">0</span></p>
+          <p>Total Miles: <span id="total-miles">0</span></p>
+          <p>Total Gross: £<span id="total-gross">0.00</span></p>
+        </div>
+
+        <div class="energy">
+          <label>Energy Rating:</label>
+          <select id="energy-rating">
+            <option value="">Select</option>
+            <option value="1">1 - Drained</option>
+            <option value="2">2</option>
+            <option value="3">3 - Fine</option>
+            <option value="4">4</option>
+            <option value="5">5 - Strong</option>
+          </select>
+        </div>
+
+        <button id="save-day">Save Day</button>
+      </section>
+
+      <!-- FUEL TAB -->
+      <section id="fuel" class="tab">
+        <h2>Fuel</h2>
+
+        <input type="number" id="fuel-odometer" placeholder="Odometer" />
+        <input type="number" id="fuel-litres" placeholder="Litres" step="0.01" />
+        <input type="number" id="fuel-cost" placeholder="Total Cost (£)" step="0.01" />
+        <input type="text" id="fuel-station" placeholder="Station Name" />
+
+        <button id="save-fuel">Save Fuel</button>
+
+        <div id="fuel-history"></div>
+      </section>
+
+      <!-- MONTH TAB -->
+      <section id="month" class="tab">
+        <h2>This Month</h2>
+
+        <p>Total Gross: £<span id="month-gross">0.00</span></p>
+        <p>Total Miles: <span id="month-miles">0</span></p>
+        <p>Operational Net: £<span id="month-net">0.00</span></p>
+      </section>
+
+      <!-- TAX YEAR TAB -->
+      <section id="tax-year" class="tab">
+        <h2>Tax Year</h2>
+
+        <p>Miles YTD: <span id="ytd-miles">0</span></p>
+        <p>Allowance Used: £<span id="ytd-allowance">0.00</span></p>
+        <p>Taxable Profit: £<span id="ytd-taxable">0.00</span></p>
+      </section>
+
+      <!-- SETTINGS TAB -->
+      <section id="settings" class="tab">
+        <h2>Settings</h2>
+
+        <label>Tax %</label>
+        <input type="number" id="tax-percent" step="0.1" />
+        <button id="save-settings">Save</button>
+      </section>
+
+    </main>
+
+    <!-- Bottom Navigation -->
+    <nav>
+      <button data-tab="today">Today</button>
+      <button data-tab="fuel">Fuel</button>
+      <button data-tab="month">Month</button>
+      <button data-tab="tax-year">Tax</button>
+      <button data-tab="settings">Settings</button>
+    </nav>
+
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
