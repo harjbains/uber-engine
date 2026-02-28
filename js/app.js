@@ -1,5 +1,7 @@
 const now = new Date();
 
+const today = now.toISOString().split("T")[0];
+
 document.getElementById("current-date").innerText =
   now.toLocaleDateString() + " " + now.toLocaleTimeString();
 
