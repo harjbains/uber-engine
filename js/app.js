@@ -6,7 +6,7 @@ document.getElementById("current-date").innerText =
   now.toLocaleDateString() + " " + now.toLocaleTimeString();
 
 const APP_VERSION = "v0.1.1";
-const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix 1";
+const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix 2";
 
 document.getElementById("build-version").innerText =
   APP_VERSION + " – " + APP_CHANGELOG;
@@ -108,3 +108,5 @@ document.getElementById("start-time").addEventListener("input", function () {
 document.getElementById("end-time").addEventListener("input", function () {
   this.value = roundToFiveMinutes(this.value);
 });
+
+console.log("Rounded:", roundToFiveMinutes("09:17"));
