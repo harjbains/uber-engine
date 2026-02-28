@@ -101,10 +101,10 @@ function roundToFiveMinutes(timeString) {
   );
 }
 
-document.getElementById("start-time").addEventListener("change", function () {
+document.getElementById("start-time").addEventListener("input", function () {
   this.value = roundToFiveMinutes(this.value);
 });
 
-document.getElementById("end-time").addEventListener("change", function () {
+document.getElementById("end-time").addEventListener("input", function () {
   this.value = roundToFiveMinutes(this.value);
 });
