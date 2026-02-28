@@ -1,7 +1,10 @@
-document.getElementById("current-date").innerText =
-  new Date().toLocaleDateString();
+const now = new Date();
 
-const today = new Date().toISOString().split("T")[0];
+document.getElementById("current-date").innerText =
+  now.toLocaleDateString() + " " + now.toLocaleTimeString();
+
+document.getElementById("build-version").innerText =
+  "Build: " + now.toLocaleTimeString();
 
 async function loadTodayShifts() {
   const { data, error } = await supabaseClient
