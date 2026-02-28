@@ -25,12 +25,12 @@
 
         <h3>Add Shift</h3>
 
-<input type="time" id="start-time" />
-<input type="time" id="end-time" />
-<input type="number" id="odo-start" placeholder="Odo Start" />
-<input type="number" id="odo-end" placeholder="Odo End" />
-<input type="number" id="gross" placeholder="Gross (£)" step="0.01" />
-<input type="number" id="tips" placeholder="Tips (£)" step="0.01" />
+<input type="time" id="start-time" step="300" required  />
+<input type="time" id="end-time" step="300" required  />
+<input type="number" id="odo-start" placeholder="Odo Start" inputmode="numeric" pattern="[0-9]*"  />
+<input type="number" id="odo-end" placeholder="Odo End" inputmode="numeric" pattern="[0-9]*" />
+<input type="number" id="gross" placeholder="Gross (£)" step="0.01" inputmode="decimal" />
+<input type="number" id="tips" placeholder="Tips (£)" step="0.01" inputmode="decimal" />
 
 <button id="save-shift">Save Shift</button>
 
