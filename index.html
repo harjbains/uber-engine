@@ -26,8 +26,14 @@
 
         <h3>Add Shift</h3>
 
-<input type="time" id="start-time" step="300" required  />
-<input type="time" id="end-time" step="300" required  />
+<h4>Start Time</h4>
+<select id="start-hour"></select>
+<select id="start-minute"></select>
+
+<h4>End Time</h4>
+<select id="end-hour"></select>
+<select id="end-minute"></select>
+        
 <input type="number" id="odo-start" placeholder="Odo Start" inputmode="numeric" pattern="[0-9]*"  />
 <input type="number" id="odo-end" placeholder="Odo End" inputmode="numeric" pattern="[0-9]*" />
 <input type="number" id="gross" placeholder="Gross (£)" step="0.01" inputmode="decimal" />
