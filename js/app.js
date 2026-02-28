@@ -5,8 +5,11 @@ const today = now.toISOString().split("T")[0];
 document.getElementById("current-date").innerText =
   now.toLocaleDateString() + " " + now.toLocaleTimeString();
 
+const APP_VERSION = "v0.1.1";
+const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix";
+
 document.getElementById("build-version").innerText =
-  "Build v0.1 - " + now.toLocaleTimeString();
+  APP_VERSION + " – " + APP_CHANGELOG;
 
 async function loadTodayShifts() {
   const { data, error } = await supabaseClient
