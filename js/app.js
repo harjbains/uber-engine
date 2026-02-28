@@ -1,3 +1,29 @@
+function populateTimeSelectors() {
+  const hourSelectors = ["start-hour", "end-hour"];
+  const minuteSelectors = ["start-minute", "end-minute"];
+
+  hourSelectors.forEach(id => {
+    const select = document.getElementById(id);
+    select.innerHTML = "";
+    for (let h = 0; h < 24; h++) {
+      const hour = String(h).padStart(2, "0");
+      select.innerHTML += `<option value="${hour}">${hour}</option>`;
+    }
+  });
+
+  minuteSelectors.forEach(id => {
+    const select = document.getElementById(id);
+    select.innerHTML = "";
+    for (let m = 0; m < 60; m += 5) {
+      const minute = String(m).padStart(2, "0");
+      select.innerHTML += `<option value="${minute}">${minute}</option>`;
+    }
+  });
+}
+
+populateTimeSelectors();
+
+
 const now = new Date();
 
 const today = now.toISOString().split("T")[0];
@@ -6,7 +32,7 @@ document.getElementById("current-date").innerText =
   now.toLocaleDateString() + " " + now.toLocaleTimeString();
 
 const APP_VERSION = "v0.1.1";
-const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix 3";
+const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix 4";
 
 document.getElementById("build-version").innerText =
   APP_VERSION + " – " + APP_CHANGELOG;
