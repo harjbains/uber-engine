@@ -4,7 +4,7 @@ document.getElementById("current-date").innerText =
   now.toLocaleDateString() + " " + now.toLocaleTimeString();
 
 document.getElementById("build-version").innerText =
-  "Build: " + now.toLocaleTimeString();
+  "Build v0.1 - " + now.toLocaleTimeString();
 
 async function loadTodayShifts() {
   const { data, error } = await supabaseClient
