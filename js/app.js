@@ -6,7 +6,7 @@ document.getElementById("current-date").innerText =
   now.toLocaleDateString() + " " + now.toLocaleTimeString();
 
 const APP_VERSION = "v0.1.1";
-const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix";
+const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix 1";
 
 document.getElementById("build-version").innerText =
   APP_VERSION + " – " + APP_CHANGELOG;
