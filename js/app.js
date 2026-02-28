@@ -77,3 +77,29 @@ document.getElementById("save-shift").addEventListener("click", async () => {
 });
 
 loadTodayShifts();
+
+function roundToFiveMinutes(timeString) {
+  if (!timeString) return "";
+
+  const [hours, minutes] = timeString.split(":").map(Number);
+
+  const totalMinutes = hours * 60 + minutes;
+  const rounded = Math.round(totalMinutes / 5) * 5;
+
+  const newHours = Math.floor(rounded / 60);
+  const newMinutes = rounded % 60;
+
+  return (
+    String(newHours).padStart(2, "0") +
+    ":" +
+    String(newMinutes).padStart(2, "0")
+  );
+}
+
+document.getElementById("start-time").addEventListener("change", function () {
+  this.value = roundToFiveMinutes(this.value);
+});
+
+document.getElementById("end-time").addEventListener("change", function () {
+  this.value = roundToFiveMinutes(this.value);
+});
