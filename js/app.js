@@ -61,8 +61,8 @@ async function loadTodayShifts() {
 document.getElementById("save-shift").addEventListener("click", async () => {
   const shift = {
     date: today,
-    start_time: document.getElementById("start-time").value,
-    end_time: document.getElementById("end-time").value,
+   start_time: roundToFiveMinutes(document.getElementById("start-time").value),
+end_time: roundToFiveMinutes(document.getElementById("end-time").value),
     odo_start: parseInt(document.getElementById("odo-start").value),
     odo_end: parseInt(document.getElementById("odo-end").value),
     gross: parseFloat(document.getElementById("gross").value),
