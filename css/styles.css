@@ -1,27 +1,135 @@
+/* ===== Base Reset ===== */
+
+* {
+  box-sizing: border-box;
+}
+
 body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 0;
+  background: #f5f6f8;
+  color: #111;
+}
+
+/* ===== Layout ===== */
+
+.container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* ===== Headings ===== */
+
+h3 {
+  margin-top: 24px;
+  margin-bottom: 12px;
+  font-size: 20px;
+}
+
+/* ===== Inputs ===== */
+
+input, select, button {
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 12px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+/* Prevent zoom on iPhone */
+input, select {
+  font-size: 16px;
+}
+
+/* ===== Buttons ===== */
+
+button {
   background: #111;
-  color: #fff;
+  color: white;
+  border: none;
+  cursor: pointer;
+  transition: 0.2s ease;
 }
 
-.app {
+button:hover {
+  background: #333;
+}
+
+button.small {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 14px;
+  margin-left: 6px;
+}
+
+/* ===== Cards ===== */
+
+.card {
+  background: white;
+  padding: 16px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+}
+
+/* ===== Month Navigation ===== */
+
+.month-nav {
   display: flex;
-  flex-direction: column;
-  height: 100vh;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
 }
 
-header {
-  padding: 16px;
-  background: #1a1a1a;
-  text-align: center;
+.month-nav button {
+  width: auto;
+  padding: 8px 12px;
 }
 
-main {
+/* ===== Financial Emphasis ===== */
+
+.highlight {
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.subtle {
+  color: #666;
+  font-size: 14px;
+}
+
+/* ===== Tab Bar ===== */
+
+.tab-bar {
+  display: flex;
+  justify-content: space-between;
+  background: white;
+  padding: 8px;
+  border-bottom: 1px solid #eee;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.tab-bar button {
   flex: 1;
-  overflow-y: auto;
-  padding: 16px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  padding: 10px 0;
+  color: #666;
 }
+
+.tab-bar button.active-tab {
+  color: #111;
+  font-weight: 600;
+  border-bottom: 2px solid #111;
+}
+
+/* ===== Tab Visibility ===== */
 
 .tab {
   display: none;
@@ -29,26 +137,4 @@ main {
 
 .tab.active {
   display: block;
-}
-
-button {
-  width: 100%;
-  padding: 14px;
-  margin-top: 10px;
-  border: none;
-  border-radius: 8px;
-  font-size: 16px;
-}
-
-nav {
-  display: flex;
-  background: #1a1a1a;
-}
-
-nav button {
-  flex: 1;
-  background: none;
-  color: #fff;
-  padding: 14px;
-  border: none;
 }

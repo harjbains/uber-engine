@@ -1,9 +1,49 @@
+// ================================
+// VERSION
+// ================================
+
+const APP_VERSION = "v0.2.0";
+const APP_CHANGELOG = "Custom time selector + Fuel logging + MPG";
+
+const now = new Date();
+const today = now.toISOString().split("T")[0];
+
+document.getElementById("current-date").innerText =
+  now.toLocaleDateString() + " " + now.toLocaleTimeString();
+
+document.getElementById("build-version").innerText =
+  APP_VERSION + " – " + APP_CHANGELOG;
+
+
+// ================================
+// TAB SWITCHING
+// ================================
+
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab").forEach(tab => {
+      tab.classList.remove("active");
+    });
+
+    const target = document.getElementById(btn.dataset.tab);
+    if (target) {
+      target.classList.add("active");
+    }
+  });
+});
+
+
+// ================================
+// TIME SELECTOR POPULATION
+// ================================
+
 function populateTimeSelectors() {
   const hourSelectors = ["start-hour", "end-hour"];
   const minuteSelectors = ["start-minute", "end-minute"];
 
   hourSelectors.forEach(id => {
     const select = document.getElementById(id);
+    if (!select) return;
     select.innerHTML = "";
     for (let h = 0; h < 24; h++) {
       const hour = String(h).padStart(2, "0");
@@ -13,6 +53,7 @@ function populateTimeSelectors() {
 
   minuteSelectors.forEach(id => {
     const select = document.getElementById(id);
+    if (!select) return;
     select.innerHTML = "";
     for (let m = 0; m < 60; m += 5) {
       const minute = String(m).padStart(2, "0");
@@ -24,20 +65,45 @@ function populateTimeSelectors() {
 populateTimeSelectors();
 
 
-const now = new Date();
+// ================================
+// SHIFT LOGIC
+// ================================
 
-const today = now.toISOString().split("T")[0];
+document.getElementById("save-shift").addEventListener("click", async () => {
 
-document.getElementById("current-date").innerText =
-  now.toLocaleDateString() + " " + now.toLocaleTimeString();
+  const shift = {
+    date: today,
+    start_time:
+      document.getElementById("start-hour").value +
+      ":" +
+      document.getElementById("start-minute").value,
 
-const APP_VERSION = "v0.1.1";
-const APP_CHANGELOG = "5-minute rounding + numeric keyboard fix 4";
+    end_time:
+      document.getElementById("end-hour").value +
+      ":" +
+      document.getElementById("end-minute").value,
 
-document.getElementById("build-version").innerText =
-  APP_VERSION + " – " + APP_CHANGELOG;
+    odo_start: parseInt(document.getElementById("odo-start").value),
+    odo_end: parseInt(document.getElementById("odo-end").value),
+    gross: parseFloat(document.getElementById("gross").value),
+    tips: parseFloat(document.getElementById("tips").value) || 0
+  };
+
+  const { error } = await supabaseClient
+    .from("shifts")
+    .insert([shift]);
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  loadTodayShifts();
+});
+
 
 async function loadTodayShifts() {
+
   const { data, error } = await supabaseClient
     .from("shifts")
     .select("*")
@@ -57,6 +123,7 @@ async function loadTodayShifts() {
   let totalHours = 0;
 
   data.forEach(shift => {
+
     const miles = shift.odo_end - shift.odo_start;
     const gross = Number(shift.gross) + Number(shift.tips || 0);
 
@@ -76,6 +143,7 @@ async function loadTodayShifts() {
         £${gross.toFixed(2)}
       </p>
     `;
+
     shiftList.appendChild(div);
   });
 
@@ -84,49 +152,202 @@ async function loadTodayShifts() {
   document.getElementById("total-hours").innerText = totalHours.toFixed(2);
 }
 
-document.getElementById("save-shift").addEventListener("click", async () => {
-  const shift = {
+loadTodayShifts();
+
+
+// ================================
+// FUEL LOGIC
+// ================================
+
+function updateFuelFromPrice() {
+  const litres = parseFloat(document.getElementById("fuel-litres").value);
+  const price = parseFloat(document.getElementById("fuel-price").value);
+
+  if (!isNaN(litres) && !isNaN(price)) {
+    const total = litres * price;
+    document.getElementById("fuel-cost").value = total.toFixed(2);
+  }
+}
+
+function updateFuelFromCost() {
+  const litres = parseFloat(document.getElementById("fuel-litres").value);
+  const cost = parseFloat(document.getElementById("fuel-cost").value);
+
+  if (!isNaN(litres) && !isNaN(cost) && litres > 0) {
+    const price = cost / litres;
+    document.getElementById("fuel-price").value = price.toFixed(3);
+  }
+}
+
+document.getElementById("fuel-price")
+  .addEventListener("input", updateFuelFromPrice);
+
+document.getElementById("fuel-cost")
+  .addEventListener("input", updateFuelFromCost);
+
+function updateFuelCost() {
+  const litres = parseFloat(document.getElementById("fuel-litres").value);
+  const price = parseFloat(document.getElementById("fuel-price").value);
+
+  if (!isNaN(litres) && !isNaN(price)) {
+    const total = litres * price;
+    document.getElementById("fuel-cost").value = total.toFixed(2);
+  }
+}
+
+document.getElementById("fuel-litres").addEventListener("input", updateFuelCost);
+document.getElementById("fuel-price").addEventListener("input", updateFuelCost);
+
+document.getElementById("save-fuel").addEventListener("click", async () => {
+
+  const fuelEntry = {
     date: today,
-   start_time: roundToFiveMinutes(document.getElementById("start-time").value),
-end_time: roundToFiveMinutes(document.getElementById("end-time").value),
-    odo_start: parseInt(document.getElementById("odo-start").value),
-    odo_end: parseInt(document.getElementById("odo-end").value),
-    gross: parseFloat(document.getElementById("gross").value),
-    tips: parseFloat(document.getElementById("tips").value) || 0
+    odometer: parseInt(document.getElementById("fuel-odometer").value),
+    litres: parseFloat(document.getElementById("fuel-litres").value),
+    total_cost: parseFloat(document.getElementById("fuel-cost").value),
+    station_name: document.getElementById("fuel-station").value || null
   };
 
   const { error } = await supabaseClient
-    .from("shifts")
-    .insert([shift]);
+    .from("fuel_logs")
+    .insert([fuelEntry]);
 
   if (error) {
     console.error(error);
     return;
   }
 
-  loadTodayShifts();
+  loadFuelHistory();
 });
 
-loadTodayShifts();
 
-function roundToFiveMinutes(timeString) {
-  if (!timeString) return "";
+async function loadFuelHistory() {
 
-  const [hours, minutes] = timeString.split(":").map(Number);
+  const { data, error } = await supabaseClient
+    .from("fuel_logs")
+    .select("*")
+    .order("odometer", { ascending: true });
 
-  const totalMinutes = hours * 60 + minutes;
-  const rounded = Math.round(totalMinutes / 5) * 5;
+  if (error) {
+    console.error(error);
+    return;
+  }
 
-  const newHours = Math.floor(rounded / 60);
-  const newMinutes = rounded % 60;
+  const container = document.getElementById("fuel-history");
+  container.innerHTML = "";
 
-  return (
-    String(newHours).padStart(2, "0") +
-    ":" +
-    String(newMinutes).padStart(2, "0")
-  );
+  if (!data || data.length === 0) return;
+
+  let totalMiles = 0;
+  let totalLitres = 0;
+
+  data.forEach((fuel, index) => {
+
+    const pricePerLitre = fuel.total_cost / fuel.litres;
+    let mpgDisplay = "";
+
+    if (index > 0) {
+      const previous = data[index - 1];
+      const milesDriven = fuel.odometer - previous.odometer;
+
+      if (milesDriven > 0 && fuel.litres > 0) {
+        const mpg = (milesDriven / fuel.litres) * 4.54609;
+        mpgDisplay = ` | MPG: ${mpg.toFixed(1)}`;
+
+        totalMiles += milesDriven;
+        totalLitres += fuel.litres;
+      }
+    }
+
+    const div = document.createElement("div");
+div.innerHTML = `
+  <p>
+    Odo: ${fuel.odometer} |
+    ${fuel.station_name ? fuel.station_name + " | " : ""}
+    £${fuel.total_cost.toFixed(2)} |
+    ${fuel.litres}L |
+    £${pricePerLitre.toFixed(2)}/L
+    ${mpgDisplay}
+  </p>
+`;
+
+    container.appendChild(div);
+  });
+
+  if (totalLitres > 0) {
+    const avgMPG = (totalMiles / totalLitres) * 4.54609;
+    const avgDiv = document.createElement("div");
+    avgDiv.innerHTML = `<p><strong>Rolling Avg MPG: ${avgMPG.toFixed(1)}</strong></p>`;
+    container.appendChild(avgDiv);
+  }
 }
 
+loadFuelHistory();
 
+async function loadMonthlyFuelStats() {
 
-console.log("Rounded:", roundToFiveMinutes("09:17"));
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  const monthStartStr = monthStart.toISOString().split("T")[0];
+
+  // Get fuel this month
+  const { data: fuelData, error: fuelError } = await supabaseClient
+    .from("fuel_logs")
+    .select("*")
+    .gte("date", monthStartStr);
+
+  if (fuelError) {
+    console.error(fuelError);
+    return;
+  }
+
+  // Get shifts this month
+  const { data: shiftData, error: shiftError } = await supabaseClient
+    .from("shifts")
+    .select("*")
+    .gte("date", monthStartStr);
+
+  if (shiftError) {
+    console.error(shiftError);
+    return;
+  }
+
+  const totalFuelCost = fuelData.reduce((sum, f) => sum + Number(f.total_cost), 0);
+
+  const totalMiles = shiftData.reduce(
+    (sum, s) => sum + (s.odo_end - s.odo_start),
+    0
+  );
+
+  const totalGross = shiftData.reduce(
+    (sum, s) => sum + Number(s.gross) + Number(s.tips || 0),
+    0
+  );
+
+  const costPerMile =
+    totalMiles > 0 ? totalFuelCost / totalMiles : 0;
+
+  const fuelPercent =
+    totalGross > 0 ? (totalFuelCost / totalGross) * 100 : 0;
+
+  document.getElementById("month-gross").innerText =
+    totalGross.toFixed(2);
+
+  document.getElementById("month-miles").innerText =
+    totalMiles;
+
+  document.getElementById("month-net").innerText =
+    (totalGross - totalFuelCost).toFixed(2);
+
+  const statsDiv = document.createElement("div");
+  statsDiv.innerHTML = `
+    <p>Fuel Total: £${totalFuelCost.toFixed(2)}</p>
+    <p>Fuel Cost Per Mile: £${costPerMile.toFixed(3)}</p>
+    <p>Fuel % of Gross: ${fuelPercent.toFixed(1)}%</p>
+  `;
+
+  const monthSection = document.getElementById("month");
+  monthSection.appendChild(statsDiv);
+}
+
+loadMonthlyFuelStats();
