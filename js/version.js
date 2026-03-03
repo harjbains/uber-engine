@@ -1,20 +1,15 @@
 export function initVersion() {
 
-  const APP_VERSION = "v0.3.0";
-  const APP_CHANGELOG = "Modular structure + Fuel + Shifts";
+  const el = document.getElementById("version_info");
+  if (!el) return;
 
   const now = new Date();
 
-  const currentDate = document.getElementById("current-date");
-  const buildVersion = document.getElementById("build-version");
+  const buildDate = now.toLocaleDateString("en-GB");
+  const buildTime = now.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
 
-  if (currentDate) {
-    currentDate.innerText =
-      now.toLocaleDateString() + " " + now.toLocaleTimeString();
-  }
-
-  if (buildVersion) {
-    buildVersion.innerText =
-      APP_VERSION + " – " + APP_CHANGELOG;
-  }
+  el.textContent = `v0.6.0 • Build ${buildDate} ${buildTime}`;
 }

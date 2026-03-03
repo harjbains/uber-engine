@@ -2,109 +2,87 @@ import { supabaseClient } from "./supabase.js";
 
 export function initFuel() {
 
-  loadFuelHistory();
-
-  const saveBtn = document.getElementById("save-fuel");
-
-  const fuelDateInput = document.getElementById("fuel-date");
-if (fuelDateInput) {
-  fuelDateInput.value = new Date().toISOString().split("T")[0];
-}
-
-  if (saveBtn) {
-    saveBtn.addEventListener("click", saveFuel);
-  }
-
-  const litresInput = document.getElementById("fuel-litres");
-  const priceInput = document.getElementById("fuel-price");
-  const costInput = document.getElementById("fuel-cost");
-
-  litresInput?.addEventListener("input", updateFromPrice);
-  priceInput?.addEventListener("input", updateFromPrice);
-  costInput?.addEventListener("input", updateFromCost);
-}
-
-function updateFromPrice() {
-
-  const litres = parseFloat(document.getElementById("fuel-litres").value);
-  const price = parseFloat(document.getElementById("fuel-price").value);
-
-  if (!isNaN(litres) && !isNaN(price)) {
-    document.getElementById("fuel-cost").value =
-      (litres * price).toFixed(2);
-  }
-}
-
-function updateFromCost() {
-
-  const litres = parseFloat(document.getElementById("fuel-litres").value);
-  const cost = parseFloat(document.getElementById("fuel-cost").value);
-
-  if (!isNaN(litres) && !isNaN(cost) && litres > 0) {
-    document.getElementById("fuel-price").value =
-      (cost / litres).toFixed(3);
-  }
-}
-
-async function saveFuel() {
-
-  const fuelEntry = {
-    date: document.getElementById("fuel-date").value,
-    odometer: parseInt(document.getElementById("fuel-odometer").value),
-    litres: parseFloat(document.getElementById("fuel-litres").value),
-    total_cost: parseFloat(document.getElementById("fuel-cost").value),
-    station_name: document.getElementById("fuel-station").value || null
-  };
-
-  await supabaseClient.from("fuel_logs").insert([fuelEntry]);
-
-  loadFuelHistory();
-}
-
-async function loadFuelHistory() {
-
-  const { data } = await supabaseClient
-    .from("fuel_logs")
-    .select("*")
-    .order("odometer", { ascending: true });
-
-  const container = document.getElementById("fuel-history");
+  const container = document.getElementById("fuel_history");
   if (!container) return;
 
-  container.innerHTML = "";
+  loadFuel();
 
-  data?.forEach(fuel => {
+  async function loadFuel() {
 
-    const pricePerLitre = fuel.total_cost / fuel.litres;
-
-    const div = document.createElement("div");
-div.innerHTML = `
-  <p>
-    Odo: ${fuel.odometer} |
-    ${fuel.station_name ? fuel.station_name + " | " : ""}
-    £${fuel.total_cost.toFixed(2)} |
-    ${fuel.litres}L |
-    £${pricePerLitre.toFixed(2)}/L
-    <button class="delete-fuel" data-id="${fuel.id}">Delete</button>
-  </p>
-`;
-
-    container.appendChild(div);
-  });
-}
-
-document.addEventListener("click", async (e) => {
-
-  if (e.target.classList.contains("delete-fuel")) {
-
-    const id = e.target.dataset.id;
-
-    await supabaseClient
+    const { data, error } = await supabaseClient
       .from("fuel_logs")
-      .delete()
-      .eq("id", id);
+      .select("*")
+      .order("date", { ascending: false });
 
-    loadFuelHistory();
+    if (error) {
+      console.error("Fuel load error:", error);
+      return;
+    }
+
+    renderFuel(data || []);
   }
 
-});
+  function renderFuel(fuelLogs) {
+
+    if (fuelLogs.length === 0) {
+      container.innerHTML = "<p>No fuel logs yet</p>";
+      return;
+    }
+
+    container.innerHTML = fuelLogs.map(fuel => {
+
+      const pricePerLitre =
+        fuel.litres > 0
+          ? (fuel.total_cost / fuel.litres).toFixed(2)
+          : "0.00";
+
+      return `
+        <div class="fuel-grid">
+          <div>${formatUKDate(fuel.date)}</div>
+          <div class="text-right">${fuel.odometer}</div>
+          <div class="text-right">${fuel.litres}</div>
+          <div class="text-right">£${formatMoney(fuel.total_cost)}</div>
+          <div class="text-right">${pricePerLitre}</div>
+          <button class="btn-sm" data-id="${fuel.id}">Del</button>
+        </div>
+      `;
+    }).join("");
+
+    attachDelete();
+  }
+
+  function attachDelete() {
+
+    const buttons = container.querySelectorAll("button");
+
+    buttons.forEach(btn => {
+      btn.addEventListener("click", async () => {
+
+        if (!confirm("Delete this fuel entry?")) return;
+
+        const id = btn.dataset.id;
+
+        await supabaseClient
+          .from("fuel_logs")
+          .delete()
+          .eq("id", id);
+
+        loadFuel();
+      });
+    });
+  }
+
+  function formatMoney(num) {
+    return Number(num || 0).toFixed(2);
+  }
+
+  function formatUKDate(dateStr) {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric"
+    });
+  }
+
+}

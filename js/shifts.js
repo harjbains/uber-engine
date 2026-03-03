@@ -1,193 +1,92 @@
 import { supabaseClient } from "./supabase.js";
 
-let editingShiftId = null;
-
 export function initShifts() {
 
-  populateTimeSelectors();
-  loadTodayShifts();
+  const saveButton = document.getElementById("save_shift");
+  if (!saveButton) return;
 
-  const shiftDateInput = document.getElementById("shift-date");
-if (shiftDateInput) {
-  shiftDateInput.value = new Date().toISOString().split("T")[0];
-}
+  const dateInput = document.getElementById("shift_date");
+  const startInput = document.getElementById("start_time");
+  const endInput = document.getElementById("end_time");
+  const odoStartInput = document.getElementById("odo_start");
+  const odoEndInput = document.getElementById("odo_end");
+  const grossInput = document.getElementById("gross");
+  const tipsInput = document.getElementById("tips");
 
-  const saveBtn = document.getElementById("save-shift");
+  /* =========================
+     ACTIVE SHIFT MEMORY
+  ========================= */
 
-  if (saveBtn) {
-    saveBtn.addEventListener("click", saveShift);
+  const savedOdo = localStorage.getItem("activeShiftOdoStart");
+  if (savedOdo && odoStartInput) {
+    odoStartInput.value = savedOdo;
   }
-}
 
-function populateTimeSelectors() {
-
-  const hourSelectors = ["start-hour", "end-hour"];
-  const minuteSelectors = ["start-minute", "end-minute"];
-
-  hourSelectors.forEach(id => {
-    const select = document.getElementById(id);
-    if (!select) return;
-
-    select.innerHTML = "";
-
-    for (let h = 0; h < 24; h++) {
-      const hour = String(h).padStart(2, "0");
-      select.innerHTML += `<option value="${hour}">${hour}</option>`;
-    }
+  odoStartInput?.addEventListener("input", () => {
+    localStorage.setItem("activeShiftOdoStart", odoStartInput.value);
   });
 
-  minuteSelectors.forEach(id => {
-    const select = document.getElementById(id);
-    if (!select) return;
+  /* =========================
+     SAVE SHIFT
+  ========================= */
 
-    select.innerHTML = "";
+  saveButton.addEventListener("click", async () => {
 
-    for (let m = 0; m < 60; m += 5) {
-      const minute = String(m).padStart(2, "0");
-      select.innerHTML += `<option value="${minute}">${minute}</option>`;
+    const shift = {
+      date: dateInput.value,
+      start_time: startInput.value,
+      end_time: endInput.value,
+      odo_start: parseInt(odoStartInput.value),
+      odo_end: parseInt(odoEndInput.value),
+      gross: parseFloat(grossInput.value) || 0,
+      tips: parseFloat(tipsInput.value) || 0
+    };
+
+    /* ===== Validation ===== */
+
+    if (!shift.date) {
+      alert("Date is required");
+      return;
     }
-  });
-}
 
-async function saveShift() {
+    if (!shift.odo_start || !shift.odo_end) {
+      alert("Odometer start and end required");
+      return;
+    }
 
-  const selectedDate =
-    document.getElementById("shift-date").value;
+    if (shift.odo_end < shift.odo_start) {
+      alert("Odometer end cannot be less than start");
+      return;
+    }
 
-  const shift = {
-    date: selectedDate,
+    /* ===== Insert into Supabase ===== */
 
-    start_time:
-      document.getElementById("start-hour").value +
-      ":" +
-      document.getElementById("start-minute").value,
-
-    end_time:
-      document.getElementById("end-hour").value +
-      ":" +
-      document.getElementById("end-minute").value,
-
-    odo_start: parseInt(document.getElementById("odo-start").value),
-    odo_end: parseInt(document.getElementById("odo-end").value),
-    gross: parseFloat(document.getElementById("gross").value),
-    tips: parseFloat(document.getElementById("tips").value) || 0
-  };
-
-  if (editingShiftId) {
-
-    await supabaseClient
-      .from("shifts")
-      .update(shift)
-      .eq("id", editingShiftId);
-
-    editingShiftId = null;
-
-  } else {
-
-    await supabaseClient
+    const { error } = await supabase
       .from("shifts")
       .insert([shift]);
-  }
 
-  loadTodayShifts();
-  clearShiftForm();
-}
+    if (error) {
+      console.error("Insert error:", error);
+      alert("Error saving shift");
+      return;
+    }
 
-async function loadTodayShifts() {
+    /* ===== Clear Active Shift Memory ===== */
 
-  const today = new Date().toISOString().split("T")[0];
+    localStorage.removeItem("activeShiftOdoStart");
 
-  const { data } = await supabaseClient
-    .from("shifts")
-    .select("*")
-    .eq("date", today)
-    .order("start_time", { ascending: true });
+    /* ===== Reset Form ===== */
 
-  const shiftList = document.getElementById("shift-list");
-  if (!shiftList) return;
+    dateInput.value = "";
+    startInput.value = "";
+    endInput.value = "";
+    odoStartInput.value = "";
+    odoEndInput.value = "";
+    grossInput.value = "";
+    tipsInput.value = "";
 
-  shiftList.innerHTML = "";
+    alert("Shift saved successfully");
 
-  data?.forEach(shift => {
-
-    const miles = shift.odo_end - shift.odo_start;
-    const gross = Number(shift.gross) + Number(shift.tips || 0);
-
-    const div = document.createElement("div");
-div.innerHTML = `
-  <p>
-    ${shift.start_time} - ${shift.end_time} |
-    ${miles} miles |
-    £${gross.toFixed(2)}
-    <button class="edit-shift" data-id="${shift.id}">Edit</button>
-    <button class="delete-shift" data-id="${shift.id}">Delete</button>
-  </p>
-`;
-
-    shiftList.appendChild(div);
   });
-}
 
-document.addEventListener("click", async (e) => {
-
-  // DELETE SHIFT
-  if (e.target.classList.contains("delete-shift")) {
-
-    const id = e.target.dataset.id;
-
-    await supabaseClient
-      .from("shifts")
-      .delete()
-      .eq("id", id);
-
-    loadTodayShifts();
-  }
-
-  // EDIT SHIFT
-  if (e.target.classList.contains("edit-shift")) {
-
-    const id = e.target.dataset.id;
-
-    const { data } = await supabaseClient
-      .from("shifts")
-      .select("*")
-      .eq("id", id)
-      .single();
-
-    if (!data) return;
-
-    editingShiftId = id;
-
-    const [startHour, startMinute] = data.start_time.split(":");
-    const [endHour, endMinute] = data.end_time.split(":");
-
-    document.getElementById("start-hour").value = startHour;
-    document.getElementById("start-minute").value = startMinute;
-    document.getElementById("end-hour").value = endHour;
-    document.getElementById("end-minute").value = endMinute;
-
-    document.getElementById("odo-start").value = data.odo_start;
-    document.getElementById("odo-end").value = data.odo_end;
-    document.getElementById("gross").value = data.gross;
-    document.getElementById("tips").value = data.tips;
-  }
-
-});
-
-function clearShiftForm() {
-
-  // Reset time selectors to defaults (e.g., 00:00)
-  document.getElementById("start-hour").value = "00";
-  document.getElementById("start-minute").value = "00";
-  document.getElementById("end-hour").value = "00";
-  document.getElementById("end-minute").value = "00";
-
-  // Clear numeric fields
-  document.getElementById("odo-start").value = "";
-  document.getElementById("odo-end").value = "";
-  document.getElementById("gross").value = "";
-  document.getElementById("tips").value = "";
-
-  // Reset edit state
-  editingShiftId = null;
 }
