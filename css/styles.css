@@ -167,14 +167,14 @@ input:focus {
 .data-grid {
   display: grid;
   grid-template-columns:
-    90px        /* Date */
-    minmax(55px, 1fr)  /* Odo Start */
-    minmax(55px, 1fr)  /* Odo End */
-    45px        /* Miles */
-    minmax(70px, 1fr)  /* Gross */
-    40px;       /* Delete */
+    1.3fr   /* Date */
+    1fr     /* Odo Start */
+    1fr     /* Odo End */
+    0.8fr   /* Miles */
+    1fr     /* Gross */
+    auto;   /* Delete */
 
-  gap: 12px;
+  gap: 10px;
   align-items: center;
 
   background: #f8f9fb;
@@ -184,6 +184,11 @@ input:focus {
 
   font-size: 12.5px;
   width: 100%;
+  min-width: 0;     /* critical for iOS */
+}
+
+.data-grid > * {
+  min-width: 0;
 }
 
 .data-grid > div {
@@ -197,12 +202,12 @@ input:focus {
 .fuel-grid {
   display: grid;
   grid-template-columns:
-    80px          /* Date */
-    minmax(55px, 1fr)   /* Odo */
-    minmax(45px, 1fr)   /* Litres */
-    minmax(65px, 1fr)   /* Cost */
-    50px           /* £/L */
-    36px;          /* Delete */
+    1.2fr   /* Date */
+    1fr     /* Odo */
+    0.8fr   /* Litres */
+    1fr     /* Cost */
+    0.8fr   /* £/L */
+    auto;   /* Delete */
 
   gap: 10px;
   align-items: center;
@@ -214,6 +219,11 @@ input:focus {
 
   font-size: 12.5px;
   width: 100%;
+  min-width: 0;
+}
+
+.fuel-grid > * {
+  min-width: 0;
 }
 
 .fuel-grid > div {
