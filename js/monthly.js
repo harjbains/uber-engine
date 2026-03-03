@@ -91,35 +91,37 @@ export function initMonthly() {
     `;
   }
 
-  function renderShiftHistory(shifts) {
+  function renderShifts(shifts) {
+  const container = document.getElementById("shiftList");
+  container.innerHTML = "";
 
-    if (shifts.length === 0) {
-      shiftsContainer.innerHTML = "<p>No shifts this month</p>";
-      return;
-    }
+  shifts.forEach(shift => {
 
-    shiftsContainer.innerHTML = shifts.map(shift => {
+    const profitClass =
+      shift.profit >= 0 ? "profit-positive" : "profit-negative";
 
-      const miles = shift.odo_start && shift.odo_end
-        ? shift.odo_end - shift.odo_start
-        : 0;
+    const row = document.createElement("div");
+    row.className = "data-grid";
 
-      const gross = Number(shift.gross || 0) + Number(shift.tips || 0);
+    row.innerHTML = `
+      <div class="row-top">
+        <span class="row-date">${formatShortDate(shift.date)}</span>
+        <span class="row-total">£${shift.net.toFixed(2)}</span>
+      </div>
 
-      return `
-        <div class="data-grid">
-          <div>${formatUKDate(shift.date)}</div>
-          <div class="text-right">${shift.odo_start || ""}</div>
-          <div class="text-right">${shift.odo_end || ""}</div>
-          <div class="text-right">${miles}</div>
-          <div class="text-right">£${formatMoney(gross)}</div>
-          <button class="btn-sm" data-id="${shift.id}">Del</button>
+      <div class="row-bottom">
+        <div class="row-figures">
+          <span>£${shift.income.toFixed(2)}</span>
+          <span>£${shift.fuel.toFixed(2)}</span>
+          <span class="${profitClass}">£${shift.profit.toFixed(2)}</span>
         </div>
-      `;
-    }).join("");
+        <button class="btn-sm" data-id="${shift.id}">✕</button>
+      </div>
+    `;
 
-    attachDeleteListeners();
-  }
+    container.appendChild(row);
+  });
+}
 
   function attachDeleteListeners() {
 
@@ -157,12 +159,10 @@ export function initMonthly() {
 
 }
 
-function formatUKDate(dateStr) {
-  const d = new Date(dateStr);
-
-  return d.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric"
+function formatShortDate(dateStr) {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short"
   });
 }

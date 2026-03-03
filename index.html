@@ -2,17 +2,19 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Uber Engine</title>
   <link rel="stylesheet" href="css/styles.css" />
 </head>
+
 <body>
 
 <div class="app-container">
 
   <h1>Uber Engine</h1>
 
-  <!-- TAB BAR -->
+  <!-- ================= TAB BAR ================= -->
+
   <div class="tab-bar">
     <button class="tab-button active" data-tab="shift_tab">Shift</button>
     <button class="tab-button" data-tab="month_tab">Month</button>
@@ -20,6 +22,7 @@
   </div>
 
   <!-- ================= SHIFT TAB ================= -->
+
   <div id="shift_tab" class="tab-content active">
 
     <div class="card">
@@ -67,6 +70,7 @@
   </div>
 
   <!-- ================= MONTH TAB ================= -->
+
   <div id="month_tab" class="tab-content">
 
     <div class="card">
@@ -76,17 +80,46 @@
 
     <div class="card">
       <h3>Shift History</h3>
-      <div id="month_shifts"></div>
+      <div id="shiftList"></div> <!-- MUST match renderShifts -->
     </div>
 
   </div>
 
   <!-- ================= FUEL TAB ================= -->
+
   <div id="fuel_tab" class="tab-content">
 
     <div class="card">
+      <h3>Log Fuel</h3>
+
+      <label>Date</label>
+      <input type="date" id="fuel_date" />
+
+      <div class="form-row-2">
+        <div>
+          <label>Cost (£)</label>
+          <input type="number" id="fuel_cost" step="0.01" />
+        </div>
+        <div>
+          <label>Litres</label>
+          <input type="number" id="fuel_litres" step="0.01" />
+        </div>
+      </div>
+
+      <div class="form-row-2">
+        <div>
+          <label>Mileage</label>
+          <input type="number" id="fuel_miles" />
+        </div>
+        <div></div>
+      </div>
+
+      <button id="save_fuel" class="btn-primary">Save Fuel</button>
+    </div>
+
+    <div class="card">
       <h3>Fuel History</h3>
-      <div id="fuel_history"></div>
+      <div id="fuelList"></div> <!-- MUST match renderFuel -->
     </div>
 
   </div>
@@ -95,7 +128,7 @@
 
 </div>
 
-<script type="module" src="js/main.js?v=0.6.1"></script>
+<script type="module" src="js/main.js?v=0.6.2"></script>
 
 </body>
 </html>

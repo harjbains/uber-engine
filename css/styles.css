@@ -13,12 +13,12 @@ body {
 .app-container {
   max-width: 480px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 14px;
 }
 
 h1 {
   text-align: center;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 h3 {
@@ -30,7 +30,7 @@ h3 {
 .tab-bar {
   display: flex;
   gap: 6px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .tab-button {
@@ -60,12 +60,11 @@ h3 {
 
 .card {
   background: #ffffff;
-  padding: 16px;
-  border-radius: 12px;
-  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 10px;
+  margin-bottom: 14px;
   box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-
-  overflow: hidden;   /* Important */
+  overflow: hidden;
 }
 
 /* ================= FORM ================= */
@@ -80,11 +79,13 @@ label {
 input {
   width: 100%;
   padding: 9px;
-  font-size: 16px;
+  font-size: 16px; /* Required for iOS */
   margin-top: 4px;
   border-radius: 10px;
   border: 1px solid #dcdcdc;
   background: #fafafa;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 input:focus {
@@ -95,15 +96,19 @@ input:focus {
 
 .form-row-2 {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .form-row-2 > div {
-  flex: 1;
+  flex: 1 1 0;
   min-width: 0;
 }
 
-/* ================= PRIMARY BUTTON ================= */
+input[type="time"] {
+  min-width: 0;
+}
+
+/* ================= BUTTONS ================= */
 
 .btn-primary {
   margin-top: 14px;
@@ -120,11 +125,9 @@ input:focus {
   opacity: 0.9;
 }
 
-/* ================= SMALL DELETE BUTTON ================= */
-
 .btn-sm {
-  padding: 3px 6px;
-  font-size: 10px;
+  padding: 2px 6px;
+  font-size: 11px;
   border-radius: 6px;
   border: none;
   background: #000;
@@ -136,18 +139,18 @@ input:focus {
   opacity: 0.85;
 }
 
-/* ================= SUMMARY GRID ================= */
+/* ================= SUMMARY ================= */
 
 .summary-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 8px;
 }
 
 .summary-item {
   background: #f8f9fb;
-  padding: 10px;
-  border-radius: 10px;
+  padding: 8px;
+  border-radius: 8px;
 }
 
 .summary-item strong {
@@ -159,57 +162,68 @@ input:focus {
 .summary-item span {
   font-size: 15px;
   font-weight: 600;
-}
-
-.text-right {
-  text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
-/* ================= SHIFT ROWS ================= */
+/* ================= SHIFT + FUEL ROWS ================= */
 
 .data-grid,
 .fuel-grid {
-  display: grid;
-  grid-template-columns:
-    auto auto auto auto auto auto;
-
-  gap: 6px;
-  align-items: center;
-
+  display: flex;
+  flex-direction: column;
   background: #f8f9fb;
   padding: 6px 8px;
-  border-radius: 10px;
+  border-radius: 8px;
   margin-bottom: 6px;
-
   font-size: 12px;
-  width: 100%;
 }
 
+/* Top Line */
 
-.data-grid > *,
-.fuel-grid > * {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.row-top {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-date {
   white-space: nowrap;
 }
 
-.data-grid > div {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.row-total {
   white-space: nowrap;
 }
 
-/* ================= FUEL ROWS ================= */
+/* Bottom Line */
 
+.row-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
+.row-figures {
+  display: flex;
+  gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
 
-
-.fuel-grid > div {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.row-figures span {
   white-space: nowrap;
+}
+
+/* Profit Colours */
+
+.profit-positive {
+  color: #0a7d32;
+  font-weight: 600;
+}
+
+.profit-negative {
+  color: #c62828;
+  font-weight: 600;
 }
 
 /* ================= VERSION ================= */
