@@ -94,6 +94,22 @@ input:focus {
   background: #fff;
 }
 
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row > div {
+  flex: 1;
+  min-width: 0;
+}
+
+input[type="time"] {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .form-row-2 {
   display: flex;
   gap: 8px;
