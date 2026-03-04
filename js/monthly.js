@@ -1,168 +1,115 @@
 import { supabaseClient } from "./supabase.js";
 
 export function initMonthly() {
+  loadMonthly();
 
-  const summaryContainer = document.getElementById("month_summary");
-  const shiftsContainer = document.getElementById("month_shifts");
+  document.addEventListener("shiftsUpdated", () => {
+    loadMonthly();
+  });
+}
 
-  if (!summaryContainer || !shiftsContainer) return;
+async function loadMonthly() {
 
-  const currentMonth = new Date();
-  loadMonth(currentMonth);
+  const { data: shifts, error } = await supabaseClient
+    .from("shifts")
+    .select("*")
+    .order("date", { ascending: false });
 
-  async function loadMonth(dateObj) {
-
-    const start = new Date(dateObj.getFullYear(), dateObj.getMonth(), 1);
-    const end = new Date(dateObj.getFullYear(), dateObj.getMonth() + 1, 0);
-
-    const startStr = start.toISOString().split("T")[0];
-    const endStr = end.toISOString().split("T")[0];
-
-    const { data: shifts, error } = await supabaseClient
-      .from("shifts")
-      .select("*")
-      .gte("date", startStr)
-      .lte("date", endStr)
-      .order("date", { ascending: false });
-
-    if (error) {
-      console.error("Monthly fetch error:", error);
-      return;
-    }
-
-    renderMonth(shifts || []);
+  if (error) {
+    console.error("Fetch error:", error);
+    return;
   }
 
-  function renderMonth(shifts) {
+  renderSummary(shifts || []);
+  renderShiftHistory(shifts || []);
+}
 
-    let grossTotal = 0;
-    let milesTotal = 0;
+function renderSummary(shifts) {
 
-    shifts.forEach(shift => {
-      grossTotal += Number(shift.gross || 0) + Number(shift.tips || 0);
+  const container = document.getElementById("month_summary");
+  if (!container) return;
 
-      if (shift.odo_start && shift.odo_end) {
-        milesTotal += (shift.odo_end - shift.odo_start);
-      }
-    });
+  const totalIncome = shifts.reduce((sum, s) =>
+    sum + ((s.gross || 0) + (s.tips || 0)), 0);
 
-    const mileageAllowance = calculateMileageAllowance(milesTotal);
-    const taxableProfit = grossTotal - mileageAllowance;
-    const taxBuffer = taxableProfit > 0 ? taxableProfit * 0.15 : 0;
+  container.innerHTML = `
+    <div class="summary-item">
+      <strong>Total Income</strong>
+      <span>£${totalIncome.toFixed(2)}</span>
+    </div>
+  `;
+}
 
-    renderSummary({
-      grossTotal,
-      milesTotal,
-      mileageAllowance,
-      taxableProfit,
-      taxBuffer
-    });
+function renderShiftHistory(shifts) {
 
-    renderShiftHistory(shifts);
-  }
+  const monthContainer = document.getElementById("shiftList");
+  const shiftTabContainer = document.getElementById("shiftListShiftTab");
 
-  function renderSummary(data) {
+  if (monthContainer) monthContainer.innerHTML = "";
+  if (shiftTabContainer) shiftTabContainer.innerHTML = "";
 
-    summaryContainer.innerHTML = `
-      <div class="summary-item">
-        <strong>Gross</strong>
-        <span class="text-right">£${formatMoney(data.grossTotal)}</span>
-      </div>
-
-      <div class="summary-item">
-        <strong>Miles</strong>
-        <span class="text-right">${data.milesTotal}</span>
-      </div>
-
-      <div class="summary-item">
-        <strong>Allowance</strong>
-        <span class="text-right">£${formatMoney(data.mileageAllowance)}</span>
-      </div>
-
-      <div class="summary-item">
-        <strong>Taxable</strong>
-        <span class="text-right">£${formatMoney(data.taxableProfit)}</span>
-      </div>
-
-      <div class="summary-item">
-        <strong>15% Buffer</strong>
-        <span class="text-right">£${formatMoney(data.taxBuffer)}</span>
-      </div>
-    `;
-  }
-
-  function renderShifts(shifts) {
-  const container = document.getElementById("shiftList");
-  container.innerHTML = "";
+  const todayStr = new Date().toISOString().split("T")[0];
 
   shifts.forEach(shift => {
 
-    const profitClass =
-      shift.profit >= 0 ? "profit-positive" : "profit-negative";
+const miles = (shift.odo_end || 0) - (shift.odo_start || 0);
+const gross = (shift.gross || 0) + (shift.tips || 0);
+const profit = gross; // until fuel linking added
 
-    const row = document.createElement("div");
-    row.className = "data-grid";
+const hours = calculateShiftHours(shift.start_time, shift.end_time);
 
-    row.innerHTML = `
-      <div class="row-top">
-        <span class="row-date">${formatShortDate(shift.date)}</span>
-        <span class="row-total">£${shift.net.toFixed(2)}</span>
+const rowHTML = `
+  <div class="data-grid">
+
+    <div class="row-top">
+      <span class="row-date">${formatShortDate(shift.date)}</span>
+      <span class="row-total">£${profit.toFixed(2)}</span>
+    </div>
+
+    <div class="row-bottom">
+      <div class="row-figures">
+        ${formatTime(shift.start_time)}-${formatTime(shift.end_time)}
+        <span>${miles}mi</span>
+        <span>${hours}h</span>
       </div>
+      <button class="btn-sm" data-id="${shift.id}">✕</button>
+    </div>
 
-      <div class="row-bottom">
-        <div class="row-figures">
-          <span>£${shift.income.toFixed(2)}</span>
-          <span>£${shift.fuel.toFixed(2)}</span>
-          <span class="${profitClass}">£${shift.profit.toFixed(2)}</span>
-        </div>
-        <button class="btn-sm" data-id="${shift.id}">✕</button>
-      </div>
-    `;
+  </div>
+`;
 
-    container.appendChild(row);
-  });
-}
-
-  function attachDeleteListeners() {
-
-    const buttons = shiftsContainer.querySelectorAll("button");
-
-    buttons.forEach(btn => {
-      btn.addEventListener("click", async () => {
-
-        if (!confirm("Delete this shift?")) return;
-
-        const id = btn.dataset.id;
-
-        await supabaseClient
-          .from("shifts")
-          .delete()
-          .eq("id", id);
-
-        loadMonth(currentMonth);
-      });
-    });
-  }
-
-  function calculateMileageAllowance(miles) {
-
-    if (miles <= 10000) {
-      return miles * 0.45;
+    // Month tab → show ALL shifts
+    if (monthContainer) {
+      monthContainer.insertAdjacentHTML("beforeend", rowHTML);
     }
 
-    return (10000 * 0.45) + ((miles - 10000) * 0.25);
-  }
+    // Shift tab → show ONLY today's shifts
+    if (shiftTabContainer && shift.date === todayStr) {
+      shiftTabContainer.insertAdjacentHTML("beforeend", rowHTML);
+    }
 
-  function formatMoney(num) {
-    return Number(num || 0).toFixed(2);
-  }
-
+  });
 }
 
 function formatShortDate(dateStr) {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short"
-  });
+  const [year, month, day] = dateStr.split("-");
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${parseInt(day)} ${monthNames[month - 1]}`;
+}
+
+function calculateShiftHours(start, end) {
+  if (!start || !end) return "0";
+
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+
+  const startMinutes = sh * 60 + sm;
+  const endMinutes = eh * 60 + em;
+
+  return ((endMinutes - startMinutes) / 60).toFixed(1);
+}
+
+function formatTime(timeStr) {
+  if (!timeStr) return "--";
+  return timeStr.slice(0, 5); // keeps HH:MM
 }

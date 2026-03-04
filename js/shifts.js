@@ -61,7 +61,7 @@ export function initShifts() {
 
     /* ===== Insert into Supabase ===== */
 
-    const { error } = await supabase
+    const { error } = await supabaseClient
       .from("shifts")
       .insert([shift]);
 
@@ -84,6 +84,10 @@ export function initShifts() {
     odoEndInput.value = "";
     grossInput.value = "";
     tipsInput.value = "";
+
+    /* ===== Trigger Monthly Refresh ===== */
+
+    document.dispatchEvent(new Event("shiftsUpdated"));
 
     alert("Shift saved successfully");
 
