@@ -1,3 +1,4 @@
+
 /* ================= GLOBAL ================= */
 
 * {
@@ -76,23 +77,30 @@ label {
   color: #555;
 }
 
-input {
+/* Inputs + Selects share identical styling */
+
+input,
+select {
   width: 100%;
   padding: 9px;
-  font-size: 16px; /* Required for iOS */
+  font-size: 16px; /* Required for iOS zoom prevention */
   margin-top: 4px;
   border-radius: 10px;
   border: 1px solid #dcdcdc;
   background: #fafafa;
   min-width: 0;
   box-sizing: border-box;
+  appearance: none;
 }
 
-input:focus {
+input:focus,
+select:focus {
   outline: none;
   border-color: #000;
   background: #fff;
 }
+
+/* ================= FORM ROWS ================= */
 
 .form-row {
   display: flex;
@@ -102,12 +110,6 @@ input:focus {
 .form-row > div {
   flex: 1;
   min-width: 0;
-}
-
-input[type="time"] {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
 }
 
 .form-row-2 {
@@ -120,8 +122,15 @@ input[type="time"] {
   min-width: 0;
 }
 
-input[type="time"] {
-  min-width: 0;
+/* ================= TIME SELECTS ================= */
+
+.time-row {
+  display: flex;
+  gap: 8px;
+}
+
+.time-row select {
+  flex: 1;
 }
 
 /* ================= BUTTONS ================= */
@@ -191,7 +200,7 @@ input[type="time"] {
   padding: 6px 8px;
   border-radius: 8px;
   margin-bottom: 6px;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* Top Line */
@@ -230,7 +239,7 @@ input[type="time"] {
   white-space: nowrap;
 }
 
-/* Profit Colours */
+/* ================= PROFIT COLOURS ================= */
 
 .profit-positive {
   color: #0a7d32;
@@ -250,3 +259,4 @@ input[type="time"] {
   text-align: center;
   margin-top: 12px;
 }
+

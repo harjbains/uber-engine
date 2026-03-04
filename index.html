@@ -1,139 +1,172 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Uber Engine</title>
-  <link rel="stylesheet" href="css/styles.css" />
-  <meta http-equiv="Cache-Control" content="no-store" />
-<meta http-equiv="Pragma" content="no-cache" />
-<meta http-equiv="Expires" content="0" />
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Uber Engine</title>
+
+<link rel="stylesheet" href="css/styles.css">
+
+<meta http-equiv="Cache-Control" content="no-store">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+
 </head>
 
 <body>
 
 <div class="app-container">
 
-  <h1>Uber Engine 1</h1>
+<h1>Uber Engine</h1>
 
-  <!-- ================= TAB BAR ================= -->
+<!-- ================= TAB BAR ================= -->
 
-  <div class="tab-bar">
-    <button class="tab-button active" data-tab="shift_tab">Shift</button>
-    <button class="tab-button" data-tab="month_tab">Month</button>
-    <button class="tab-button" data-tab="fuel_tab">Fuel</button>
-  </div>
+<div class="tab-bar">
+<button class="tab-button active" data-tab="shift_tab">Shift</button>
+<button class="tab-button" data-tab="month_tab">Month</button>
+<button class="tab-button" data-tab="fuel_tab">Fuel</button>
+</div>
 
-  <!-- ================= SHIFT TAB ================= -->
+<!-- ================= SHIFT TAB ================= -->
 
-  <div id="shift_tab" class="tab-content active">
-
-    <div class="card">
-      <h3>Log Shift</h3>
-
-      <label>Date</label>
-      <input type="date" id="shift_date" />
-
-      <div class="form-row-2">
-        <div>
-          <label>Start Time</label>
-          <input type="time" id="start_time"  step="300"/>
-        </div>
-        <div>
-          <label>End Time</label>
-          <input type="time" id="end_time"  step="300"/>
-        </div>
-      </div>
-
-      <div class="form-row-2">
-        <div>
-          <label>Odo Start</label>
-          <input type="number" id="odo_start"  inputmode="numeric"/>
-        </div>
-        <div>
-          <label>Odo End</label>
-          <input type="number" id="odo_end"  inputmode="numeric"/>
-        </div>
-      </div>
-
-      <div class="form-row-2">
-        <div>
-          <label>Gross (£)</label>
-          <input type="number" id="gross" step="0.01"  inputmode="numeric"/>
-        </div>
-        <div>
-          <label>Tips (£)</label>
-          <input type="number" id="tips" step="0.01"  inputmode="numeric"/>
-        </div>
-      </div>
-
-      <button id="save_shift" class="btn-primary">Save Shift</button>
-    </div>
+<div id="shift_tab" class="tab-content active">
 
 <div class="card">
-  <h3>Today's Shifts</h3>
-  <div id="shiftListShiftTab"></div>
+
+<h3>Log Shift</h3>
+
+<label>Date</label>
+<input type="date" id="shift_date">
+
+<div class="form-row-2">
+
+<div>
+<label>Start Time</label>
+
+<div class="time-row">
+<select id="start_hour"></select>
+<select id="start_min"></select>
 </div>
 
 </div>
 
-  
+<div>
+<label>End Time</label>
 
-  <!-- ================= MONTH TAB ================= -->
-
-  <div id="month_tab" class="tab-content">
-
-    <div class="card">
-      <h3>Month Summary</h3>
-      <div id="month_summary" class="summary-grid"></div>
-    </div>
-
-    <div class="card">
-      <h3>Shift History</h3>
-      <div id="shiftList"></div> <!-- MUST match renderShifts -->
-    </div>
-
-  </div>
-
-  <!-- ================= FUEL TAB ================= -->
-
-  <div id="fuel_tab" class="tab-content">
-
-    <div class="card">
-      <h3>Log Fuel</h3>
-
-      <label>Date</label>
-      <input type="date" id="fuel_date" />
-
-      <div class="form-row">
-  <div>
-    <label>Start Time</label>
-    <input type="time" id="start_time" step="300">
-  </div>
-
-  <div>
-    <label>End Time</label>
-    <input type="time" id="end_time" step="300">
-  </div>
+<div class="time-row">
+<select id="end_hour"></select>
+<select id="end_min"></select>
 </div>
 
-      <div class="form-row-2">
-        <div>
-          <label>Mileage</label>
-          <input type="number" id="fuel_miles" />
-        </div>
-        <div></div>
-      </div>
+</div>
 
-      <button id="save_fuel" class="btn-primary">Save Fuel</button>
-    </div>
+</div>
 
-    <div class="card">
-      <h3>Fuel History</h3>
-      <div id="fuel_history"></div> <!-- MUST match renderFuel -->
-    </div>
+<div class="form-row-2">
 
-  </div>
+<div>
+<label>Odo Start</label>
+<input type="number" id="odo_start" inputmode="numeric">
+</div>
+
+<div>
+<label>Odo End</label>
+<input type="number" id="odo_end" inputmode="numeric">
+</div>
+
+</div>
+
+<div class="form-row-2">
+
+<div>
+<label>Gross (£)</label>
+<input type="number" id="gross" step="0.01" inputmode="numeric">
+</div>
+
+<div>
+<label>Tips (£)</label>
+<input type="number" id="tips" step="0.01" inputmode="numeric">
+</div>
+
+</div>
+
+<button id="save_shift" class="btn-primary">
+Save Shift
+</button>
+
+</div>
+
+<div class="card">
+
+<h3>Today's Shifts</h3>
+<div id="shiftListShiftTab"></div>
+
+</div>
+
+</div>
+
+<!-- ================= MONTH TAB ================= -->
+
+<div id="month_tab" class="tab-content">
+
+<div class="card">
+
+<h3>Month Summary</h3>
+<div id="month_summary" class="summary-grid"></div>
+
+</div>
+
+<div class="card">
+
+<h3>Shift History</h3>
+<div id="shiftList"></div>
+
+</div>
+
+</div>
+
+<!-- ================= FUEL TAB ================= -->
+
+<div id="fuel_tab" class="tab-content">
+
+<div class="card">
+
+<h3>Log Fuel</h3>
+
+<label>Date</label>
+<input type="date" id="fuel_date">
+
+<div class="form-row-2">
+
+<div>
+<label>Mileage</label>
+<input type="number" id="fuel_miles" inputmode="numeric">
+</div>
+
+<div></div>
+
+</div>
+
+<button id="save_fuel" class="btn-primary">
+Save Fuel
+</button>
+
+</div>
+
+<div class="card">
+
+<h3>Fuel History</h3>
+<div id="fuel_history"></div>
+
+</div>
+
+</div>
+
+<!-- ================= VERSION ================= -->
 
 <div id="app-version">
 Uber Engine <span id="version-number"></span>
@@ -141,7 +174,9 @@ Uber Engine <span id="version-number"></span>
 
 </div>
 
-<script type="module" src="js/main.js?v=6.5 - <?= Date.now() ?>"></script>
+<script type="module" src="js/main.js?v=0.6.8"></script>
 
 </body>
+
 </html>
+```

@@ -4,7 +4,7 @@ import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.6.7 – UI & Version System Improvements";
+const APP_VERSION = "v0.6.10 – Default End Time to current time";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTabs();
