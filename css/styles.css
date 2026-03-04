@@ -228,9 +228,9 @@ input[type="time"] {
 
 /* ================= VERSION ================= */
 
-.version {
-  text-align: center;
+#app-version {
   font-size: 12px;
   color: #777;
+  text-align: center;
   margin-top: 10px;
 }
