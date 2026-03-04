@@ -11,5 +11,5 @@ export function initVersion() {
     minute: "2-digit"
   });
 
-  el.textContent = `v0.6.0 • Build ${buildDate} ${buildTime}`;
+  el.textContent = `v0.6.4 • Build ${buildDate} ${buildTime}`;
 }
