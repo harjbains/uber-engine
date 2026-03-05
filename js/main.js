@@ -5,31 +5,99 @@ import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.7.0 – Monthly dashboard with HMRC mileage and tax buffer";
+const APP_VERSION = "v0.7.1 – iPhone cache control + pull refresh";
+
+/* ================= PULL TO REFRESH ================= */
+
+function initPullToRefresh() {
+
+  let startY = 0;
+  let pulling = false;
+
+  window.addEventListener("touchstart", (e) => {
+
+    if (window.scrollY === 0) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+
+  }, { passive: true });
+
+  window.addEventListener("touchmove", (e) => {
+
+    if (!pulling) return;
+
+    const y = e.touches[0].clientY;
+    const diff = y - startY;
+
+    if (diff > 90) {
+
+      pulling = false;
+
+      const url = new URL(window.location.href);
+      url.searchParams.set("v", Date.now().toString());
+
+      window.location.replace(url.toString());
+
+    }
+
+  }, { passive: true });
+
+  window.addEventListener("touchend", () => {
+    pulling = false;
+  }, { passive: true });
+
+}
+
+/* ================= SERVICE WORKER ================= */
+
+async function registerServiceWorker() {
+
+  if (!("serviceWorker" in navigator)) return;
+
+  try {
+
+    const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+
+    if (reg.waiting) {
+      reg.waiting.postMessage({ type: "SKIP_WAITING" });
+    }
+
+    reg.addEventListener("updatefound", () => {
+
+      const newWorker = reg.installing;
+
+      if (!newWorker) return;
+
+      newWorker.addEventListener("statechange", () => {
+
+        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+          window.location.reload();
+        }
+
+      });
+
+    });
+
+  } catch (err) {
+
+    console.error("Service Worker registration failed:", err);
+
+  }
+
+}
+
+/* ================= APP START ================= */
 
 document.addEventListener("DOMContentLoaded", () => {
+
   initTabs();
   initShifts();
   initFuel();
   initMonthly();
   initVersion(APP_VERSION);
+
+  initPullToRefresh();
+  registerServiceWorker();
+
 });
-
-document.addEventListener("click", async (e) => {
-
-  const btn = e.target.closest(".delete-btn")
-  if (!btn) return
-
-  const id = btn.dataset.id
-  const table = btn.dataset.table
-
-  if (!confirm("Delete entry?")) return
-
-  const { error } = await supabaseClient
-    .from(table)
-    .delete()
-    .eq("id", id)
-
-  if (!error) location.reload()
-
-})
