@@ -1,10 +1,11 @@
+import { supabaseClient } from "./supabase.js";
 import { initTabs } from "./tabs.js";
 import { initShifts } from "./shifts.js";
 import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.6.11 – UI improvements + delete fix";
+const APP_VERSION = "v0.6.18 – Fix shift delete handler";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTabs();
@@ -24,7 +25,7 @@ document.addEventListener("click", async (e) => {
 
   if (!confirm("Delete entry?")) return
 
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from(table)
     .delete()
     .eq("id", id)

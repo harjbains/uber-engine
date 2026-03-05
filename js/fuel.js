@@ -61,7 +61,7 @@ function renderFuel(container, fuelLogs) {
         <span>${fuel.odometer}mi</span>
         <span>£${pricePerLitre}/L</span>
       </div>
-      <button class="delete-btn" data-id="${row.id}" data-table="fuel">Del</button>
+      <button class="delete-btn" data-id="${fuel.id}" data-table="fuel_logs">Del</button>
     </div>
 
   </div>

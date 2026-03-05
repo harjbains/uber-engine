@@ -72,7 +72,12 @@ const rowHTML = `
         <span>${miles}mi</span>
         <span>${hours}h</span>
       </div>
-      <button class="btn-sm" data-id="${shift.id}">✕</button>
+      <button 
+  class="btn-sm delete-btn"
+  data-id="${shift.id}"
+  data-table="shifts">
+  Del
+</button>
     </div>
 
   </div>
