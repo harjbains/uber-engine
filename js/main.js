@@ -5,7 +5,7 @@ import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.7.2 – Add Net earnings after fuel and tax";
+const APP_VERSION = "v0.7.3 – Pull-to-refresh indicator for iPhone";
 
 /* ================= PULL TO REFRESH ================= */
 
@@ -13,6 +13,8 @@ function initPullToRefresh() {
 
   let startY = 0;
   let pulling = false;
+
+  const indicator = document.getElementById("refresh-indicator");
 
   window.addEventListener("touchstart", (e) => {
 
@@ -34,10 +36,18 @@ function initPullToRefresh() {
 
       pulling = false;
 
-      const url = new URL(window.location.href);
-      url.searchParams.set("v", Date.now().toString());
+      if (indicator) {
+        indicator.classList.add("show");
+      }
 
-      window.location.replace(url.toString());
+      setTimeout(() => {
+
+        const url = new URL(window.location.href);
+        url.searchParams.set("v", Date.now().toString());
+
+        window.location.replace(url.toString());
+
+      }, 300);
 
     }
 

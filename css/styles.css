@@ -278,3 +278,24 @@ input[type="date"] {
   color: #0a7d32;
   font-size: 17px;
 }
+
+/* ================= REFRESH INDICATOR ================= */
+
+#refresh-indicator {
+  position: fixed;
+  top: -60px;
+  left: 0;
+  right: 0;
+  height: 50px;
+  background: #000;
+  color: white;
+  text-align: center;
+  line-height: 50px;
+  font-size: 14px;
+  z-index: 9999;
+  transition: top 0.25s ease;
+}
+
+#refresh-indicator.show {
+  top: 0;
+}
