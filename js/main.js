@@ -1,11 +1,11 @@
-import { supabaseClient } from "./supabase.js";
+
 import { initTabs } from "./tabs.js";
 import { initShifts } from "./shifts.js";
 import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.7.3 – Pull-to-refresh indicator for iPhone";
+const APP_VERSION = "v0.7.3 – Cache control + pull refresh indicator";
 
 /* ================= PULL TO REFRESH ================= */
 
@@ -67,7 +67,10 @@ async function registerServiceWorker() {
 
   try {
 
-    const reg = await navigator.serviceWorker.register("./sw.js", { scope: "./" });
+    const reg = await navigator.serviceWorker.register(
+      "./sw.js?v=0.7.3", 
+      { scope: "./" }
+    );
 
     if (reg.waiting) {
       reg.waiting.postMessage({ type: "SKIP_WAITING" });
@@ -76,12 +79,14 @@ async function registerServiceWorker() {
     reg.addEventListener("updatefound", () => {
 
       const newWorker = reg.installing;
-
       if (!newWorker) return;
 
       newWorker.addEventListener("statechange", () => {
 
-        if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+        if (
+          newWorker.state === "installed" &&
+          navigator.serviceWorker.controller
+        ) {
           window.location.reload();
         }
 
