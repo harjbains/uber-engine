@@ -1,11 +1,10 @@
-
 import { initTabs } from "./tabs.js";
 import { initShifts } from "./shifts.js";
 import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.7.3 – Cache control + pull refresh indicator";
+const APP_VERSION = "v0.7.4 – rollback before service worker";
 
 /* ================= PULL TO REFRESH ================= */
 
@@ -36,9 +35,7 @@ function initPullToRefresh() {
 
       pulling = false;
 
-      if (indicator) {
-        indicator.classList.add("show");
-      }
+      if (indicator) indicator.classList.add("show");
 
       setTimeout(() => {
 
@@ -59,49 +56,6 @@ function initPullToRefresh() {
 
 }
 
-/* ================= SERVICE WORKER ================= */
-
-async function registerServiceWorker() {
-
-  if (!("serviceWorker" in navigator)) return;
-
-  try {
-
-    const reg = await navigator.serviceWorker.register(
-      "./sw.js?v=0.7.3", 
-      { scope: "./" }
-    );
-
-    if (reg.waiting) {
-      reg.waiting.postMessage({ type: "SKIP_WAITING" });
-    }
-
-    reg.addEventListener("updatefound", () => {
-
-      const newWorker = reg.installing;
-      if (!newWorker) return;
-
-      newWorker.addEventListener("statechange", () => {
-
-        if (
-          newWorker.state === "installed" &&
-          navigator.serviceWorker.controller
-        ) {
-          window.location.reload();
-        }
-
-      });
-
-    });
-
-  } catch (err) {
-
-    console.error("Service Worker registration failed:", err);
-
-  }
-
-}
-
 /* ================= APP START ================= */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -112,7 +66,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initMonthly();
   initVersion(APP_VERSION);
 
-  //initPullToRefresh();
-  //registerServiceWorker();
+  initPullToRefresh();
 
 });
