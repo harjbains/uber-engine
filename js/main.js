@@ -5,7 +5,7 @@ import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.7.1 – iPhone cache control + pull refresh";
+const APP_VERSION = "v0.7.2 – Add Net earnings after fuel and tax";
 
 /* ================= PULL TO REFRESH ================= */
 

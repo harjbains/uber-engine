@@ -103,6 +103,8 @@ async function loadMonthly(yyyyMm) {
   // Simple tax buffer for now (tune later): 25% of profit, never negative
   const taxBuffer = Math.max(0, profit * 0.25);
 
+  const net = profit - taxBuffer;
+
   renderMonthlySummary({
     yyyyMm,
     shiftCount,
@@ -118,7 +120,8 @@ async function loadMonthly(yyyyMm) {
     hmrcAllowance,
     taxBuffer,
     milesBeforeThisMonth,
-    taxYearStartStr
+    taxYearStartStr,
+    net
   });
 }
 
@@ -140,6 +143,7 @@ function renderMonthlySummary(m) {
     ${summaryItem("Profit", money(m.profit))}
     ${summaryItem("HMRC Allowance", money(m.hmrcAllowance))}
     ${summaryItem("Tax Buffer (25%)", money(m.taxBuffer))}
+    ${summaryItem("Net (after tax + fuel)", money(m.net), "net-highlight")}
   `;
 }
 
@@ -148,13 +152,15 @@ function renderMonthlyError(msg) {
   if (el) el.innerHTML = `<div>${msg}</div>`;
 }
 
-function summaryItem(label, value) {
+function summaryItem(label, value, extraClass = "") {
+
   return `
-    <div class="summary-item">
+    <div class="summary-item ${extraClass}">
       <strong>${label}</strong>
       <span>${value}</span>
     </div>
   `;
+
 }
 
 function monthRange(yyyyMm) {
