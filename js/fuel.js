@@ -5,6 +5,8 @@ import { supabaseClient } from "./supabase.js";
 
 export function initFuel() {
 
+setDefaultFuelDate()
+
   const saveBtn = document.getElementById("save_fuel");
 
   if (saveBtn) {
@@ -121,3 +123,14 @@ function renderFuel(data) {
 
 }
 
+function setDefaultFuelDate() {
+
+  const today = new Date().toISOString().split("T")[0]
+
+  const fuelDate = document.getElementById("fuel_date")
+
+  if (fuelDate && !fuelDate.value) {
+    fuelDate.value = today
+  }
+
+}
