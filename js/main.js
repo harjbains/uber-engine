@@ -113,6 +113,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initVersion(APP_VERSION);
 
   initPullToRefresh();
-  registerServiceWorker();
+  //registerServiceWorker();
 
 });
