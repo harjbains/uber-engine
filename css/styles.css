@@ -71,7 +71,8 @@ h3 {
 /* ================= FORM ================= */
 
 label {
-  font-size: 12px;
+  font-size: 14px;
+  font-weight: 600;
   margin-top: 10px;
   display: block;
   color: #555;
@@ -98,6 +99,11 @@ select:focus {
   outline: none;
   border-color: #000;
   background: #fff;
+}
+
+input[type="date"] {
+  height: 40px;
+  line-height: 40px;
 }
 
 /* ================= FORM ROWS ================= */
@@ -130,7 +136,8 @@ select:focus {
 }
 
 .time-row select {
-  flex: 1;
+  text-align: center;
+  font-weight: 500;
 }
 
 /* ================= BUTTONS ================= */
@@ -200,7 +207,7 @@ select:focus {
   padding: 6px 8px;
   border-radius: 8px;
   margin-bottom: 6px;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 /* Top Line */
