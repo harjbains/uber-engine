@@ -5,7 +5,7 @@ import { initFuel } from "./fuel.js";
 import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 
-const APP_VERSION = "v0.6.18 – Fix shift delete handler";
+const APP_VERSION = "v0.6.26 – Fix fuel input ID mismatches";
 
 document.addEventListener("DOMContentLoaded", () => {
   initTabs();

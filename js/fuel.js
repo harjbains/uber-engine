@@ -1,21 +1,57 @@
+
 import { supabaseClient } from "./supabase.js";
+
+/* ================= INIT ================= */
 
 export function initFuel() {
 
-console.log("initFuel called. readyState:", document.readyState);
+  const saveBtn = document.getElementById("save_fuel");
 
-  const container = document.getElementById("fuel_history");
-  if (!container) {
-    console.log("fuel_history container not found");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", saveFuel);
+  }
+
+  loadFuel();
+
+}
+
+/* ================= SAVE FUEL ================= */
+
+async function saveFuel() {
+
+  const dateInput = document.getElementById("fuel_date");
+  const stationInput = document.getElementById("fuel_station");
+  const litresInput = document.getElementById("fuel_litres");
+  const costInput = document.getElementById("fuel_cost");
+  const milesInput = document.getElementById("fuel_miles");
+
+  const fuel = {
+
+    date: dateInput.value,
+    station_name: stationInput.value,
+    litres: parseFloat(litresInput.value) || 0,
+    total_cost: parseFloat(costInput.value) || 0,
+    odometer: parseInt(milesInput.value)
+
+  };
+
+  const { error } = await supabaseClient
+    .from("fuel_logs")
+    .insert([fuel]);
+
+  if (error) {
+    console.error(error);
+    alert("Fuel save failed");
     return;
   }
 
-  loadFuel(container);
+  location.reload();
+
 }
 
-/* ================= LOAD ================= */
+/* ================= LOAD FUEL ================= */
 
-async function loadFuel(container) {
+async function loadFuel() {
 
   const { data, error } = await supabaseClient
     .from("fuel_logs")
@@ -23,61 +59,65 @@ async function loadFuel(container) {
     .order("date", { ascending: false });
 
   if (error) {
-    console.error("Fuel load error:", error);
+    console.error(error);
     return;
   }
 
-  renderFuel(container, data || []);
+  renderFuel(data);
+
 }
 
-/* ================= RENDER ================= */
+/* ================= RENDER FUEL ================= */
 
-function renderFuel(container, fuelLogs) {
+function renderFuel(data) {
 
-  if (fuelLogs.length === 0) {
-    container.innerHTML = "<p>No fuel logs yet</p>";
+  const container = document.getElementById("fuel_history");
+
+  if (!container) return;
+
+  if (!data || data.length === 0) {
+
+    container.innerHTML = "No fuel records yet";
     return;
+
   }
 
-  container.innerHTML = fuelLogs.map(fuel => {
+  container.innerHTML = data.map(fuel => `
 
-    const pricePerLitre =
-      fuel.litres > 0
-        ? (fuel.total_cost / fuel.litres).toFixed(2)
-        : "0.00";
-
-    return `
   <div class="fuel-grid">
 
     <div class="row-top">
-      <span class="row-date">${formatShortDate(fuel.date)}</span>
-      <span class="row-total">£${formatMoney(fuel.total_cost)}</span>
+
+      <span class="row-date">${fuel.date}</span>
+
+      <span>£${fuel.total_cost}</span>
+
     </div>
 
     <div class="row-bottom">
+
       <div class="row-figures">
-        <span>${fuel.station_name || ""}</span>
-        <span>${fuel.litres}L</span>
-        <span>${fuel.odometer}mi</span>
-        <span>£${pricePerLitre}/L</span>
+
+        <span>${fuel.station_name}</span>
+        <span>${fuel.litres} L</span>
+        <span>${fuel.odometer} mi</span>
+
       </div>
-      <button class="delete-btn" data-id="${fuel.id}" data-table="fuel_logs">Del</button>
+
+      <button
+        class="btn-sm delete-btn"
+        data-id="${fuel.id}"
+        data-table="fuel_logs">
+
+        Del
+
+      </button>
+
     </div>
 
   </div>
-`;
-  }).join("");
+
+  `).join("");
 
 }
 
-/* ================= HELPERS ================= */
-
-function formatMoney(num) {
-  return Number(num || 0).toFixed(2);
-}
-
-function formatShortDate(dateStr) {
-  const [year, month, day] = dateStr.split("-");
-  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  return `${parseInt(day)} ${monthNames[month - 1]}`;
-}

@@ -1,152 +1,198 @@
+
 import { supabaseClient } from "./supabase.js";
+
+/* ================= INIT ================= */
 
 export function initShifts() {
 
-  populateTimeSelects()
+  populateTimeSelects();
+  setDefaultTimes();
 
-  setDefaultTimes()
+  const saveBtn = document.getElementById("save_shift");
 
-  const now = new Date()
+  if (saveBtn) {
+    saveBtn.addEventListener("click", saveShift);
+  }
 
-  document.getElementById("start_hour").value = now.getHours()
-  document.getElementById("start_min").value = Math.floor(now.getMinutes() / 5) * 5
+  loadShifts();
+}
 
-  const saveButton = document.getElementById("save_shift");
-  if (!saveButton) return;
+/* ================= POPULATE TIME SELECTS ================= */
+
+function populateTimeSelects() {
+
+  const hours = [...Array(24).keys()];
+  const minutes = [0,5,10,15,20,25,30,35,40,45,50,55];
+
+  const hourSelects = ["start_hour","end_hour"];
+  const minSelects = ["start_min","end_min"];
+
+  hourSelects.forEach(id => {
+
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    el.innerHTML = "";
+
+    hours.forEach(h => {
+
+      const opt = document.createElement("option");
+      opt.value = h.toString().padStart(2,"0");
+      opt.textContent = h.toString().padStart(2,"0");
+
+      el.appendChild(opt);
+
+    });
+
+  });
+
+  minSelects.forEach(id => {
+
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    el.innerHTML = "";
+
+    minutes.forEach(m => {
+
+      const opt = document.createElement("option");
+      opt.value = m.toString().padStart(2,"0");
+      opt.textContent = m.toString().padStart(2,"0");
+
+      el.appendChild(opt);
+
+    });
+
+  });
+
+}
+
+/* ================= DEFAULT TIMES ================= */
+
+function setDefaultTimes() {
+
+  const now = new Date();
+
+  const hour = now.getHours().toString().padStart(2,"0");
+  const min = Math.floor(now.getMinutes()/5)*5;
+  const minStr = min.toString().padStart(2,"0");
+
+  document.getElementById("end_hour").value = hour;
+  document.getElementById("end_min").value = minStr;
+
+}
+
+/* ================= SAVE SHIFT ================= */
+
+async function saveShift() {
 
   const dateInput = document.getElementById("shift_date");
-  const startInput = document.getElementById("start_time");
-  const endInput = document.getElementById("end_time");
   const odoStartInput = document.getElementById("odo_start");
   const odoEndInput = document.getElementById("odo_end");
   const grossInput = document.getElementById("gross");
   const tipsInput = document.getElementById("tips");
 
-  /* =========================
-     ACTIVE SHIFT MEMORY
-  ========================= */
+  const start_hour = document.getElementById("start_hour").value;
+  const start_min = document.getElementById("start_min").value;
 
-  const savedOdo = localStorage.getItem("activeShiftOdoStart");
-  if (savedOdo && odoStartInput) {
-    odoStartInput.value = savedOdo;
+  const end_hour = document.getElementById("end_hour").value;
+  const end_min = document.getElementById("end_min").value;
+
+  const start_time = `${start_hour}:${start_min}`;
+  const end_time = `${end_hour}:${end_min}`;
+
+  const shift = {
+
+    date: dateInput.value,
+    start_time,
+    end_time,
+    odo_start: parseInt(odoStartInput.value),
+    odo_end: parseInt(odoEndInput.value),
+    gross: parseFloat(grossInput.value) || 0,
+    tips: parseFloat(tipsInput.value) || 0
+
+  };
+
+  const { error } = await supabaseClient
+    .from("shifts")
+    .insert([shift]);
+
+  if (error) {
+    console.error(error);
+    alert("Shift save failed");
+    return;
   }
 
-  odoStartInput?.addEventListener("input", () => {
-    localStorage.setItem("activeShiftOdoStart", odoStartInput.value);
-  });
-
-  /* =========================
-     SAVE SHIFT
-  ========================= */
-
-  saveButton.addEventListener("click", async () => {
-
-    const shift = {
-      date: dateInput.value,
-      start_time: startInput.value,
-      end_time: endInput.value,
-      odo_start: parseInt(odoStartInput.value),
-      odo_end: parseInt(odoEndInput.value),
-      gross: parseFloat(grossInput.value) || 0,
-      tips: parseFloat(tipsInput.value) || 0
-    };
-
-    /* ===== Validation ===== */
-
-    if (!shift.date) {
-      alert("Date is required");
-      return;
-    }
-
-    if (!shift.odo_start || !shift.odo_end) {
-      alert("Odometer start and end required");
-      return;
-    }
-
-    if (shift.odo_end < shift.odo_start) {
-      alert("Odometer end cannot be less than start");
-      return;
-    }
-
-    /* ===== Insert into Supabase ===== */
-
-    const { error } = await supabaseClient
-      .from("shifts")
-      .insert([shift]);
-
-    if (error) {
-      console.error("Insert error:", error);
-      alert("Error saving shift");
-      return;
-    }
-
-    /* ===== Clear Active Shift Memory ===== */
-
-    localStorage.removeItem("activeShiftOdoStart");
-
-    /* ===== Reset Form ===== */
-
-    dateInput.value = "";
-    startInput.value = "";
-    endInput.value = "";
-    odoStartInput.value = "";
-    odoEndInput.value = "";
-    grossInput.value = "";
-    tipsInput.value = "";
-
-    /* ===== Trigger Monthly Refresh ===== */
-
-    document.dispatchEvent(new Event("shiftsUpdated"));
-
-    alert("Shift saved successfully");
-
-  });
+  location.reload();
 
 }
 
-function populateTimeSelects() {
+/* ================= LOAD SHIFTS ================= */
 
-  const hours = [...Array(24).keys()]
-  const mins = [0,5,10,15,20,25,30,35,40,45,50,55]
+async function loadShifts() {
 
-  const hourSelects = ["start_hour","end_hour"]
-  const minSelects = ["start_min","end_min"]
+  const { data, error } = await supabaseClient
+    .from("shifts")
+    .select("*")
+    .order("date", { ascending: false });
 
-  hourSelects.forEach(id => {
-    const el = document.getElementById(id)
-    hours.forEach(h=>{
-      const opt=document.createElement("option")
-      opt.value=h
-      opt.text=h.toString().padStart(2,"0")
-      el.appendChild(opt)
-    })
-  })
+  if (error) {
+    console.error(error);
+    return;
+  }
 
-  minSelects.forEach(id=>{
-    const el=document.getElementById(id)
-    mins.forEach(m=>{
-      const opt=document.createElement("option")
-      opt.value=m
-      opt.text=m.toString().padStart(2,"0")
-      el.appendChild(opt)
-    })
-  })
+  renderShifts(data);
 
 }
 
-function setDefaultTimes() {
+/* ================= RENDER SHIFTS ================= */
 
-  const now = new Date()
+function renderShifts(data) {
 
-  const hour = now.getHours()
-  const min = Math.floor(now.getMinutes() / 5) * 5
+  const container = document.getElementById("shiftList");
 
-  const startHour = (hour - 4 + 24) % 24
+  if (!container) return;
 
-    document.getElementById("start_hour").value = startHour
-    document.getElementById("start_min").value = min
+  if (!data || data.length === 0) {
 
-  document.getElementById("end_hour").value = hour
-  document.getElementById("end_min").value = min
+    container.innerHTML = "No shifts yet";
+    return;
+
+  }
+
+  container.innerHTML = data.map(shift => `
+
+  <div class="data-grid">
+
+    <div class="row-top">
+      <span class="row-date">${shift.date}</span>
+      <span class="row-total">£${shift.gross}</span>
+    </div>
+
+    <div class="row-bottom">
+
+      <div class="row-figures">
+
+        <span>${shift.start_time}–${shift.end_time}</span>
+
+        <span>${shift.odo_end - shift.odo_start} mi</span>
+
+      </div>
+
+      <button
+        class="btn-sm delete-btn"
+        data-id="${shift.id}"
+        data-table="shifts">
+
+        Del
+
+      </button>
+
+    </div>
+
+  </div>
+
+  `).join("");
 
 }
+
