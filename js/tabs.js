@@ -1,3 +1,5 @@
+
+
 export function initTabs() {
 
   const buttons = document.querySelectorAll(".tab-button");

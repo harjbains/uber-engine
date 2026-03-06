@@ -1,19 +1,44 @@
-
 import { supabaseClient } from "./supabase.js";
+import { TABLES } from "./db.js";
 
 /* ================= INIT ================= */
 
 export function initFuel() {
 
-setDefaultFuelDate()
-
   const saveBtn = document.getElementById("save_fuel");
+  if (saveBtn) saveBtn.addEventListener("click", saveFuel);
 
-  if (saveBtn) {
-    saveBtn.addEventListener("click", saveFuel);
+  const fuelContainer = document.getElementById("fuel_history");
+  if (fuelContainer) {
+    fuelContainer.addEventListener("click", handleFuelDelete);
+  }
+
+  const stationInput = document.getElementById("fuel_station");
+  if (stationInput) {
+    stationInput.addEventListener("input", handleStationSearch);
+  }
+
+  /* CLICK STATION SUGGESTION */
+
+  const suggestions = document.getElementById("station_suggestions");
+
+  if (suggestions) {
+
+    suggestions.addEventListener("click", (e) => {
+
+      const option = e.target.closest(".station-option");
+      if (!option) return;
+
+      stationInput.value = option.dataset.name;
+
+      suggestions.style.display = "none";
+
+    });
+
   }
 
   loadFuel();
+  loadStationSuggestions();
 
 }
 
@@ -30,15 +55,22 @@ async function saveFuel() {
   const fuel = {
 
     date: dateInput.value,
-    station_name: stationInput.value,
+    station_name: stationInput.value.trim(),
     litres: parseFloat(litresInput.value) || 0,
     total_cost: parseFloat(costInput.value) || 0,
-    odometer: parseInt(milesInput.value)
+    odometer: parseInt(milesInput.value) || null
 
   };
 
+  if (!fuel.station_name) {
+    alert("Please enter a station name");
+    return;
+  }
+
+  /* INSERT FUEL LOG */
+
   const { error } = await supabaseClient
-    .from("fuel_logs")
+    .from(TABLES.FUEL_LOGS)
     .insert([fuel]);
 
   if (error) {
@@ -46,6 +78,10 @@ async function saveFuel() {
     alert("Fuel save failed");
     return;
   }
+
+  /* UPDATE STATION USAGE */
+
+  await updateStationUsage(fuel.station_name);
 
   location.reload();
 
@@ -56,7 +92,7 @@ async function saveFuel() {
 async function loadFuel() {
 
   const { data, error } = await supabaseClient
-    .from("fuel_logs")
+    .from(TABLES.FUEL_LOGS)
     .select("*")
     .order("date", { ascending: false });
 
@@ -86,51 +122,187 @@ function renderFuel(data) {
 
   container.innerHTML = data.map(fuel => `
 
-  <div class="fuel-grid">
+    <div class="fuel-grid">
 
-    <div class="row-top">
+      <div class="row-top">
 
-      <span class="row-date">${fuel.date}</span>
-
-      <span>£${fuel.total_cost}</span>
-
-    </div>
-
-    <div class="row-bottom">
-
-      <div class="row-figures">
-
-        <span>${fuel.station_name}</span>
-        <span>${fuel.litres} L</span>
-        <span>${fuel.odometer} mi</span>
+        <span class="row-date">${fuel.date}</span>
+        <span>£${fuel.total_cost}</span>
 
       </div>
 
-      <button
-        class="btn-sm delete-btn"
-        data-id="${fuel.id}"
-        data-table="fuel_logs">
+      <div class="row-bottom">
 
-        Del
+        <div class="row-figures">
 
-      </button>
+          <span>${fuel.station_name}</span>
+          <span>${fuel.litres} L</span>
+          <span>${fuel.odometer} mi</span>
+
+        </div>
+
+        <button
+          class="btn-sm delete-fuel-btn"
+          data-id="${fuel.id}">
+          Del
+        </button>
+
+      </div>
 
     </div>
-
-  </div>
 
   `).join("");
 
 }
 
-function setDefaultFuelDate() {
+/* ================= DELETE FUEL ================= */
 
-  const today = new Date().toISOString().split("T")[0]
+async function handleFuelDelete(e) {
 
-  const fuelDate = document.getElementById("fuel_date")
+  const btn = e.target.closest(".delete-fuel-btn");
 
-  if (fuelDate && !fuelDate.value) {
-    fuelDate.value = today
+  if (!btn) return;
+
+  const id = btn.dataset.id;
+
+  if (!id) return;
+
+  const confirmDelete = confirm("Delete this fuel entry?");
+  if (!confirmDelete) return;
+
+  const { error } = await supabaseClient
+    .from(TABLES.FUEL_LOGS)
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    console.error(error);
+    alert("Delete failed");
+    return;
   }
+
+  loadFuel();
+
+}
+
+/* ================= STATION AUTOCOMPLETE ================= */
+
+async function loadStationSuggestions() {
+
+  const { data, error } = await supabaseClient
+    .from("fuel_stations")
+    .select("*")
+    .order("usage_count", { ascending: false });
+
+  if (error) {
+    console.error(error);
+    return;
+  }
+
+  renderStationSuggestions(data);
+
+}
+
+function renderStationSuggestions(data) {
+
+  const container = document.getElementById("station_suggestions");
+
+  if (!container) return;
+
+  container.innerHTML = data.map(station => `
+
+    <div class="station-option" data-name="${station.station_name}">
+      ${station.station_name}
+    </div>
+
+  `).join("");
+
+}
+
+/* ================= SEARCH FILTER ================= */
+
+function handleStationSearch(e) {
+
+  const query = e.target.value.toLowerCase();
+  const container = document.getElementById("station_suggestions");
+
+  const options = document.querySelectorAll(".station-option");
+
+  let visible = 0;
+
+  options.forEach(opt => {
+
+    const name = opt.dataset.name.toLowerCase();
+
+    if (name.includes(query) && query.length > 0) {
+
+      opt.style.display = "block";
+      visible++;
+
+    } else {
+
+      opt.style.display = "none";
+
+    }
+
+  });
+
+  container.style.display = visible ? "block" : "none";
+
+}
+
+/* ================= STATION USAGE ================= */
+
+async function updateStationUsage(stationName) {
+
+  const { data } = await supabaseClient
+    .from("fuel_stations")
+    .select("*")
+    .eq("station_name", stationName)
+    .single();
+
+  if (!data) {
+
+    await supabaseClient
+      .from("fuel_stations")
+      .insert({
+        station_name: stationName,
+        usage_count: 1
+      });
+
+  } else {
+
+    await supabaseClient
+      .from("fuel_stations")
+      .update({
+        usage_count: data.usage_count + 1
+      })
+      .eq("station_name", stationName);
+
+  }
+
+}
+
+function showTopStations() {
+
+  const container = document.getElementById("station_suggestions");
+  if (!container) return;
+
+  const options = container.querySelectorAll(".station-option");
+
+  let visible = 0;
+
+  options.forEach(opt => {
+
+    if (visible < 5) {
+      opt.style.display = "block";
+      visible++;
+    } else {
+      opt.style.display = "none";
+    }
+
+  });
+
+  container.style.display = visible ? "block" : "none";
 
 }

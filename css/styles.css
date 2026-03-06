@@ -238,8 +238,9 @@ input[type="date"] {
 
 .row-figures {
   display: flex;
-  gap: 8px;
-  font-variant-numeric: tabular-nums;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: #555;
 }
 
 .row-figures span {
@@ -298,4 +299,78 @@ input[type="date"] {
 
 #refresh-indicator.show {
   top: 0;
+}
+
+.week-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+#weekLabel {
+  font-weight: 600;
+}
+
+/* Weekly performance stats */
+
+#weekly-summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  text-align: center;
+  margin-top: 10px;
+}
+
+#weekly-summary span {
+  display: block;
+}
+
+#weekly-summary small {
+  display: block;
+  font-size: 0.75rem;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+#weekly-summary span:last-child {
+  font-weight: 600;
+}
+
+#weekly-summary span {
+  font-size: 1.1rem;
+}
+
+/* ================= STATION AUTOCOMPLETE ================= */
+
+.station-autocomplete {
+  position: relative;
+}
+
+.station-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+
+  background: white;
+  border: 1px solid #ddd;
+  border-top: none;
+
+  border-radius: 0 0 8px 8px;
+
+  max-height: 200px;
+  overflow-y: auto;
+
+  z-index: 100;
+
+  display: none;
+}
+
+.station-option {
+  padding: 10px 12px;
+  cursor: pointer;
+}
+
+.station-option:hover {
+  background: #f3f3f3;
 }

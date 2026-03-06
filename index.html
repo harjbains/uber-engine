@@ -5,7 +5,7 @@
 <head>
 
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="favicon.ico">
 <title>Uber Engine</title>
 
@@ -21,7 +21,7 @@
 
 <div class="app-container">
 
-  <div id="refresh-indicator">Refreshing latest version…</div>
+<div id="refresh-indicator">Refreshing latest version…</div>
 
 <h1>Uber Engine</h1>
 
@@ -103,9 +103,25 @@ Save Shift
 </div>
 
 <div class="card">
+<h3>Weekly Performance</h3>
+<div id="weekly-summary" class="weekly-summary"></div>
+</div>
 
-<h3>Today's Shifts</h3>
-<div id="shiftListShiftTab"></div>
+<div class="card">
+
+<h3>Weekly Shifts</h3>
+
+<div class="week-nav">
+
+<button id="prevWeek" class="btn-sm">← Prev</button>
+
+<span id="weekLabel"></span>
+
+<button id="nextWeek" class="btn-sm">Next →</button>
+
+</div>
+
+<div id="shiftList"></div>
 
 </div>
 
@@ -115,10 +131,12 @@ Save Shift
 
 <div id="month_tab" class="tab-content">
 
-  <div class="card">
-  <h3>Month</h3>
-  <label>Select Month</label>
-  <input type="month" id="month_picker">
+<div class="card">
+<h3>Month</h3>
+
+<label>Select Month</label>
+<input type="month" id="month_picker">
+
 </div>
 
 <div class="card">
@@ -128,19 +146,13 @@ Save Shift
 
 </div>
 
-<div class="card">
 
-<h3>Shift History</h3>
-<div id="shiftList"></div>
-
-</div>
 
 </div>
 
 <!-- ================= FUEL TAB ================= -->
 
 <div id="fuel_tab" class="tab-content">
-
 
 <div class="card">
 
@@ -150,7 +162,18 @@ Save Shift
 <input type="date" id="fuel_date">
 
 <label>Station</label>
-<input type="text" id="fuel_station" placeholder="e.g. Tesco Penn Road">
+
+<div class="station-autocomplete">
+
+  <input
+    type="text"
+    id="fuel_station"
+    placeholder="e.g. Tesco Penn Road"
+    autocomplete="off">
+
+  <div id="station_suggestions" class="station-suggestions"></div>
+
+</div>
 
 <div class="form-row-2">
 
@@ -175,8 +198,6 @@ Save Fuel
 
 </div>
 
-
-
 <div class="card">
 
 <h3>Fuel History</h3>
@@ -194,9 +215,8 @@ Uber Engine <span id="version-number"></span>
 
 </div>
 
-<script type="module" src="js/main.js?v=0.7.3"></script>
+<script type="module" src="js/main.js?v=0.7.5"></script>
 
 </body>
 
 </html>
-

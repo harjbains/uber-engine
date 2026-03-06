@@ -1,6 +1,11 @@
-export function initVersion(version) {
-  const el = document.getElementById("app-version");
-  if (el) {
-    el.textContent = `Uber Engine ${version}`;
-  }
+import { CONFIG } from "./config.js";
+
+export function initVersion() {
+
+  const versionEl = document.getElementById("version-number");
+
+  if (!versionEl) return;
+
+  versionEl.textContent = CONFIG.VERSION;
+
 }
