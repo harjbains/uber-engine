@@ -4,7 +4,7 @@
 
 export const CONFIG = {
 
-  VERSION: "0.7.5",
+  VERSION: "0.7.51",
 
   RELEASE: "stability release - weekly shifts, fuel autocomplete, delete fixes",
 

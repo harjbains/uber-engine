@@ -37,6 +37,8 @@ export function initFuel() {
 
   }
 
+  setDefaultFuelDate();   // ← ADD THIS LINE
+
   loadFuel();
   loadStationSuggestions();
 
@@ -304,5 +306,17 @@ function showTopStations() {
   });
 
   container.style.display = visible ? "block" : "none";
+
+}
+
+function setDefaultFuelDate() {
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const fuelDate = document.getElementById("fuel_date");
+
+  if (fuelDate && !fuelDate.value) {
+    fuelDate.value = today;
+  }
 
 }

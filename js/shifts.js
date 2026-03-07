@@ -25,36 +25,45 @@ export function initShifts() {
   const nextBtn = document.getElementById("nextWeek");
 
   if (prevBtn) {
-    prevBtn.onclick = () => {
+    prevBtn.addEventListener("click", () => {
       currentWeekOffset--;
       loadShifts();
-    };
+    });
   }
 
   if (nextBtn) {
-    nextBtn.onclick = () => {
+    nextBtn.addEventListener("click", () => {
       currentWeekOffset++;
       loadShifts();
-    };
+    });
   }
 
-  const shiftContainer = document.getElementById("shiftList");
+  const container = document.getElementById("shiftList");
 
-  if (shiftContainer) {
-    shiftContainer.addEventListener("click", handleShiftDelete);
+  if (container) {
+    container.addEventListener("click", handleShiftDelete);
   }
 
   loadShifts();
+}
+
+/* ================= SAFE DATE PARSER ================= */
+
+function parseDate(dateStr) {
+
+  const [y,m,d] = dateStr.split("-");
+  return new Date(y, m - 1, d);
+
 }
 
 /* ================= POPULATE TIME SELECTS ================= */
 
 function populateTimeSelects() {
 
-  const hours = [...Array(24).keys()].map(h => String(h).padStart(2, "0"));
-  const minutes = [0,5,10,15,20,25,30,35,40,45,50,55].map(m =>
-    String(m).padStart(2,"0")
-  );
+  const hours = [...Array(24).keys()].map(h => String(h).padStart(2,"0"));
+
+  const minutes = [0,5,10,15,20,25,30,35,40,45,50,55]
+    .map(m => String(m).padStart(2,"0"));
 
   const hourIds = ["start_hour","end_hour"];
   const minIds = ["start_min","end_min"];
@@ -106,6 +115,7 @@ function setDefaultShiftValues() {
   const now = new Date();
 
   const today = now.toISOString().split("T")[0];
+
   const dateInput = document.getElementById("shift_date");
 
   if (dateInput && !dateInput.value) {
@@ -183,20 +193,18 @@ async function loadShifts() {
   const { data, error } = await supabaseClient
     .from(TABLES.SHIFTS)
     .select("*")
-    .order("date",{ ascending:false });
+    .order("date", { ascending:false });
 
   if (error) {
-
     console.error(error);
     return;
-
   }
 
   const { monday, sunday } = getWeekRange(currentWeekOffset);
 
   const weekShifts = data.filter(shift => {
 
-    const shiftDate = new Date(shift.date);
+    const shiftDate = parseDate(shift.date);
 
     return shiftDate >= monday && shiftDate <= sunday;
 
@@ -206,7 +214,7 @@ async function loadShifts() {
 
   updateWeeklySummary(weekShifts);
 
-  updateWeekLabel(monday,sunday);
+  updateWeekLabel(monday, sunday);
 
 }
 
@@ -218,24 +226,23 @@ function renderShifts(data) {
 
   if (!container) return;
 
-  if (!data || data.length === 0) {
-
+  if (!data.length) {
     container.innerHTML = "No shifts logged this week";
     return;
-
   }
 
   container.innerHTML = data.map(shift => {
 
     const date = formatShortDate(shift.date);
-    const gross = shift.gross ?? 0;
 
     const hours = calculateShiftHours(
       shift.start_time,
       shift.end_time
     );
 
-    const hourly = calculateHourlyRate(gross,hours);
+    const gross = shift.gross ?? 0;
+
+    const hourly = calculateHourlyRate(gross, hours);
 
     const miles = calculateMiles(
       shift.odo_start,
@@ -253,10 +260,8 @@ function renderShifts(data) {
     <div class="data-grid">
 
       <div class="row-top">
-
         <span class="row-date">${date}</span>
         <span class="row-total">£${gross}</span>
-
       </div>
 
       <div class="row-bottom">
@@ -291,9 +296,11 @@ function renderShifts(data) {
 async function handleShiftDelete(e) {
 
   const btn = e.target.closest(".delete-btn");
+
   if (!btn) return;
 
   const id = btn.dataset.id;
+
   if (!id) return;
 
   const confirmDelete = confirm("Delete this shift?");
@@ -302,14 +309,12 @@ async function handleShiftDelete(e) {
   const { error } = await supabaseClient
     .from(TABLES.SHIFTS)
     .delete()
-    .eq("id",id);
+    .eq("id", id);
 
   if (error) {
-
     console.error(error);
     alert("Delete failed");
     return;
-
   }
 
   loadShifts();
@@ -335,15 +340,15 @@ function updateWeeklySummary(data) {
 
   });
 
-  const avgRate = totalHours > 0
+  const avgRate = totalHours
     ? totalIncome / totalHours
     : 0;
 
-  const summaryEl = document.getElementById("weekly-summary");
+  const el = document.getElementById("weekly-summary");
 
-  if (!summaryEl) return;
+  if (!el) return;
 
-  summaryEl.innerHTML = `
+  el.innerHTML = `
 
     <span>
       <small>Hours</small>
@@ -366,7 +371,7 @@ function updateWeeklySummary(data) {
 
 /* ================= WEEK LABEL ================= */
 
-function updateWeekLabel(monday,sunday) {
+function updateWeekLabel(monday, sunday) {
 
   const label = document.getElementById("weekLabel");
 
@@ -388,12 +393,18 @@ function getWeekRange(offset = 0) {
   const monday = new Date(now);
 
   const day = monday.getDay();
+
   const diff = (day === 0 ? -6 : 1) - day;
 
-  monday.setDate(monday.getDate() + diff + offset * 7);
+  monday.setDate(monday.getDate() + diff + offset*7);
+
+  monday.setHours(0,0,0,0);
 
   const sunday = new Date(monday);
+
   sunday.setDate(monday.getDate() + 6);
+
+  sunday.setHours(23,59,59,999);
 
   return { monday, sunday };
 
