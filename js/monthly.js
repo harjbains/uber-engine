@@ -101,7 +101,7 @@ async function loadMonthly(yyyyMm) {
   const hmrcAllowance = hmrcMileageAllowance(milesTotal, milesBeforeThisMonth);
 
   // Simple tax buffer for now (tune later): 25% of profit, never negative
-  const taxBuffer = Math.max(0, profit * 0.25);
+  const taxBuffer = Math.max(0, profit * 0.20);
 
   const net = profit - taxBuffer;
 
@@ -142,7 +142,7 @@ function renderMonthlySummary(m) {
     ${summaryItem("Fuel £/mile", `£${Number(m.fuelPerMile || 0).toFixed(2)}`)}
     ${summaryItem("Profit", money(m.profit))}
     ${summaryItem("HMRC Allowance", money(m.hmrcAllowance))}
-    ${summaryItem("Tax Buffer (25%)", money(m.taxBuffer))}
+    ${summaryItem("Tax Buffer (20%)", money(m.taxBuffer))}
     ${summaryItem("Net (after tax + fuel)", money(m.net), "net-highlight")}
   `;
 }
