@@ -1,15 +1,16 @@
-/* ================= APP CONFIG ================= */
-
-/* ================= APP CONFIG ================= */
-
 export const CONFIG = {
 
-  VERSION: "0.7.51",
+    VERSION: "1.0.0",
 
-  RELEASE: "stability release - weekly shifts, fuel autocomplete, delete fixes",
+    TAX_RATE: 0.20,
 
-  DEBUG: false,
+    TAX_BUFFER_RATE: 0.20,   // adjustable anytime
+    MILEAGE_RATE: 0.45,      // HMRC mileage rate
 
-  ENV: "production"
+    DEBUG: true,
+
+    SUPABASE_URL: "https://doaokmhdfwdwtkwxxksx.supabase.co",
+
+    SUPABASE_ANON_KEY: "sb_publishable_r_oYKrDrzU-BGgNIerSu9w_DSLnSTLJ"
 
 };

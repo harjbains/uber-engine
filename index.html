@@ -1,221 +1,176 @@
-
 <!DOCTYPE html>
 <html lang="en">
 
 <head>
-
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="favicon.ico">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <title>Uber Engine</title>
 
 <link rel="stylesheet" href="css/styles.css">
 
-<meta http-equiv="Cache-Control" content="no-store">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-
 </head>
+
 
 <body>
 
-<div class="app-container">
-
-<div id="refresh-indicator">Refreshing latest version…</div>
+<div class="app">
 
 <h1>Uber Engine</h1>
 
-<!-- ================= TAB BAR ================= -->
 
-<div class="tab-bar">
-<button class="tab-button active" data-tab="shift_tab">Shift</button>
-<button class="tab-button" data-tab="month_tab">Month</button>
-<button class="tab-button" data-tab="fuel_tab">Fuel</button>
+<!-- TABS -->
+
+<div class="tabs">
+
+<button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+<button class="tab-btn" data-tab="shifts">Shifts</button>
+<button class="tab-btn" data-tab="fuel">Fuel</button>
+
 </div>
 
-<!-- ================= SHIFT TAB ================= -->
 
-<div id="shift_tab" class="tab-content active">
+
+<!-- DASHBOARD -->
+
+<div id="dashboard" class="tab-page active">
 
 <div class="card">
 
-<h3>Log Shift</h3>
+<h3>Monthly Overview</h3>
 
-<label>Date</label>
-<input type="date" id="shift_date">
+<div class="metrics">
 
-<div class="form-row-2">
+<div class="metric">
+<div class="metric-label">Income</div>
+<div id="metric-income" class="metric-value">£0</div>
+</div>
 
-<div>
-<label>Start Time</label>
+<div class="metric">
+<div class="metric-label">Fuel</div>
+<div id="metric-fuel" class="metric-value">£0</div>
+</div>
 
-<div class="time-row">
-<select id="start_hour"></select>
-<select id="start_min"></select>
+<div class="metric">
+<div class="metric-label">Profit</div>
+<div id="metric-profit" class="metric-value">£0</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">Tax</div>
+<div id="metric-tax" class="metric-value">£0</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">Net Income</div>
+<div id="metric-retained" class="metric-value">£0</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">Miles</div>
+<div id="metric-miles" class="metric-value">0</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">£ / Mile</div>
+<div id="metric-per-mile" class="metric-value">£0</div>
+</div>
+
+<div class="metric">
+<div class="metric-label">£ / Hour</div>
+<div id="metric-per-hour" class="metric-value">£0</div>
 </div>
 
 </div>
 
-<div>
-<label>End Time</label>
-
-<div class="time-row">
-<select id="end_hour"></select>
-<select id="end_min"></select>
 </div>
 
 </div>
 
-</div>
 
-<div class="form-row-2">
 
-<div>
-<label>Odo Start</label>
-<input type="number" id="odo_start" inputmode="numeric">
-</div>
+<!-- SHIFTS -->
 
-<div>
-<label>Odo End</label>
-<input type="number" id="odo_end" inputmode="numeric">
-</div>
-
-</div>
-
-<div class="form-row-2">
-
-<div>
-<label>Gross (£)</label>
-<input type="number" id="gross" step="0.01" inputmode="numeric">
-</div>
-
-<div>
-<label>Tips (£)</label>
-<input type="number" id="tips" step="0.01" inputmode="numeric">
-</div>
-
-</div>
-
-<button id="save_shift" class="btn-primary">
-Save Shift
-</button>
-
-</div>
-
-<div class="card">
-<h3>Weekly Performance</h3>
-<div id="weekly-summary" class="weekly-summary"></div>
-</div>
+<div id="shifts" class="tab-page">
 
 <div class="card">
 
-<h3>Weekly Shifts</h3>
+<h3>Shifts</h3>
 
-<div class="week-nav">
+<form id="shift-form">
 
-<button id="prevWeek" class="btn-sm">← Prev</button>
-
-<span id="weekLabel"></span>
-
-<button id="nextWeek" class="btn-sm">Next →</button>
-
+<div class="form-row">
+<input id="shift-date" type="date" required>
+<input id="shift-hours" type="number" step="0.1" placeholder="Hours">
 </div>
 
-<div id="shiftList"></div>
-
+<div class="form-row">
+<input id="shift-trips" type="number" placeholder="Trips">
+<input id="shift-uber" type="number" step="0.01" placeholder="Uber earnings">
 </div>
 
+<div class="form-row">
+<input id="shift-cash" type="number" step="0.01" placeholder="Cash">
 </div>
 
-<!-- ================= MONTH TAB ================= -->
+<button type="submit" class="primary">Add Shift</button>
 
-<div id="month_tab" class="tab-content">
+</form>
 
-<div class="card">
-<h3>Month</h3>
+<h4 style="margin-top:20px;">Shift History</h4>
 
-<label>Select Month</label>
-<input type="month" id="month_picker">
+<div id="shift-history"></div>
 
 </div>
-
-<div class="card">
-
-<h3>Month Summary</h3>
-<div id="month_summary" class="summary-grid"></div>
 
 </div>
 
 
 
-</div>
+<!-- FUEL -->
 
-<!-- ================= FUEL TAB ================= -->
-
-<div id="fuel_tab" class="tab-content">
+<div id="fuel" class="tab-page">
 
 <div class="card">
 
-<h3>Log Fuel</h3>
+<h3>Fuel</h3>
 
-<label>Date</label>
-<input type="date" id="fuel_date">
+<form id="fuel-form">
 
-<label>Station</label>
-
-<div class="station-autocomplete">
-
-  <input
-    type="text"
-    id="fuel_station"
-    placeholder="e.g. Tesco Penn Road"
-    autocomplete="off">
-
-  <div id="station_suggestions" class="station-suggestions"></div>
-
+<div class="form-row">
+<input type="date" id="fuel-date" required>
+<input type="text" id="fuel-station" placeholder="Station">
 </div>
 
-<div class="form-row-2">
-
-<div>
-<label>Litres</label>
-<input type="number" id="fuel_litres" step="0.01" inputmode="decimal">
+<div class="form-row">
+<input type="number" id="fuel-litres" placeholder="Litres">
+<input type="number" id="fuel-cost" placeholder="Cost (£)">
 </div>
 
-<div>
-<label>Cost (£)</label>
-<input type="number" id="fuel_cost" step="0.01" inputmode="decimal">
+<div class="form-row">
+<input type="number" id="fuel-miles" placeholder="Miles">
 </div>
 
-</div>
+<button class="primary">Add Fuel</button>
 
-<label>Mileage</label>
-<input type="number" id="fuel_miles" inputmode="numeric">
+</form>
 
-<button id="save_fuel" class="btn-primary">
-Save Fuel
-</button>
+<h4 style="margin-top:20px;">Fuel History</h4>
 
-</div>
-
-<div class="card">
-
-<h3>Fuel History</h3>
-<div id="fuel_history"></div>
+<div id="fuel-history"></div>
 
 </div>
 
 </div>
 
-<!-- ================= VERSION ================= -->
 
-<div id="app-version">
-Uber Engine <span id="version-number"></span>
-</div>
+<div class="app-version" id="app-version"></div>
 
 </div>
 
-<script type="module" src="js/main.js?v=0.7.51"></script>
+
+<script type="module" src="js/app.js?v=1.0.0"></script>
 
 </body>
 

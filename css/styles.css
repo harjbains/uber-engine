@@ -1,376 +1,347 @@
-
-/* ================= GLOBAL ================= */
-
-* {
-  box-sizing: border-box;
+*{
+  box-sizing:border-box;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
 }
 
-body {
-  margin: 0;
-  background: #f4f6f8;
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+body{
+  background:#f4f4f4;
+  margin:0;
+  padding:20px;
+  display:flex;
+  justify-content:center;
 }
 
-.app-container {
-  max-width: 480px;
-  margin: 0 auto;
-  padding: 14px;
+.app{
+  width:390px;
 }
 
-h1 {
-  text-align: center;
-  margin-bottom: 14px;
+h1{
+  text-align:center;
+  margin-bottom:10px;
 }
 
-h3 {
-  margin-top: 0;
+
+
+/* -----------------------------
+TABS
+----------------------------- */
+
+.tabs{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  margin-bottom:20px;
 }
 
-/* ================= TABS ================= */
-
-.tab-bar {
-  display: flex;
-  gap: 6px;
-  margin-bottom: 14px;
+.tabs button{
+  border:none;
+  padding:8px 16px;
+  border-radius:8px;
+  background:#ddd;
+  cursor:pointer;
 }
 
-.tab-button {
-  flex: 1;
-  padding: 8px;
-  border-radius: 8px;
-  border: none;
-  background: #e2e6ea;
-  cursor: pointer;
-  font-size: 13px;
+.tabs button.active{
+  background:#333;
+  color:white;
 }
 
-.tab-button.active {
-  background: #000;
-  color: #fff;
+
+
+/* -----------------------------
+CARDS
+----------------------------- */
+
+.card{
+  background:white;
+  border-radius:12px;
+  padding:20px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.1);
+  margin-bottom:20px;
 }
 
-.tab-content {
-  display: none;
+
+
+/* -----------------------------
+METRICS GRID
+----------------------------- */
+
+.metrics{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
 }
 
-.tab-content.active {
-  display: block;
+.metric{
+  background:#fafafa;
+  border-radius:10px;
+  padding:10px;
+  text-align:center;
 }
 
-/* ================= CARDS ================= */
-
-.card {
-  background: #ffffff;
-  padding: 14px;
-  border-radius: 10px;
-  margin-bottom: 14px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-  overflow: hidden;
+.metric-label{
+  font-size:12px;
+  color:#777;
 }
 
-/* ================= FORM ================= */
-
-label {
-  font-size: 14px;
-  font-weight: 600;
-  margin-top: 10px;
-  display: block;
-  color: #555;
+.metric-value{
+  font-size:18px;
+  font-weight:600;
 }
 
-/* Inputs + Selects share identical styling */
 
-input,
-select {
-  width: 100%;
-  padding: 9px;
-  font-size: 16px; /* Required for iOS zoom prevention */
-  margin-top: 4px;
-  border-radius: 10px;
-  border: 1px solid #dcdcdc;
-  background: #fafafa;
-  min-width: 0;
-  box-sizing: border-box;
-  appearance: none;
+
+/* -----------------------------
+FORMS
+----------------------------- */
+
+.form-row{
+  display:flex;
+  gap:10px;
+  margin-bottom:10px;
 }
 
-input:focus,
-select:focus {
-  outline: none;
-  border-color: #000;
-  background: #fff;
+.form-row input{
+  flex:1;
 }
 
-input[type="date"] {
-  height: 40px;
-  line-height: 40px;
+input,select{
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #ccc;
+  font-size:14px;
+  height:38px;
 }
 
-/* ================= FORM ROWS ================= */
-
-.form-row {
-  display: flex;
-  gap: 12px;
+button.primary{
+  width:100%;
+  padding:10px;
+  border:none;
+  border-radius:8px;
+  background:#333;
+  color:white;
+  cursor:pointer;
 }
 
-.form-row > div {
-  flex: 1;
-  min-width: 0;
+
+
+/* -----------------------------
+SHIFT HISTORY
+----------------------------- */
+
+.shift-card{
+  background:white;
+  border-radius:10px;
+  padding:14px;
+  margin-bottom:12px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.08);
 }
 
-.form-row-2 {
-  display: flex;
-  gap: 8px;
+.shift-header{
+  display:flex;
+  justify-content:space-between;
+  font-weight:600;
+  margin-bottom:6px;
 }
 
-.form-row-2 > div {
-  flex: 1 1 0;
-  min-width: 0;
+.shift-date{
+  font-weight:600;
 }
 
-/* ================= TIME SELECTS ================= */
-
-.time-row {
-  display: flex;
-  gap: 8px;
+.shift-total{
+  font-weight:600;
 }
 
-.time-row select {
-  text-align: center;
-  font-weight: 500;
+.shift-stats{
+  display:flex;
+  justify-content:space-between;
+  font-size:14px;
+  color:#444;
+  margin-bottom:10px;
 }
 
-/* ================= BUTTONS ================= */
-
-.btn-primary {
-  margin-top: 14px;
-  padding: 9px 14px;
-  font-size: 13px;
-  border-radius: 8px;
-  border: none;
-  background: #000;
-  color: white;
-  cursor: pointer;
+.delete-btn{
+  margin-top:6px;
+  width:100%;
+  padding:8px;
+  border:none;
+  background:#e74c3c;
+  color:white;
+  border-radius:6px;
+  cursor:pointer;
 }
 
-.btn-primary:hover {
-  opacity: 0.9;
+.delete-btn:hover{
+  background:#c0392b;
 }
 
-.btn-sm {
-  padding: 2px 6px;
-  font-size: 11px;
-  border-radius: 6px;
-  border: none;
-  background: #000;
-  color: white;
-  cursor: pointer;
+
+
+/* -----------------------------
+FUEL HISTORY
+----------------------------- */
+
+#fuel-history{
+  margin-top:15px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
 }
 
-.btn-sm:hover {
-  opacity: 0.85;
+.fuel-card{
+  background:white;
+  border-radius:10px;
+  padding:14px;
+  margin-top:10px;
+  box-shadow:0 2px 6px rgba(0,0,0,0.08);
 }
 
-/* ================= SUMMARY ================= */
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+.fuel-header{
+  font-weight:600;
 }
 
-.summary-item {
-  background: #f8f9fb;
-  padding: 8px;
-  border-radius: 8px;
+.fuel-station{
+  font-size:0.85rem;
+  color:#666;
+  margin-bottom:8px;
 }
 
-.summary-item strong {
-  font-size: 11px;
-  display: block;
-  color: #666;
+.fuel-stats{
+  display:flex;
+  justify-content:space-between;
+  margin-top:6px;
+  font-size:0.9rem;
 }
 
-.summary-item span {
-  font-size: 15px;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
+
+
+/* -----------------------------
+DELETE BUTTON
+----------------------------- */
+
+.delete-btn{
+  margin-top:10px;
+  width:100%;
+  padding:8px;
+  border:none;
+  background:#e74c3c;
+  color:white;
+  border-radius:6px;
+  cursor:pointer;
 }
 
-/* ================= SHIFT + FUEL ROWS ================= */
-
-.data-grid,
-.fuel-grid {
-  display: flex;
-  flex-direction: column;
-  background: #f8f9fb;
-  padding: 6px 8px;
-  border-radius: 8px;
-  margin-bottom: 6px;
-  font-size: 14px;
+.delete-btn:hover{
+  background:#c0392b;
 }
 
-/* Top Line */
 
-.row-top {
-  display: flex;
-  justify-content: space-between;
-  font-weight: 600;
-  margin-bottom: 2px;
-  font-variant-numeric: tabular-nums;
+
+/* -----------------------------
+TABLES (fallback)
+----------------------------- */
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:12px;
 }
 
-.row-date {
-  white-space: nowrap;
+th,td{
+  padding:8px;
+  text-align:left;
+  font-size:13px;
 }
 
-.row-total {
-  white-space: nowrap;
+th{
+  background:#eee;
 }
 
-/* Bottom Line */
 
-.row-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+
+/* -----------------------------
+TAB PAGES
+----------------------------- */
+
+.tab-page{
+  display:none;
 }
 
-.row-figures {
-  display: flex;
-  gap: 10px;
-  font-size: 0.85rem;
-  color: #555;
+.tab-page.active{
+  display:block;
 }
 
-.row-figures span {
-  white-space: nowrap;
+
+
+/* -----------------------------
+MONTH NAV
+----------------------------- */
+
+.nav-month{
+  display:flex;
+  justify-content:center;
+  gap:8px;
+  margin-bottom:10px;
 }
 
-/* ================= PROFIT COLOURS ================= */
-
-.profit-positive {
-  color: #0a7d32;
-  font-weight: 600;
+.nav-month button{
+  border:none;
+  border-radius:6px;
+  padding:4px 8px;
 }
 
-.profit-negative {
-  color: #c62828;
-  font-weight: 600;
+
+
+/* -----------------------------
+MOBILE TABLE FALLBACK
+----------------------------- */
+
+@media (max-width:420px){
+
+  table thead{
+    display:none;
+  }
+
+  table tr{
+    display:block;
+    background:#fafafa;
+    border-radius:10px;
+    padding:12px;
+    margin-bottom:10px;
+  }
+
+  table td{
+    display:block;
+    padding:2px 0;
+  }
+
+  table td:nth-child(1){
+    font-weight:600;
+  }
+
+  table td:nth-child(2){
+    color:#555;
+    margin-bottom:6px;
+  }
+
+  table td:nth-child(3),
+  table td:nth-child(4),
+  table td:nth-child(5),
+  table td:nth-child(6){
+    display:inline-block;
+    margin-right:12px;
+    font-size:14px;
+  }
+
+  table td:nth-child(6){
+    float:right;
+  }
+
 }
 
-/* ================= VERSION ================= */
-
-#app-version {
-  font-size: 12px;
-  color: #777;
-  text-align: center;
-  margin-top: 12px;
-}
-
-/* Net highlight */
-
-.net-highlight {
-  background: #e8f5e9;
-}
-
-.net-highlight span {
-  font-weight: 700;
-  color: #0a7d32;
-  font-size: 17px;
-}
-
-/* ================= REFRESH INDICATOR ================= */
-
-#refresh-indicator {
-  position: fixed;
-  top: -60px;
-  left: 0;
-  right: 0;
-  height: 50px;
-  background: #000;
-  color: white;
-  text-align: center;
-  line-height: 50px;
-  font-size: 14px;
-  z-index: 9999;
-  transition: top 0.25s ease;
-}
-
-#refresh-indicator.show {
-  top: 0;
-}
-
-.week-nav {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-
-#weekLabel {
-  font-weight: 600;
-}
-
-/* Weekly performance stats */
-
-#weekly-summary {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  text-align: center;
-  margin-top: 10px;
-}
-
-#weekly-summary span {
-  display: block;
-}
-
-#weekly-summary small {
-  display: block;
-  font-size: 0.75rem;
-  color: #666;
-  margin-bottom: 4px;
-}
-
-#weekly-summary span:last-child {
-  font-weight: 600;
-}
-
-#weekly-summary span {
-  font-size: 1.1rem;
-}
-
-/* ================= STATION AUTOCOMPLETE ================= */
-
-.station-autocomplete {
-  position: relative;
-}
-
-.station-suggestions {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-
-  background: white;
-  border: 1px solid #ddd;
-  border-top: none;
-
-  border-radius: 0 0 8px 8px;
-
-  max-height: 200px;
-  overflow-y: auto;
-
-  z-index: 100;
-
-  display: none;
-}
-
-.station-option {
-  padding: 10px 12px;
-  cursor: pointer;
-}
-
-.station-option:hover {
-  background: #f3f3f3;
+.app-version{
+  text-align:center;
+  font-size:12px;
+  color:#777;
+  margin-top:10px;
 }

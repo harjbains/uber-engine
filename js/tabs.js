@@ -1,38 +1,41 @@
+import { loadShifts } from "./shifts.js";
+import { loadFuelTable } from "./fuel.js";
 
 
-export function initTabs() {
+export function initTabs(){
 
-  const buttons = document.querySelectorAll(".tab-button");
-  const contents = document.querySelectorAll(".tab-content");
+    const buttons = document.querySelectorAll(".tab-btn");
 
-  buttons.forEach(button => {
-    button.addEventListener("click", () => {
+    buttons.forEach(btn => {
 
-      const tabId = button.dataset.tab;
+        btn.addEventListener("click", () => {
 
-      // Remove active from all buttons
-      buttons.forEach(btn => btn.classList.remove("active"));
-      button.classList.add("active");
+            const tab = btn.dataset.tab;
 
-      // Hide all tab contents
-      contents.forEach(content => {
-        content.classList.remove("active");
-      });
+            switchTab(tab);
 
-      // Show selected tab
-      const selected = document.getElementById(tabId);
-      if (selected) {
-        selected.classList.add("active");
-      }
-
-      // 🔥 Notify system which tab is active
-      document.dispatchEvent(
-        new CustomEvent("tabChanged", { detail: tabId })
-      );
-
-      
+        });
 
     });
-  });
+
+}
+
+
+
+function switchTab(tab){
+
+  document.querySelectorAll(".tab-page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+
+  document.getElementById(tab).classList.add("active");
+  document.querySelector(`[data-tab="${tab}"]`).classList.add("active");
+
+  if(tab === "shifts"){
+    loadShifts();
+  }
+
+  if(tab === "fuel"){
+    loadFuelTable();
+  }
 
 }

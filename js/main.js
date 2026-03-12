@@ -5,8 +5,6 @@ import { initMonthly } from "./monthly.js";
 import { initVersion } from "./version.js";
 import { CONFIG } from "./config.js";
 
-const APP_VERSION = "v0.7.4 – rollback before service worker";
-
 /* ================= PULL TO REFRESH ================= */
 
 
