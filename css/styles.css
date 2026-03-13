@@ -345,3 +345,26 @@ MOBILE TABLE FALLBACK
   color:#777;
   margin-top:10px;
 }
+
+.time-row{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+margin-bottom:10px;
+}
+
+.time-row select{
+flex:1;
+height:38px;
+border-radius:8px;
+border:1px solid #ccc;
+padding:6px;
+font-size:14px;
+}
+
+.earnings-grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+margin-bottom:10px;
+}

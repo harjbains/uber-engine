@@ -1,8 +1,5 @@
 import { getShifts, addShift, deleteShift } from "./db.js";
 
-const history = document.getElementById("shift-history");
-const form = document.getElementById("shift-form");
-
 
 export async function loadShifts(){
 
@@ -84,6 +81,7 @@ function renderShiftCard(shift){
 }
 
 
+
 export function initShiftForm(){
 
   const form = document.getElementById("shift-form");
@@ -94,25 +92,39 @@ export function initShiftForm(){
 
     const date = document.getElementById("shift-date").value;
 
-    const hours = Number(document.getElementById("shift-hours").value) || 0;
+    const startHour = document.getElementById("shift-start-hour").value;
+    const startMin = document.getElementById("shift-start-min").value;
 
-    const trips = Number(document.getElementById("shift-trips").value) || 0;
+    const endHour = document.getElementById("shift-end-hour").value;
+    const endMin = document.getElementById("shift-end-min").value;
 
-    const uber = Number(document.getElementById("shift-uber").value) || 0;
+    const start_time = `${startHour}:${startMin}:00`;
+    const end_time = `${endHour}:${endMin}:00`;
 
-    const cash = Number(document.getElementById("shift-cash").value) || 0;
+    const odo_start = Number(document.getElementById("shift-odo-start").value) || 0;
+    const odo_end = Number(document.getElementById("shift-odo-end").value) || 0;
+
+    const gross = Number(document.getElementById("shift-gross").value) || 0;
+    const tips = Number(document.getElementById("shift-tips").value) || 0;
 
     const shift = {
       date,
-      hours,
-      trips,
-      uber,
-      cash
+      start_time,
+      end_time,
+      odo_start,
+      odo_end,
+      gross,
+      tips
     };
 
     console.log("Saving shift:", shift);
 
-    await addShift(shift);
+    const { error } = await addShift(shift);
+
+    if(error){
+      console.error("Insert failed:", error);
+      return;
+    }
 
     form.reset();
 
