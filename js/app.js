@@ -2,91 +2,160 @@
 // VERSION
 // ================================
 
-const APP_VERSION = "v0.2.0";
-const APP_CHANGELOG = "Custom time selector + Fuel logging + MPG";
+const APP_VERSION = "v1.0.0";
+const APP_CHANGELOG = "Initial production release";
+
+const versionElement = document.getElementById("version-number");
+
+if (versionElement) {
+  versionElement.textContent = APP_VERSION + " – " + APP_CHANGELOG;
+}
+
+
+// ================================
+// DATE
+// ================================
 
 const now = new Date();
 const today = now.toISOString().split("T")[0];
 
-document.getElementById("current-date").innerText =
-  now.toLocaleDateString() + " " + now.toLocaleTimeString();
+// ================================
+// SET DEFAULT DATES
+// ================================
 
-document.getElementById("build-version").innerText =
-  APP_VERSION + " – " + APP_CHANGELOG;
+function setDefaultDates() {
+
+  const shiftDate = el("shift_date");
+  const fuelDate = el("fuel_date");
+  const expenseDate = el("expense-date");
+
+  if (shiftDate) shiftDate.value = today;
+  if (fuelDate) fuelDate.value = today;
+  if (expenseDate) expenseDate.value = today;
+
+}
+
+setDefaultDates();
+
+
+
+
+
+function el(id) {
+  return document.getElementById(id);
+}
 
 
 // ================================
 // TAB SWITCHING
 // ================================
 
-document.querySelectorAll("nav button").forEach(btn => {
+document.querySelectorAll(".tab-button").forEach(btn => {
+
   btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab").forEach(tab => {
+
+    document.querySelectorAll(".tab-content").forEach(tab => {
       tab.classList.remove("active");
     });
 
-    const target = document.getElementById(btn.dataset.tab);
+    document.querySelectorAll(".tab-button").forEach(b => {
+      b.classList.remove("active");
+    });
+
+    const target = el(btn.dataset.tab);
+
     if (target) {
       target.classList.add("active");
+      btn.classList.add("active");
     }
+
   });
+
 });
 
 
 // ================================
-// TIME SELECTOR POPULATION
+// TIME SELECTORS
 // ================================
 
 function populateTimeSelectors() {
-  const hourSelectors = ["start-hour", "end-hour"];
-  const minuteSelectors = ["start-minute", "end-minute"];
+
+  const hourSelectors = ["start_hour", "end_hour"];
+  const minuteSelectors = ["start_min", "end_min"];
 
   hourSelectors.forEach(id => {
-    const select = document.getElementById(id);
+
+    const select = el(id);
     if (!select) return;
+
     select.innerHTML = "";
+
     for (let h = 0; h < 24; h++) {
+
       const hour = String(h).padStart(2, "0");
-      select.innerHTML += `<option value="${hour}">${hour}</option>`;
+
+      const option = document.createElement("option");
+      option.value = hour;
+      option.textContent = hour;
+
+      select.appendChild(option);
+
     }
+
   });
 
   minuteSelectors.forEach(id => {
-    const select = document.getElementById(id);
+
+    const select = el(id);
     if (!select) return;
+
     select.innerHTML = "";
+
     for (let m = 0; m < 60; m += 5) {
+
       const minute = String(m).padStart(2, "0");
-      select.innerHTML += `<option value="${minute}">${minute}</option>`;
+
+      const option = document.createElement("option");
+      option.value = minute;
+      option.textContent = minute;
+
+      select.appendChild(option);
+
     }
+
   });
+
 }
 
 populateTimeSelectors();
 
 
 // ================================
-// SHIFT LOGIC
+// SHIFT SAVE
 // ================================
 
-document.getElementById("save-shift").addEventListener("click", async () => {
+el("save_shift")?.addEventListener("click", async () => {
 
   const shift = {
-    date: today,
+
+    date: el("shift_date")?.value || today,
+
     start_time:
-      document.getElementById("start-hour").value +
+      el("start_hour")?.value +
       ":" +
-      document.getElementById("start-minute").value,
+      el("start_min")?.value,
 
     end_time:
-      document.getElementById("end-hour").value +
+      el("end_hour")?.value +
       ":" +
-      document.getElementById("end-minute").value,
+      el("end_min")?.value,
 
-    odo_start: parseInt(document.getElementById("odo-start").value),
-    odo_end: parseInt(document.getElementById("odo-end").value),
-    gross: parseFloat(document.getElementById("gross").value),
-    tips: parseFloat(document.getElementById("tips").value) || 0
+    odo_start: parseInt(el("odo_start")?.value) || 0,
+    odo_end: parseInt(el("odo_end")?.value) || 0,
+
+    gross: parseFloat(el("gross")?.value) || 0,
+    tips: parseFloat(el("tips")?.value) || 0
+
   };
 
   const { error } = await supabaseClient
@@ -94,118 +163,77 @@ document.getElementById("save-shift").addEventListener("click", async () => {
     .insert([shift]);
 
   if (error) {
-    console.error(error);
+    console.error("Shift save error:", error);
     return;
   }
 
-  loadTodayShifts();
+  loadShiftHistory();
+
 });
 
 
-async function loadTodayShifts() {
+// ================================
+// SHIFT HISTORY
+// ================================
+
+async function loadShiftHistory() {
 
   const { data, error } = await supabaseClient
     .from("shifts")
     .select("*")
-    .eq("date", today)
-    .order("start_time", { ascending: true });
+    .order("date", { ascending: false })
+    .limit(50);
 
   if (error) {
     console.error(error);
     return;
   }
 
-  const shiftList = document.getElementById("shift-list");
-  shiftList.innerHTML = "";
+  const container = el("shiftListShiftTab");
+  if (!container) return;
 
-  let totalMiles = 0;
-  let totalGross = 0;
-  let totalHours = 0;
+  container.innerHTML = "";
 
   data.forEach(shift => {
 
     const miles = shift.odo_end - shift.odo_start;
     const gross = Number(shift.gross) + Number(shift.tips || 0);
 
-    const start = new Date(`1970-01-01T${shift.start_time}`);
-    const end = new Date(`1970-01-01T${shift.end_time}`);
-    const hours = (end - start) / (1000 * 60 * 60);
-
-    totalMiles += miles;
-    totalGross += gross;
-    totalHours += hours;
-
     const div = document.createElement("div");
+
     div.innerHTML = `
       <p>
+        ${shift.date} |
         ${shift.start_time} - ${shift.end_time} |
         ${miles} miles |
         £${gross.toFixed(2)}
       </p>
     `;
 
-    shiftList.appendChild(div);
+    container.appendChild(div);
+
   });
 
-  document.getElementById("total-miles").innerText = totalMiles;
-  document.getElementById("total-gross").innerText = totalGross.toFixed(2);
-  document.getElementById("total-hours").innerText = totalHours.toFixed(2);
 }
 
-loadTodayShifts();
+loadShiftHistory();
 
 
 // ================================
-// FUEL LOGIC
+// SAVE FUEL
 // ================================
 
-function updateFuelFromPrice() {
-  const litres = parseFloat(document.getElementById("fuel-litres").value);
-  const price = parseFloat(document.getElementById("fuel-price").value);
-
-  if (!isNaN(litres) && !isNaN(price)) {
-    const total = litres * price;
-    document.getElementById("fuel-cost").value = total.toFixed(2);
-  }
-}
-
-function updateFuelFromCost() {
-  const litres = parseFloat(document.getElementById("fuel-litres").value);
-  const cost = parseFloat(document.getElementById("fuel-cost").value);
-
-  if (!isNaN(litres) && !isNaN(cost) && litres > 0) {
-    const price = cost / litres;
-    document.getElementById("fuel-price").value = price.toFixed(3);
-  }
-}
-
-document.getElementById("fuel-price")
-  .addEventListener("input", updateFuelFromPrice);
-
-document.getElementById("fuel-cost")
-  .addEventListener("input", updateFuelFromCost);
-
-function updateFuelCost() {
-  const litres = parseFloat(document.getElementById("fuel-litres").value);
-  const price = parseFloat(document.getElementById("fuel-price").value);
-
-  if (!isNaN(litres) && !isNaN(price)) {
-    const total = litres * price;
-    document.getElementById("fuel-cost").value = total.toFixed(2);
-  }
-}
-
-document.getElementById("fuel-litres").addEventListener("input", updateFuelCost);
-document.getElementById("fuel-price").addEventListener("input", updateFuelCost);
-
-document.getElementById("save-fuel").addEventListener("click", async () => {
+el("save_fuel")?.addEventListener("click", async () => {
 
   const fuelEntry = {
-    date: today,
-    odometer: parseInt(document.getElementById("fuel-odometer").value),
-    litres: parseFloat(document.getElementById("fuel-litres").value),
-    total_cost: parseFloat(document.getElementById("fuel-cost").value),
-    station_name: document.getElementById("fuel-station").value || null
+
+    date: el("fuel_date")?.value || today,
+    station: el("fuel_station")?.value || null,
+
+    litres: parseFloat(el("fuel_litres")?.value) || 0,
+    cost: parseFloat(el("fuel_cost")?.value) || 0,
+    miles: parseInt(el("fuel_miles")?.value) || 0
+
   };
 
   const { error } = await supabaseClient
@@ -213,141 +241,296 @@ document.getElementById("save-fuel").addEventListener("click", async () => {
     .insert([fuelEntry]);
 
   if (error) {
-    console.error(error);
+    console.error("Fuel save error:", error);
     return;
   }
 
   loadFuelHistory();
+
 });
 
+
+// ================================
+// FUEL HISTORY
+// ================================
 
 async function loadFuelHistory() {
 
   const { data, error } = await supabaseClient
     .from("fuel_logs")
     .select("*")
-    .order("odometer", { ascending: true });
+    .order("date", { ascending: false })
+    .limit(50);
 
   if (error) {
     console.error(error);
     return;
   }
 
-  const container = document.getElementById("fuel-history");
+  const container = el("fuel_history");
+  if (!container) return;
+
   container.innerHTML = "";
 
-  if (!data || data.length === 0) return;
+  data.forEach(fuel => {
 
-  let totalMiles = 0;
-  let totalLitres = 0;
+    const station =
+      fuel.station ||
+      fuel.station_name ||
+      "Unknown";
 
-  data.forEach((fuel, index) => {
+    const cost =
+      fuel.cost ??
+      fuel.total_cost ??
+      0;
 
-    const pricePerLitre = fuel.total_cost / fuel.litres;
-    let mpgDisplay = "";
+    const litres =
+      fuel.litres ??
+      0;
 
-    if (index > 0) {
-      const previous = data[index - 1];
-      const milesDriven = fuel.odometer - previous.odometer;
-
-      if (milesDriven > 0 && fuel.litres > 0) {
-        const mpg = (milesDriven / fuel.litres) * 4.54609;
-        mpgDisplay = ` | MPG: ${mpg.toFixed(1)}`;
-
-        totalMiles += milesDriven;
-        totalLitres += fuel.litres;
-      }
-    }
+    const miles =
+      fuel.miles ??
+      fuel.odometer ??
+      0;
 
     const div = document.createElement("div");
-div.innerHTML = `
-  <p>
-    Odo: ${fuel.odometer} |
-    ${fuel.station_name ? fuel.station_name + " | " : ""}
-    £${fuel.total_cost.toFixed(2)} |
-    ${fuel.litres}L |
-    £${pricePerLitre.toFixed(2)}/L
-    ${mpgDisplay}
-  </p>
-`;
+
+    div.innerHTML = `
+      <p>
+        ${fuel.date} |
+        ${station} |
+        £${Number(cost).toFixed(2)} |
+        ${litres} L |
+        ${miles} mi
+      </p>
+    `;
 
     container.appendChild(div);
+
   });
 
-  if (totalLitres > 0) {
-    const avgMPG = (totalMiles / totalLitres) * 4.54609;
-    const avgDiv = document.createElement("div");
-    avgDiv.innerHTML = `<p><strong>Rolling Avg MPG: ${avgMPG.toFixed(1)}</strong></p>`;
-    container.appendChild(avgDiv);
-  }
 }
 
 loadFuelHistory();
 
-async function loadMonthlyFuelStats() {
+// ================================
+// EXPENSE CATEGORIES
+// ================================
 
-  const monthStart = new Date();
-  monthStart.setDate(1);
-  const monthStartStr = monthStart.toISOString().split("T")[0];
+async function loadExpenseCategories() {
 
-  // Get fuel this month
-  const { data: fuelData, error: fuelError } = await supabaseClient
-    .from("fuel_logs")
+  const { data, error } = await supabaseClient
+    .from("expense_categories")
     .select("*")
-    .gte("date", monthStartStr);
+    .eq("active", true)
+    .order("name");
 
-  if (fuelError) {
-    console.error(fuelError);
+  if (error) {
+    console.error("Category load error:", error);
     return;
   }
 
-  // Get shifts this month
-  const { data: shiftData, error: shiftError } = await supabaseClient
+  const select = el("expense-category");
+
+  if (!select) return;
+
+  select.innerHTML = "";
+
+  data.forEach(cat => {
+
+    const option = document.createElement("option");
+
+    option.value = cat.id;
+    option.textContent = cat.name;
+
+    select.appendChild(option);
+
+  });
+
+}
+
+loadExpenseCategories();
+
+
+// ================================
+// SAVE EXPENSE
+// ================================
+
+el("save-expense")?.addEventListener("click", async () => {
+
+  const expense = {
+
+    date: el("expense-date")?.value || today,
+
+    category_id: parseInt(el("expense-category")?.value),
+
+    amount: parseFloat(el("expense-amount")?.value) || 0,
+
+    notes: el("expense-notes")?.value || null
+
+  };
+
+  const { error } = await supabaseClient
+    .from("expenses")
+    .insert([expense]);
+
+  if (error) {
+    console.error("Expense save error:", error);
+    return;
+  }
+
+  loadExpenseHistory();
+
+});
+
+
+// ================================
+// EXPENSE HISTORY
+// ================================
+
+async function loadExpenseHistory() {
+
+  const { data, error } = await supabaseClient
+    .from("expenses")
+    .select(`
+      id,
+      date,
+      amount,
+      notes,
+      expense_categories(name)
+    `)
+    .order("date", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("Expense history error:", error);
+    return;
+  }
+
+  const container = el("expense-history");
+
+  if (!container) return;
+
+  container.innerHTML = "";
+
+  data.forEach(exp => {
+
+    const category = exp.expense_categories?.name || "Unknown";
+
+    const div = document.createElement("div");
+
+    div.innerHTML = `
+      <p>
+        ${exp.date} |
+        ${category} |
+        £${Number(exp.amount).toFixed(2)}
+        ${exp.notes ? "| " + exp.notes : ""}
+      </p>
+    `;
+
+    container.appendChild(div);
+
+  });
+
+}
+
+loadExpenseHistory();
+
+// ================================
+// MONTH SUMMARY
+// ================================
+
+async function loadMonthSummary() {
+
+  const monthInput = el("month_picker");
+
+  if (!monthInput) return;
+
+  const month = monthInput.value;
+
+  if (!month) return;
+
+  const start = month + "-01";
+
+  const endDate = new Date(start);
+  endDate.setMonth(endDate.getMonth() + 1);
+
+  const end = endDate.toISOString().split("T")[0];
+
+
+  const { data: shifts } = await supabaseClient
     .from("shifts")
     .select("*")
-    .gte("date", monthStartStr);
+    .gte("date", start)
+    .lt("date", end);
 
-  if (shiftError) {
-    console.error(shiftError);
-    return;
-  }
 
-  const totalFuelCost = fuelData.reduce((sum, f) => sum + Number(f.total_cost), 0);
+  const { data: fuel } = await supabaseClient
+    .from("fuel_logs")
+    .select("*")
+    .gte("date", start)
+    .lt("date", end);
 
-  const totalMiles = shiftData.reduce(
-    (sum, s) => sum + (s.odo_end - s.odo_start),
-    0
-  );
 
-  const totalGross = shiftData.reduce(
+  const { data: expenses } = await supabaseClient
+    .from("expenses")
+    .select("*")
+    .gte("date", start)
+    .lt("date", end);
+
+
+  const gross = shifts.reduce(
     (sum, s) => sum + Number(s.gross) + Number(s.tips || 0),
     0
   );
 
-  const costPerMile =
-    totalMiles > 0 ? totalFuelCost / totalMiles : 0;
+  const miles = shifts.reduce(
+    (sum, s) => sum + (s.odo_end - s.odo_start),
+    0
+  );
 
-  const fuelPercent =
-    totalGross > 0 ? (totalFuelCost / totalGross) * 100 : 0;
+  const fuelCost = fuel.reduce(
+    (sum, f) => sum + Number(f.cost ?? f.total_cost ?? 0),
+    0
+  );
 
-  document.getElementById("month-gross").innerText =
-    totalGross.toFixed(2);
+  const expenseCost = expenses.reduce(
+    (sum, e) => sum + Number(e.amount),
+    0
+  );
 
-  document.getElementById("month-miles").innerText =
-    totalMiles;
+  const net = gross - fuelCost - expenseCost;
 
-  document.getElementById("month-net").innerText =
-    (totalGross - totalFuelCost).toFixed(2);
 
-  const statsDiv = document.createElement("div");
-  statsDiv.innerHTML = `
-    <p>Fuel Total: £${totalFuelCost.toFixed(2)}</p>
-    <p>Fuel Cost Per Mile: £${costPerMile.toFixed(3)}</p>
-    <p>Fuel % of Gross: ${fuelPercent.toFixed(1)}%</p>
+  const container = el("month_summary");
+
+  container.innerHTML = `
+    <p>Gross: £${gross.toFixed(2)}</p>
+    <p>Miles: ${miles}</p>
+    <p>Fuel: £${fuelCost.toFixed(2)}</p>
+    <p>Expenses: £${expenseCost.toFixed(2)}</p>
+    <p><strong>Net: £${net.toFixed(2)}</strong></p>
   `;
 
-  const monthSection = document.getElementById("month");
-  monthSection.appendChild(statsDiv);
 }
 
-loadMonthlyFuelStats();
+el("month_picker")?.addEventListener("change", loadMonthSummary);
+
+// ================================
+// DEFAULT MONTH
+// ================================
+
+const monthPicker = el("month_picker");
+
+if (monthPicker) {
+
+  const currentMonth =
+    now.getFullYear() +
+    "-" +
+    String(now.getMonth() + 1).padStart(2, "0");
+
+  monthPicker.value = currentMonth;
+
+  loadMonthSummary();
+
+}

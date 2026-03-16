@@ -1,59 +1,68 @@
+// ================================
+// FUEL LOGIC
+// ================================
 
-import { supabaseClient } from "./supabase.js";
 
-/* ================= INIT ================= */
+// ------------------------------
+// Save Fuel
+// ------------------------------
 
-export function initFuel() {
+document.getElementById("save_fuel")?.addEventListener("click", async () => {
 
-setDefaultFuelDate()
+  const fuelEntry = {
 
-  const saveBtn = document.getElementById("save_fuel");
+    date: document.getElementById("fuel_date").value || today,
 
-  if (saveBtn) {
-    saveBtn.addEventListener("click", saveFuel);
-  }
+    station: document.getElementById("fuel_station").value || null,
 
-  loadFuel();
+    litres: parseFloat(
+      document.getElementById("fuel_litres").value
+    ) || 0,
 
-}
+    cost: parseFloat(
+      document.getElementById("fuel_cost").value
+    ) || 0,
 
-/* ================= SAVE FUEL ================= */
-
-async function saveFuel() {
-
-  const dateInput = document.getElementById("fuel_date");
-  const stationInput = document.getElementById("fuel_station");
-  const litresInput = document.getElementById("fuel_litres");
-  const costInput = document.getElementById("fuel_cost");
-  const milesInput = document.getElementById("fuel_miles");
-
-  const fuel = {
-
-    date: dateInput.value,
-    station_name: stationInput.value,
-    litres: parseFloat(litresInput.value) || 0,
-    total_cost: parseFloat(costInput.value) || 0,
-    odometer: parseInt(milesInput.value)
+    miles: parseInt(
+      document.getElementById("fuel_miles").value
+    ) || 0
 
   };
 
   const { error } = await supabaseClient
     .from("fuel_logs")
-    .insert([fuel]);
+    .insert([fuelEntry]);
 
   if (error) {
-    console.error(error);
-    alert("Fuel save failed");
+    console.error("Fuel save error:", error);
+    alert("Fuel entry failed");
     return;
   }
 
-  location.reload();
+  clearFuelInputs();
+  loadFuelHistory();
+
+});
+
+
+// ------------------------------
+// Clear Inputs After Save
+// ------------------------------
+
+function clearFuelInputs() {
+
+  document.getElementById("fuel_litres").value = "";
+  document.getElementById("fuel_cost").value = "";
+  document.getElementById("fuel_miles").value = "";
 
 }
 
-/* ================= LOAD FUEL ================= */
 
-async function loadFuel() {
+// ------------------------------
+// Load Fuel History
+// ------------------------------
+
+async function loadFuelHistory() {
 
   const { data, error } = await supabaseClient
     .from("fuel_logs")
@@ -61,76 +70,114 @@ async function loadFuel() {
     .order("date", { ascending: false });
 
   if (error) {
-    console.error(error);
+    console.error("Fuel history error:", error);
     return;
   }
-
-  renderFuel(data);
-
-}
-
-/* ================= RENDER FUEL ================= */
-
-function renderFuel(data) {
 
   const container = document.getElementById("fuel_history");
-
   if (!container) return;
 
-  if (!data || data.length === 0) {
+  container.innerHTML = "";
 
-    container.innerHTML = "No fuel records yet";
-    return;
+  data.forEach(fuel => {
 
-  }
+    // Support BOTH old and new schemas
+    const station =
+      fuel.station ||
+      fuel.station_name ||
+      "Unknown";
 
-  container.innerHTML = data.map(fuel => `
+    const cost =
+      fuel.cost ??
+      fuel.total_cost ??
+      0;
 
-  <div class="fuel-grid">
+    const litres =
+      fuel.litres ??
+      0;
 
-    <div class="row-top">
+    const miles =
+      fuel.miles ??
+      fuel.odometer ??
+      0;
 
-      <span class="row-date">${fuel.date}</span>
+    const pricePerLitre =
+      litres > 0 ? cost / litres : 0;
 
-      <span>£${fuel.total_cost}</span>
+    const div = document.createElement("div");
 
-    </div>
+    div.innerHTML = `
+      <p>
+        ${fuel.date} |
+        ${station} |
+        £${Number(cost).toFixed(2)} |
+        ${litres} L |
+        £${pricePerLitre.toFixed(2)}/L |
+        ${miles} mi
+      </p>
+    `;
 
-    <div class="row-bottom">
+    container.appendChild(div);
 
-      <div class="row-figures">
+  });
 
-        <span>${fuel.station_name}</span>
-        <span>${fuel.litres} L</span>
-        <span>${fuel.odometer} mi</span>
+}
 
-      </div>
+loadFuelHistory();
 
-      <button
-        class="btn-sm delete-btn"
-        data-id="${fuel.id}"
-        data-table="fuel_logs">
 
-        Del
+// ------------------------------
+// Monthly Fuel + Shift Stats
+// ------------------------------
 
-      </button>
+async function loadMonthlyFuelStats() {
 
-    </div>
+  const monthStart = new Date();
+  monthStart.setDate(1);
 
-  </div>
+  const monthStartStr = monthStart.toISOString().split("T")[0];
 
-  `).join("");
+  const { data: fuelData } = await supabaseClient
+    .from("fuel_logs")
+    .select("*")
+    .gte("date", monthStartStr);
+
+  const { data: shiftData } = await supabaseClient
+    .from("shifts")
+    .select("*")
+    .gte("date", monthStartStr);
+
+  const totalFuelCost = fuelData.reduce((sum, f) => {
+
+    const cost = f.cost ?? f.total_cost ?? 0;
+    return sum + Number(cost);
+
+  }, 0);
+
+  const totalMiles = shiftData.reduce((sum, s) => {
+
+    return sum + (s.odo_end - s.odo_start);
+
+  }, 0);
+
+  const totalGross = shiftData.reduce((sum, s) => {
+
+    return sum + Number(s.gross) + Number(s.tips || 0);
+
+  }, 0);
+
+  const costPerMile =
+    totalMiles > 0 ? totalFuelCost / totalMiles : 0;
+
+  const fuelPercent =
+    totalGross > 0 ? (totalFuelCost / totalGross) * 100 : 0;
+
+  console.log("Month gross:", totalGross);
+  console.log("Miles:", totalMiles);
+  console.log("Fuel:", totalFuelCost);
+  console.log("Cost per mile:", costPerMile);
+  console.log("Fuel %:", fuelPercent);
 
 }
 
-function setDefaultFuelDate() {
-
-  const today = new Date().toISOString().split("T")[0]
-
-  const fuelDate = document.getElementById("fuel_date")
-
-  if (fuelDate && !fuelDate.value) {
-    fuelDate.value = today
-  }
-
-}
+loadMonthlyFuelStats();
