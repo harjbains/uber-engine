@@ -3,16 +3,17 @@ import { supabaseClient } from "./supabase.js";
 export function initMonthly() {
   const picker = document.getElementById("month_picker");
 
-  // Default to current month (YYYY-MM)
   if (picker && !picker.value) {
     const now = new Date();
     picker.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   }
 
-  const initialYm = picker?.value || (() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  })();
+  const initialYm =
+    picker?.value ||
+    (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    })();
 
   if (picker) {
     picker.addEventListener("change", () => loadMonthly(picker.value));
@@ -24,7 +25,7 @@ export function initMonthly() {
 async function loadMonthly(yyyyMm) {
   const { startDate, nextDate } = monthRange(yyyyMm);
 
-  // -------- Shifts (this month) --------
+  // -------- SHIFTS --------
   const { data: shifts, error: shiftsErr } = await supabaseClient
     .from("shifts")
     .select("id,date,gross,tips,odo_start,odo_end")
@@ -33,48 +34,57 @@ async function loadMonthly(yyyyMm) {
 
   if (shiftsErr) {
     console.error(shiftsErr);
-    renderMonthlyError("Could not load shifts for this month.");
-    return;
+    return renderMonthlyError("Error loading shifts");
   }
 
-  // -------- Fuel logs (this month) --------
+  // -------- FUEL --------
   const { data: fuelLogs, error: fuelErr } = await supabaseClient
     .from("fuel_logs")
-    .select("id,date,total_cost")
+    .select("id,date,cost")
     .gte("date", startDate)
     .lt("date", nextDate);
 
   if (fuelErr) {
     console.error(fuelErr);
-    renderMonthlyError("Could not load fuel logs for this month.");
-    return;
+    return renderMonthlyError("Error loading fuel");
   }
 
-  // -------- Aggregate (this month) --------
-  const shiftCount = shifts.length;
+  // -------- EXPENSES --------
+  const { data: expenses, error: expErr } = await supabaseClient
+    .from("expenses")
+    .select("id,date,amount")
+    .gte("date", startDate)
+    .lt("date", nextDate);
 
-  const grossTotal = sumNum(shifts, "gross");
-  const tipsTotal = sumNum(shifts, "tips");
+  if (expErr) {
+    console.error(expErr);
+    return renderMonthlyError("Error loading expenses");
+  }
+
+  // -------- AGGREGATION --------
+  const shiftCount = shifts?.length || 0;
+
+  const grossTotal = sumNum(shifts || [], "gross");
+  const tipsTotal = sumNum(shifts || [], "tips");
   const incomeTotal = grossTotal + tipsTotal;
 
-  const milesTotal = shifts.reduce((acc, s) => {
+  const milesTotal = (shifts || []).reduce((acc, s) => {
     const a = Number(s.odo_start);
     const b = Number(s.odo_end);
-    if (Number.isFinite(a) && Number.isFinite(b) && b >= a) return acc + (b - a);
-    return acc;
+    return Number.isFinite(a) && Number.isFinite(b) && b >= a
+      ? acc + (b - a)
+      : acc;
   }, 0);
 
-  const fuelStops = fuelLogs.length;
-  const fuelTotal = sumNum(fuelLogs, "total_cost");
+  const fuelTotal = sumNum(fuelLogs || [], "cost");
+  const expenseTotal = sumNum(expenses || [], "amount");
 
-  const profit = incomeTotal - fuelTotal;
+  const profit = incomeTotal - fuelTotal - expenseTotal;
 
   const incomePerMile = safeDiv(incomeTotal, milesTotal);
-  const fuelPerMile = safeDiv(fuelTotal, milesTotal);
 
-  // -------- HMRC Mileage Allowance (tax year aware) --------
-  // UK tax year starts 6 April. We need miles driven earlier in the tax year BEFORE this month.
-  const monthStart = new Date(`${startDate}T00:00:00Z`);
+  // -------- TAX YEAR --------
+  const monthStart = new Date(startDate + "T00:00:00Z");
   const taxYearStart = taxYearStartForUK(monthStart);
   const taxYearStartStr = taxYearStart.toISOString().slice(0, 10);
 
@@ -84,41 +94,49 @@ async function loadMonthly(yyyyMm) {
     .gte("date", taxYearStartStr)
     .lt("date", startDate);
 
-  let milesBeforeThisMonth = 0;
+  if (priorErr) console.error("Prior shift error:", priorErr);
 
-  if (priorErr) {
-    // Don’t fail the whole month dashboard; just log it.
-    console.error(priorErr);
-  } else if (priorShifts?.length) {
-    milesBeforeThisMonth = priorShifts.reduce((acc, s) => {
-      const a = Number(s.odo_start);
-      const b = Number(s.odo_end);
-      if (Number.isFinite(a) && Number.isFinite(b) && b >= a) return acc + (b - a);
-      return acc;
-    }, 0);
-  }
+  const milesBeforeThisMonth = (priorShifts || []).reduce((acc, s) => {
+    const a = Number(s.odo_start);
+    const b = Number(s.odo_end);
+    return Number.isFinite(a) && Number.isFinite(b) && b >= a
+      ? acc + (b - a)
+      : acc;
+  }, 0);
 
   const hmrcAllowance = hmrcMileageAllowance(milesTotal, milesBeforeThisMonth);
 
-  // Simple tax buffer for now (tune later): 25% of profit, never negative
-  const taxBuffer = Math.max(0, profit * 0.25);
+  // -------- HMRC LABEL --------
+  const totalYtdMiles = milesBeforeThisMonth + milesTotal;
+
+  let hmrcLabel = "HMRC Allowance (45p)";
+
+  if (totalYtdMiles > 10000 && milesBeforeThisMonth >= 10000) {
+    hmrcLabel = "HMRC Allowance (25p)";
+  } else if (totalYtdMiles > 10000) {
+    hmrcLabel = "HMRC Allowance (45p & 25p)";
+  }
+
+  // -------- TAX --------
+  const taxableProfit = Math.max(0, incomeTotal - hmrcAllowance);
+  const tax = taxableProfit * 0.2;
+
+  // -------- OUTCOME --------
+  const takeHome = profit - tax;
 
   renderMonthlySummary({
-    yyyyMm,
     shiftCount,
-    grossTotal,
-    tipsTotal,
     incomeTotal,
     milesTotal,
-    fuelStops,
-    fuelTotal,
-    profit,
     incomePerMile,
-    fuelPerMile,
+    fuelTotal,
+    expenseTotal,
+    profit,
     hmrcAllowance,
-    taxBuffer,
-    milesBeforeThisMonth,
-    taxYearStartStr
+    hmrcLabel,
+    taxableProfit,
+    tax,
+    takeHome
   });
 }
 
@@ -126,84 +144,111 @@ function renderMonthlySummary(m) {
   const el = document.getElementById("month_summary");
   if (!el) return;
 
-  el.innerHTML = `
-    ${summaryItem("Month", m.yyyyMm)}
-    ${summaryItem("Shifts", m.shiftCount)}
-    ${summaryItem("Gross", money(m.grossTotal))}
-    ${summaryItem("Tips", money(m.tipsTotal))}
-    ${summaryItem("Total Income", money(m.incomeTotal))}
-    ${summaryItem("Miles", `${Number(m.milesTotal || 0).toFixed(0)}`)}
-    ${summaryItem("£/mile", `£${Number(m.incomePerMile || 0).toFixed(2)}`)}
-    ${summaryItem("Fuel Stops", m.fuelStops)}
-    ${summaryItem("Fuel Cost", money(m.fuelTotal))}
-    ${summaryItem("Fuel £/mile", `£${Number(m.fuelPerMile || 0).toFixed(2)}`)}
-    ${summaryItem("Profit", money(m.profit))}
-    ${summaryItem("HMRC Allowance", money(m.hmrcAllowance))}
-    ${summaryItem("Tax Buffer (25%)", money(m.taxBuffer))}
-  `;
+
+  el.innerHTML =
+  '<div class="summary-section">' +
+    '<h3>Performance</h3>' +
+    '<div class="summary-grid">' +
+
+      summaryItem("Shifts", m.shiftCount) +
+      summaryItem("Total Income", money(m.incomeTotal)) +
+      summaryItem("Miles", Number(m.milesTotal || 0).toFixed(0)) +
+      summaryItem("£/mile", "£" + Number(m.incomePerMile || 0).toFixed(2)) +
+      summaryItem("Fuel Cost", money(m.fuelTotal)) +
+      summaryItem("Expenses", money(m.expenseTotal)) +
+
+      summaryItemHighlight("Gross Profit", money(m.profit)) +
+
+      summaryItemTax("Estimated Tax (20%)", money(m.tax)) +
+
+      summaryItemNet("Net Pay", money(m.takeHome)) +
+
+    '</div>' +
+  '</div>';
 }
+
 
 function renderMonthlyError(msg) {
   const el = document.getElementById("month_summary");
-  if (el) el.innerHTML = `<div>${msg}</div>`;
+  if (el) el.innerHTML = "<div>" + msg + "</div>";
 }
 
-function summaryItem(label, value) {
-  return `
-    <div class="summary-item">
-      <strong>${label}</strong>
-      <span>${value}</span>
-    </div>
-  `;
-}
+
 
 function monthRange(yyyyMm) {
-  const [y, m] = yyyyMm.split("-").map(Number);
+  const parts = yyyyMm.split("-");
+  const y = Number(parts[0]);
+  const m = Number(parts[1]);
+
   const start = new Date(Date.UTC(y, m - 1, 1));
   const next = new Date(Date.UTC(y, m, 1));
+
   return {
     startDate: start.toISOString().slice(0, 10),
-    nextDate: next.toISOString().slice(0, 10),
+    nextDate: next.toISOString().slice(0, 10)
   };
 }
 
 function sumNum(rows, key) {
   return rows.reduce((acc, r) => {
-    const n = Number(r?.[key]);
+    const n = Number(r[key]);
     return Number.isFinite(n) ? acc + n : acc;
   }, 0);
 }
 
 function safeDiv(a, b) {
-  const A = Number(a);
-  const B = Number(b);
-  if (!Number.isFinite(A) || !Number.isFinite(B) || B === 0) return 0;
-  return A / B;
+  return b > 0 ? a / b : 0;
 }
 
 function money(n) {
-  const x = Number(n) || 0;
-  return `£${x.toFixed(2)}`;
+  return "£" + (Number(n) || 0).toFixed(2);
 }
 
 function taxYearStartForUK(dateObj) {
-  // UK tax year starts 6 April
   const y = dateObj.getUTCFullYear();
-  const taxYearStartThisYear = new Date(Date.UTC(y, 3, 6)); // April = 3
-  return dateObj >= taxYearStartThisYear
-    ? taxYearStartThisYear
-    : new Date(Date.UTC(y - 1, 3, 6));
+  const start = new Date(Date.UTC(y, 3, 6));
+  return dateObj >= start ? start : new Date(Date.UTC(y - 1, 3, 6));
 }
 
 function hmrcMileageAllowance(milesThisMonth, milesBeforeThisMonth) {
-  // AMAP (cars/vans): 45p for first 10,000 miles in tax year, then 25p.
-  const thisMonth = Math.max(0, Number(milesThisMonth) || 0);
-  const before = Math.max(0, Number(milesBeforeThisMonth) || 0);
+  const remaining = Math.max(0, 10000 - milesBeforeThisMonth);
+  const at45 = Math.min(milesThisMonth, remaining);
+  const at25 = Math.max(0, milesThisMonth - at45);
+  return at45 * 0.45 + at25 * 0.25;
+}
 
-  const firstBandRemaining = Math.max(0, 10000 - before);
+function summaryItem(label, value) {
+  return (
+    '<div class="summary-card">' +
+      '<span class="summary-label">' + label + '</span>' +
+      '<span class="summary-value">' + value + '</span>' +
+    '</div>'
+  );
+}
 
-  const milesAt45 = Math.min(thisMonth, firstBandRemaining);
-  const milesAt25 = Math.max(0, thisMonth - milesAt45);
+function summaryItemHighlight(label, value) {
+  return (
+    '<div class="summary-card highlight">' +
+      '<span class="summary-label">' + label + '</span>' +
+      '<span class="summary-value">' + value + '</span>' +
+    '</div>'
+  );
+}
 
-  return milesAt45 * 0.45 + milesAt25 * 0.25;
+function summaryItemTax(label, value) {
+  return (
+    '<div class="summary-card tax">' +
+      '<span class="summary-label">' + label + '</span>' +
+      '<span class="summary-value">' + value + '</span>' +
+    '</div>'
+  );
+}
+
+function summaryItemNet(label, value) {
+  return (
+    '<div class="summary-card net">' +
+      '<span class="summary-label">' + label + '</span>' +
+      '<span class="summary-value">' + value + '</span>' +
+    '</div>'
+  );
 }

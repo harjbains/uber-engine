@@ -2,6 +2,8 @@ import { supabaseClient } from "./supabase.js";
 
 /* ================= INIT ================= */
 
+
+
 export function initShifts() {
   populateTimeSelects();
   setDefaultShiftValues();
@@ -129,7 +131,7 @@ async function loadShifts() {
     console.error(error);
     return;
   }
-
+  
   renderShifts(data);
 }
 
@@ -142,12 +144,18 @@ function renderShifts(data) {
     return;
   }
 
+  // Map through each shift object to generate the HTML
   container.innerHTML = data
-    .map(
-      (shift) => `
+    .map((shift) => {
+      // Logic moved inside the loop to access shift.date for every entry
+      const displayDate = shift.date 
+        ? shift.date.split('-').reverse().join('-') 
+        : "N/A";
+
+      return `
     <div class="data-grid">
       <div class="row-top">
-        <span class="row-date">${shift.date}</span>
+        <span class="row-date">Harj${displayDate}</span>
         <span class="row-total">£${shift.gross ?? 0}</span>
       </div>
 
@@ -169,7 +177,7 @@ function renderShifts(data) {
         </button>
       </div>
     </div>
-  `
-    )
+  `;
+    })
     .join("");
 }

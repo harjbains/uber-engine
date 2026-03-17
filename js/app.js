@@ -2,8 +2,11 @@
 // VERSION
 // ================================
 
-const APP_VERSION = "v1.0.0";
-const APP_CHANGELOG = "Initial production release";
+import { initMonthly } from "./monthly.js";
+initMonthly();
+
+const APP_VERSION = "v1.1.0";
+const APP_CHANGELOG = "Performance ready build";
 
 const versionElement = document.getElementById("version-number");
 
@@ -12,9 +15,16 @@ if (versionElement) {
 }
 
 
+
 // ================================
 // DATE
 // ================================
+
+function formatUKDate(dateStr) {
+  if (!dateStr) return "";
+  const [year, month, day] = dateStr.split("-");
+  return `${day}/${month}/${year}`;
+}
 
 const now = new Date();
 const today = now.toISOString().split("T")[0];
@@ -177,7 +187,6 @@ el("save_shift")?.addEventListener("click", async () => {
 // ================================
 
 async function loadShiftHistory() {
-
   const { data, error } = await supabaseClient
     .from("shifts")
     .select("*")
@@ -195,25 +204,30 @@ async function loadShiftHistory() {
   container.innerHTML = "";
 
   data.forEach(shift => {
+    // Convert yyyy-mm-dd to dd-mm-yyyy
+    const displayDate = shift.date 
+      ? shift.date.split('-').reverse().join('/') 
+      : "N/A";
 
-    const miles = shift.odo_end - shift.odo_start;
-    const gross = Number(shift.gross) + Number(shift.tips || 0);
+    const miles = (shift.odo_end && shift.odo_start) 
+      ? shift.odo_end - shift.odo_start 
+      : 0;
+      
+    const gross = Number(shift.gross || 0) + Number(shift.tips || 0);
 
     const div = document.createElement("div");
 
     div.innerHTML = `
       <p>
-        ${shift.date} |
-        ${shift.start_time} - ${shift.end_time} |
-        ${miles} miles |
+        ${displayDate} | 
+        ${shift.start_time} - ${shift.end_time} | 
+        ${miles} miles | 
         £${gross.toFixed(2)}
       </p>
     `;
 
     container.appendChild(div);
-
   });
-
 }
 
 loadShiftHistory();
@@ -295,9 +309,14 @@ async function loadFuelHistory() {
 
     const div = document.createElement("div");
 
+    // Convert yyyy-mm-dd to dd-mm-yyyy
+    const fuelDate = fuel.date 
+      ? fuel.date.split('-').reverse().join('/') 
+      : "N/A";
+
     div.innerHTML = `
       <p>
-        ${fuel.date} |
+        ${fuelDate} |
         ${station} |
         £${Number(cost).toFixed(2)} |
         ${litres} L |
@@ -419,9 +438,15 @@ async function loadExpenseHistory() {
 
     const div = document.createElement("div");
 
+    // Convert yyyy-mm-dd to dd-mm-yyyy
+    const expenseDate = exp.date 
+      ? exp.date.split('-').reverse().join('/') 
+      : "N/A";
+
+
     div.innerHTML = `
       <p>
-        ${exp.date} |
+        ${expenseDate} |
         ${category} |
         £${Number(exp.amount).toFixed(2)}
         ${exp.notes ? "| " + exp.notes : ""}
@@ -531,6 +556,125 @@ if (monthPicker) {
 
   monthPicker.value = currentMonth;
 
-  loadMonthSummary();
+  //loadMonthSummary();
 
+}
+
+document
+  .getElementById("export-month")
+  .addEventListener("click", exportMonthData);
+
+  async function exportMonthData() {
+  const monthInput = document.querySelector('input[type="month"]').value;
+
+  if (!monthInput) {
+    alert("Please select a month first");
+    return;
+  }
+
+  const startDate = `${monthInput}-01`;
+  const endDate = new Date(startDate);
+  endDate.setMonth(endDate.getMonth() + 1);
+
+  const endDateStr = endDate.toISOString().split("T")[0];
+
+  // FETCH DATA
+  const { data: shifts } = await supabaseClient
+    .from("shifts")
+    .select("*")
+    .gte("date", startDate)
+    .lt("date", endDateStr);
+
+  const { data: fuelLogs } = await supabaseClient
+    .from("fuel_logs")
+    .select("*")
+    .gte("date", startDate)
+    .lt("date", endDateStr);
+
+  const { data: expenses } = await supabaseClient
+    .from("expenses")
+    .select("*")
+    .gte("date", startDate)
+    .lt("date", endDateStr);
+
+  // GROUP DATA BY DATE
+  const dailyMap = {};
+
+  // SHIFTS
+  shifts.forEach(s => {
+    const date = s.date;
+
+    if (!dailyMap[date]) {
+      dailyMap[date] = {
+        miles: 0,
+        gross: 0,
+        fuel: 0,
+        expenses: 0
+      };
+    }
+
+    const miles = s.odo_end - s.odo_start;
+
+    dailyMap[date].miles += miles;
+    dailyMap[date].gross += Number(s.gross) + Number(s.tips || 0);
+  });
+
+  // FUEL
+  fuelLogs.forEach(f => {
+    const date = f.date;
+
+    if (!dailyMap[date]) {
+      dailyMap[date] = {
+        miles: 0,
+        gross: 0,
+        fuel: 0,
+        expenses: 0
+      };
+    }
+
+    dailyMap[date].fuel += Number(f.cost);
+  });
+
+  // EXPENSES
+  expenses.forEach(e => {
+    const date = e.date;
+
+    if (!dailyMap[date]) {
+      dailyMap[date] = {
+        miles: 0,
+        gross: 0,
+        fuel: 0,
+        expenses: 0
+      };
+    }
+
+    dailyMap[date].expenses += Number(e.amount);
+  });
+
+  // BUILD CSV
+  let csv = "date,miles,gross,fuel,expenses\n";
+
+  Object.keys(dailyMap)
+    .sort()
+    .forEach(date => {
+      const d = dailyMap[date];
+
+      csv += `${date},${d.miles},${d.gross.toFixed(2)},${d.fuel.toFixed(2)},${d.expenses.toFixed(2)}\n`;
+    });
+
+  // DOWNLOAD FILE
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = window.URL.createObjectURL(blob);
+
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `uber_engine_${monthInput}.csv`;
+  a.click();
+
+  window.URL.revokeObjectURL(url);
+}
+
+function formatDateToISO(dateStr) {
+  const [day, month, year] = dateStr.split("/");
+  return `${year}-${month}-${day}`;
 }

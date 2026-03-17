@@ -267,3 +267,94 @@ input[type="date"] {
   margin-top: 12px;
 }
 
+
+/* ===== CONTAINER ===== */
+
+#month_summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Optional: widen main card container */
+.month-container,
+.card,
+.section-card {
+  max-width: 800px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+/* ===== SECTION ===== */
+
+.summary-section {
+  width: 100%;
+}
+
+.summary-section h3 {
+  margin-bottom: 6px;
+  font-size: 16px;
+}
+
+/* ===== GRID ===== */
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+/* ===== CARD ===== */
+
+.summary-card {
+  background: #f3f4f6;
+  padding: 10px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ===== TEXT ===== */
+
+.summary-label {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.2;
+}
+
+.summary-value {
+  font-size: 19px;
+  font-weight: 600;
+}
+
+/* ===== STATES ===== */
+
+/* Gross Profit (green) */
+.summary-card.highlight {
+  background: #e6f4ea;
+  border: 1px solid #b7e1c1;
+}
+
+/* Tax (light red) */
+.summary-card.tax {
+  background: #fdecea;
+  border: 1px solid #f5c2c7;
+}
+
+/* Net Pay (blue) */
+.summary-card.net {
+  background: #e7f0ff;
+  border: 1px solid #b6d4fe;
+}
+
+/* ===== MOBILE ===== */
+
+@media (max-width: 600px) {
+  .summary-grid {
+    grid-template-columns: 1fr;
+  }
+}
