@@ -498,3 +498,11 @@ input[type="date"] {
 #fuel_history .history-item__value {
   font-size: 12px;
 }
+
+#app-version-notes {
+  margin-top: -8px;
+  margin-bottom: 14px;
+  text-align: center;
+  font-size: 12px;
+  color: #6b7280;
+}

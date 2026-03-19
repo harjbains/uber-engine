@@ -3,6 +3,11 @@ import { initExpenses, loadExpenses } from "./expenses.js";
 import { initFuel, loadFuel } from "./fuel.js";
 import { initShifts, loadShifts } from "./shifts.js";
 
+import { initVersion, APP_VERSION } from "./version.js";
+
+initVersion(APP_VERSION);
+
+
 /* ================= INIT ================= */
 
 document.addEventListener("DOMContentLoaded", () => {
