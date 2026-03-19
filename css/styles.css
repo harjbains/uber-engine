@@ -358,3 +358,143 @@ input[type="date"] {
     grid-template-columns: 1fr;
   }
 }
+
+/* ================= HISTORY CARDS ================= */
+
+/* ================= HISTORY CARD UI ================= */
+
+.history-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.history-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e7ebef;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.history-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.history-card__title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.2;
+}
+
+.history-card__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #374151;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.history-card__grid {
+  display: grid;
+  gap: 8px;
+}
+
+.history-card__grid--3x2 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.history-card__grid--2col {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.history-item {
+  min-width: 0;
+}
+
+.history-item--full {
+  grid-column: 1 / -1;
+}
+
+.history-item__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  margin-bottom: 2px;
+}
+
+.history-item__value {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.25;
+  word-break: break-word;
+}
+
+.history-item__value--strong {
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f766e;
+}
+
+.history-inline {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: baseline;
+}
+
+.history-inline__left {
+  min-width: 0;
+  flex: 1;
+}
+
+.history-inline__right {
+  flex-shrink: 0;
+  font-weight: 800;
+  color: #111827;
+}
+
+.history-empty {
+  background: #fff;
+  border: 1px dashed #d5dbe3;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+/* extra compactness for long histories */
+#shiftList .history-card,
+#fuel_history .history-card,
+#expense-history .history-card {
+  padding: 9px 10px;
+}
+
+#shiftList .history-card__grid,
+#fuel_history .history-card__grid,
+#expense-history .history-card__grid {
+  gap: 6px;
+}
+
+#fuel_history .history-card__title {
+  font-size: 13px;
+}
+
+#fuel_history .history-item__value {
+  font-size: 12px;
+}

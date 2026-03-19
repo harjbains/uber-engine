@@ -1,31 +1,48 @@
 import { supabaseClient } from "./supabase.js";
 
+/* ================= INIT ================= */
+
 export function initMonthly() {
   const picker = document.getElementById("month_picker");
 
+  const now = new Date();
+  const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+
   if (picker && !picker.value) {
-    const now = new Date();
-    picker.value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    picker.value = currentMonth;
   }
 
-  const initialYm =
+  if (picker) {
+    picker.addEventListener("change", () => loadMonthly(picker.value));
+  }
+
+  loadMonthly(picker?.value || currentMonth);
+}
+
+/* ================= LOAD ================= */
+
+export async function loadMonthly(forceYm) {
+
+  const picker = document.getElementById("month_picker");
+
+  const yyyyMm =
+    forceYm ||
     picker?.value ||
     (() => {
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
     })();
 
-  if (picker) {
-    picker.addEventListener("change", () => loadMonthly(picker.value));
+  if (!yyyyMm) {
+    console.error("No month available");
+    return;
   }
 
-  loadMonthly(initialYm);
-}
-
-async function loadMonthly(yyyyMm) {
   const { startDate, nextDate } = monthRange(yyyyMm);
 
-  // -------- SHIFTS --------
+  console.log("Month range:", startDate, nextDate);
+
+  /* -------- SHIFTS -------- */
   const { data: shifts, error: shiftsErr } = await supabaseClient
     .from("shifts")
     .select("id,date,gross,tips,odo_start,odo_end")
@@ -37,7 +54,9 @@ async function loadMonthly(yyyyMm) {
     return renderMonthlyError("Error loading shifts");
   }
 
-  // -------- FUEL --------
+  console.log("SHIFTS:", shifts);
+
+  /* -------- FUEL -------- */
   const { data: fuelLogs, error: fuelErr } = await supabaseClient
     .from("fuel_logs")
     .select("id,date,cost")
@@ -49,7 +68,7 @@ async function loadMonthly(yyyyMm) {
     return renderMonthlyError("Error loading fuel");
   }
 
-  // -------- EXPENSES --------
+  /* -------- EXPENSES -------- */
   const { data: expenses, error: expErr } = await supabaseClient
     .from("expenses")
     .select("id,date,amount")
@@ -61,7 +80,8 @@ async function loadMonthly(yyyyMm) {
     return renderMonthlyError("Error loading expenses");
   }
 
-  // -------- AGGREGATION --------
+  /* -------- AGGREGATION -------- */
+
   const shiftCount = shifts?.length || 0;
 
   const grossTotal = sumNum(shifts || [], "gross");
@@ -83,18 +103,17 @@ async function loadMonthly(yyyyMm) {
 
   const incomePerMile = safeDiv(incomeTotal, milesTotal);
 
-  // -------- TAX YEAR --------
+  /* -------- TAX YEAR -------- */
+
   const monthStart = new Date(startDate + "T00:00:00Z");
   const taxYearStart = taxYearStartForUK(monthStart);
   const taxYearStartStr = taxYearStart.toISOString().slice(0, 10);
 
-  const { data: priorShifts, error: priorErr } = await supabaseClient
+  const { data: priorShifts } = await supabaseClient
     .from("shifts")
     .select("odo_start,odo_end,date")
     .gte("date", taxYearStartStr)
     .lt("date", startDate);
-
-  if (priorErr) console.error("Prior shift error:", priorErr);
 
   const milesBeforeThisMonth = (priorShifts || []).reduce((acc, s) => {
     const a = Number(s.odo_start);
@@ -106,7 +125,6 @@ async function loadMonthly(yyyyMm) {
 
   const hmrcAllowance = hmrcMileageAllowance(milesTotal, milesBeforeThisMonth);
 
-  // -------- HMRC LABEL --------
   const totalYtdMiles = milesBeforeThisMonth + milesTotal;
 
   let hmrcLabel = "HMRC Allowance (45p)";
@@ -117,12 +135,12 @@ async function loadMonthly(yyyyMm) {
     hmrcLabel = "HMRC Allowance (45p & 25p)";
   }
 
-  // -------- TAX --------
   const taxableProfit = Math.max(0, incomeTotal - hmrcAllowance);
   const tax = taxableProfit * 0.2;
 
-  // -------- OUTCOME --------
   const takeHome = profit - tax;
+
+  /* -------- RENDER -------- */
 
   renderMonthlySummary({
     shiftCount,
@@ -140,45 +158,41 @@ async function loadMonthly(yyyyMm) {
   });
 }
 
+/* ================= RENDER ================= */
+
 function renderMonthlySummary(m) {
   const el = document.getElementById("month_summary");
   if (!el) return;
 
-
   el.innerHTML =
-  '<div class="summary-section">' +
-    '<h3>Performance</h3>' +
-    '<div class="summary-grid">' +
+    '<div class="summary-section">' +
+      '<h3>Performance</h3>' +
+      '<div class="summary-grid">' +
 
-      summaryItem("Shifts", m.shiftCount) +
-      summaryItem("Total Income", money(m.incomeTotal)) +
-      summaryItem("Miles", Number(m.milesTotal || 0).toFixed(0)) +
-      summaryItem("£/mile", "£" + Number(m.incomePerMile || 0).toFixed(2)) +
-      summaryItem("Fuel Cost", money(m.fuelTotal)) +
-      summaryItem("Expenses", money(m.expenseTotal)) +
+        summaryItem("Shifts", m.shiftCount) +
+        summaryItem("Total Income", money(m.incomeTotal)) +
+        summaryItem("Miles", Number(m.milesTotal || 0).toFixed(0)) +
+        summaryItem("£/mile", "£" + Number(m.incomePerMile || 0).toFixed(2)) +
+        summaryItem("Fuel Cost", money(m.fuelTotal)) +
+        summaryItem("Expenses", money(m.expenseTotal)) +
 
-      summaryItemHighlight("Gross Profit", money(m.profit)) +
+        summaryItemHighlight("Gross Profit", money(m.profit)) +
+        summaryItemTax("Estimated Tax (20%)", money(m.tax)) +
+        summaryItemNet("Net Pay", money(m.takeHome)) +
 
-      summaryItemTax("Estimated Tax (20%)", money(m.tax)) +
-
-      summaryItemNet("Net Pay", money(m.takeHome)) +
-
-    '</div>' +
-  '</div>';
+      '</div>' +
+    '</div>';
 }
-
 
 function renderMonthlyError(msg) {
   const el = document.getElementById("month_summary");
   if (el) el.innerHTML = "<div>" + msg + "</div>";
 }
 
-
+/* ================= HELPERS ================= */
 
 function monthRange(yyyyMm) {
-  const parts = yyyyMm.split("-");
-  const y = Number(parts[0]);
-  const m = Number(parts[1]);
+  const [y, m] = yyyyMm.split("-").map(Number);
 
   const start = new Date(Date.UTC(y, m - 1, 1));
   const next = new Date(Date.UTC(y, m, 1));
@@ -218,37 +232,17 @@ function hmrcMileageAllowance(milesThisMonth, milesBeforeThisMonth) {
 }
 
 function summaryItem(label, value) {
-  return (
-    '<div class="summary-card">' +
-      '<span class="summary-label">' + label + '</span>' +
-      '<span class="summary-value">' + value + '</span>' +
-    '</div>'
-  );
+  return `<div class="summary-card"><span>${label}</span><span>${value}</span></div>`;
 }
 
 function summaryItemHighlight(label, value) {
-  return (
-    '<div class="summary-card highlight">' +
-      '<span class="summary-label">' + label + '</span>' +
-      '<span class="summary-value">' + value + '</span>' +
-    '</div>'
-  );
+  return `<div class="summary-card highlight"><span>${label}</span><span>${value}</span></div>`;
 }
 
 function summaryItemTax(label, value) {
-  return (
-    '<div class="summary-card tax">' +
-      '<span class="summary-label">' + label + '</span>' +
-      '<span class="summary-value">' + value + '</span>' +
-    '</div>'
-  );
+  return `<div class="summary-card tax"><span>${label}</span><span>${value}</span></div>`;
 }
 
 function summaryItemNet(label, value) {
-  return (
-    '<div class="summary-card net">' +
-      '<span class="summary-label">' + label + '</span>' +
-      '<span class="summary-value">' + value + '</span>' +
-    '</div>'
-  );
+  return `<div class="summary-card net"><span>${label}</span><span>${value}</span></div>`;
 }

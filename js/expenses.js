@@ -1,187 +1,145 @@
-// expenses.js
-// Uber Engine v0.7.0
-// Expense logging module
+import { supabaseClient } from "./supabase.js";
 
-import { supabase } from "./db.js"
+export function initExpenses() {
+  document.getElementById("expense-form")
+    ?.addEventListener("submit", saveExpense);
 
-const expenseForm = document.getElementById("expense-form")
-const expenseCategory = document.getElementById("expense-category")
-const expenseDate = document.getElementById("expense-date")
-const expenseAmount = document.getElementById("expense-amount")
-const expenseNotes = document.getElementById("expense-notes")
-const expenseHistory = document.getElementById("expense-history")
-
-// -----------------------------
-// Load Categories
-// -----------------------------
-
-export async function loadExpenseCategories() {
-
-    const { data, error } = await supabase
-        .from("expense_categories")
-        .select("*")
-        .eq("active", true)
-        .order("name")
-
-    if (error) {
-        console.error("Error loading categories:", error)
-        return
-    }
-
-    expenseCategory.innerHTML = ""
-
-    data.forEach(cat => {
-
-        const option = document.createElement("option")
-        option.value = cat.id
-        option.textContent = cat.name
-
-        expenseCategory.appendChild(option)
-
-    })
-
+    loadExpenseCategories();
+    loadExpenses();
 }
 
-
-// -----------------------------
-// Save Expense
-// -----------------------------
-
-export async function saveExpense(e) {
-
-    e.preventDefault()
-
-    const date = expenseDate.value
-    const category_id = expenseCategory.value
-    const amount = parseFloat(expenseAmount.value)
-    const notes = expenseNotes.value
-
-    if (!date || !category_id || !amount) {
-        alert("Please complete all required fields")
-        return
-    }
-
-    const { error } = await supabase
-        .from("expenses")
-        .insert([
-            {
-                date,
-                category_id,
-                amount,
-                notes
-            }
-        ])
-
-    if (error) {
-        console.error("Error saving expense:", error)
-        alert("Error saving expense")
-        return
-    }
-
-    expenseForm.reset()
-
-    await loadExpenseHistory()
-
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
+export async function loadExpenses() {
+  const expenseHistory = document.getElementById("expense-history");
+  if (!expenseHistory) return;
 
-// -----------------------------
-// Load Expense History
-// -----------------------------
-
-export async function loadExpenseHistory() {
-
-    const { data, error } = await supabase
-        .from("expenses")
-        .select(`
-            id,
-            date,
-            amount,
-            notes,
-            expense_categories(name)
-        `)
-        .order("date", { ascending: false })
-        .limit(20)
+  try {
+    const { data, error } = await supabaseClient
+  .from("expenses")
+  .select(`
+    *,
+    expense_categories (
+      id,
+      name
+    )
+  `)
+  .order("date", { ascending: false })
+  .order("created_at", { ascending: false });
 
     if (error) {
-        console.error("Error loading expenses:", error)
-        return
+      console.error("Error loading expenses:", error);
+      expenseHistory.innerHTML = `<div class="history-empty">Unable to load expenses.</div>`;
+      return;
     }
 
-    expenseHistory.innerHTML = ""
+    const expenses = data || [];
 
-    data.forEach(exp => {
+    const safeValue = (value) =>
+      value !== null && value !== undefined && value !== "" ? value : "-";
 
-        const item = document.createElement("div")
-        item.className = "history-item"
+    const formatCurrency = (value) => {
+      const number = Number(value || 0);
+      return `£${number.toFixed(2)}`;
+    };
 
-        const category = exp.expense_categories?.name || "Other"
+    expenseHistory.innerHTML = expenses.length
+      ? `
+        <div class="history-grid">
+          ${expenses.map((expense) => `
+            <div class="history-card">
+              <div class="history-card__header">
+                <div class="history-card__title">${safeValue(expense.date)}</div>
+                <div class="history-card__pill">${safeValue(expense.expense_categories?.name || "Expense")}</div>
+              </div>
 
-        item.innerHTML = `
-            <div>
-                <strong>${exp.date}</strong> — ${category}
-                <br>
-                £${exp.amount.toFixed(2)}
-                ${exp.notes ? `<br><small>${exp.notes}</small>` : ""}
+              <div class="history-card__grid">
+                <div class="history-item history-item--full">
+                  <span class="history-item__label">Amount & Notes</span>
+                  <div class="history-inline">
+                    <div class="history-inline__left history-item__value">
+                      ${safeValue(expense.notes)}
+                    </div>
+                    <div class="history-inline__right">
+                      ${formatCurrency(expense.amount)}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <button data-id="${exp.id}" class="delete-expense">Del</button>
-        `
-
-        expenseHistory.appendChild(item)
-
-    })
-
-    addDeleteHandlers()
-
+          `).join("")}
+        </div>
+      `
+      : `<div class="history-empty">No expenses logged yet.</div>`;
+  } catch (err) {
+    console.error("Unexpected error loading expenses:", err);
+    expenseHistory.innerHTML = `<div class="history-empty">Unable to load expenses.</div>`;
+  }
 }
 
+async function saveExpense(e) {
+  e.preventDefault();
 
-// -----------------------------
-// Delete Expense
-// -----------------------------
+  const expense = {
+    date: document.getElementById("expense-date").value,
+    amount: Number(document.getElementById("expense-amount").value) || 0,
+    notes: document.getElementById("expense-notes").value.trim()
+  };
 
-function addDeleteHandlers() {
+  const { error } = await supabaseClient.from("expenses").insert([expense]);
 
-    document.querySelectorAll(".delete-expense").forEach(btn => {
+  if (error) {
+    console.error("Error saving expense:", error);
+    alert(`Failed to save expense: ${error.message}`);
+    return;
+  }
 
-        btn.addEventListener("click", async () => {
-
-            const id = btn.dataset.id
-
-            const confirmDelete = confirm("Delete this expense?")
-
-            if (!confirmDelete) return
-
-            const { error } = await supabase
-                .from("expenses")
-                .delete()
-                .eq("id", id)
-
-            if (error) {
-                console.error("Delete error:", error)
-                alert("Could not delete expense")
-                return
-            }
-
-            loadExpenseHistory()
-
-        })
-
-    })
-
+  await loadExpenses();
 }
 
+function formatCurrency(value) {
+  const number = Number(value || 0);
+  return `£${number.toFixed(2)}`;
+}
 
-// -----------------------------
-// Init
-// -----------------------------
+function safeValue(value) {
+  return value ?? "-";
+}
 
-export async function initExpenses() {
+async function loadExpenseCategories() {
+  const categorySelect = document.getElementById("expense-category");
+  if (!categorySelect) return;
 
-    await loadExpenseCategories()
+  try {
+    const { data, error } = await supabaseClient
+      .from("expense_categories")
+      .select("id, name, active")
+      .eq("active", true)
+      .order("name", { ascending: true });
 
-    await loadExpenseHistory()
+    if (error) {
+      console.error("Error loading expense categories:", error);
+      categorySelect.innerHTML = `<option value="">No categories found</option>`;
+      return;
+    }
 
-    expenseForm.addEventListener("submit", saveExpense)
+    const categories = data || [];
 
+    categorySelect.innerHTML = `
+      <option value="">Select category</option>
+      ${categories.map(category => `
+        <option value="${category.id}">${category.name}</option>
+      `).join("")}
+    `;
+  } catch (err) {
+    console.error("Unexpected error loading expense categories:", err);
+    categorySelect.innerHTML = `<option value="">Unable to load categories</option>`;
+  }
 }

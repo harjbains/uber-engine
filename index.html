@@ -84,17 +84,19 @@
 
 <div class="form-row-2">
 
-<div>
-<label>Gross (£)</label>
-<input type="number" id="gross" step="0.01" inputmode="numeric">
+  <div>
+    <label>Uber Earnings (£)</label>
+    <input id="gross" type="number" step="0.01" class="input">
+  </div>
+
+  <div>
+    <label>Tips (£)</label>
+    <input id="tips" type="number" step="0.01" class="input">
+  </div>
+
 </div>
 
-<div>
-<label>Tips (£)</label>
-<input type="number" id="tips" step="0.01" inputmode="numeric">
-</div>
 
-</div>
 
 <button id="save_shift" class="btn-primary">
 Save Shift
@@ -105,7 +107,7 @@ Save Shift
 <div class="card">
 
 <h3>Today's Shifts</h3>
-<div id="shiftListShiftTab"></div>
+<div id="shiftList"></div>
 
 </div>
 
@@ -194,6 +196,8 @@ Save Fuel
 
 <h3>Log Expense</h3>
 
+<form id="expense-form">
+
 <label>Date</label>
 <input type="date" id="expense-date">
 
@@ -206,9 +210,11 @@ Save Fuel
 <label>Notes</label>
 <input type="text" id="expense-notes">
 
-<button id="save-expense" class="btn-primary">
+<button type="submit" class="btn-primary">
 Save Expense
 </button>
+
+</form>
 
 </div>
 
