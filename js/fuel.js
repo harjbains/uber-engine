@@ -1,4 +1,5 @@
 import { supabaseClient } from "./supabase.js";
+import { sendToGoogleSheets, buildFuelSheetPayload } from "./googleSheets.js";
 
 export function initFuel() {
   document.getElementById("save_fuel")
@@ -86,15 +87,32 @@ export async function loadFuel() {
 
 async function saveFuel() {
   const fuel = {
-  date: document.getElementById("fuel_date").value,
-  station: document.getElementById("fuel_station").value.trim(),
-  litres: Number(document.getElementById("fuel_litres").value) || 0,
-  cost: Number(document.getElementById("fuel_cost").value) || 0,
-  miles: Number(document.getElementById("fuel_miles").value) || 0
-};
+    date: document.getElementById("fuel_date").value,
+    station: document.getElementById("fuel_station").value.trim(),
+    litres: Number(document.getElementById("fuel_litres").value) || 0,
+    cost: Number(document.getElementById("fuel_cost").value) || 0,
+    miles: Number(document.getElementById("fuel_miles").value) || 0
+  };
 
-  await supabaseClient.from("fuel_logs").insert([fuel]);
+  const { error } = await supabaseClient.from("fuel_logs").insert([fuel]);
 
+  if (error) {
+    console.error("Error saving fuel log:", error);
+    alert(`Failed to save fuel log: ${error.message}`);
+    return;
+  }
+
+  try {
+    const sheetPayload = buildFuelSheetPayload(fuel);
+
+    console.log("Sending fuel to Google Sheets:", sheetPayload);
+    const syncResult = await sendToGoogleSheets("fuel", sheetPayload);
+    console.log("Google Sheets sync result:", syncResult);
+  } catch (syncError) {
+    console.error("Google Sheets sync failed:", syncError);
+  }
+
+  clearFuelForm();
   await loadFuel();
 }
 
@@ -110,4 +128,12 @@ function formatLitres(value) {
 
 function safeValue(value) {
   return value ?? "-";
+}
+
+function clearFuelForm() {
+  document.getElementById("fuel_date").value = "";
+  document.getElementById("fuel_station").value = "";
+  document.getElementById("fuel_litres").value = "";
+  document.getElementById("fuel_cost").value = "";
+  document.getElementById("fuel_miles").value = "";
 }

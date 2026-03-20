@@ -1,4 +1,5 @@
 import { supabaseClient } from "./supabase.js";
+import { sendToGoogleSheets, buildExpenseSheetPayload } from "./googleSheets.js";
 
 export function initExpenses() {
   document.getElementById("expense-form")
@@ -87,10 +88,16 @@ export async function loadExpenses() {
 async function saveExpense(e) {
   e.preventDefault();
 
+  const categorySelect = document.getElementById("expense-category");
+  const categoryId = categorySelect?.value || "";
+  const selectedOption = categorySelect?.selectedOptions?.[0];
+  const categoryName = categoryId ? selectedOption.textContent.trim() : "";
+
   const expense = {
     date: document.getElementById("expense-date").value,
     amount: Number(document.getElementById("expense-amount").value) || 0,
-    notes: document.getElementById("expense-notes").value.trim()
+    notes: document.getElementById("expense-notes").value.trim(),
+    category_id: categoryId || null
   };
 
   const { error } = await supabaseClient.from("expenses").insert([expense]);
@@ -101,6 +108,22 @@ async function saveExpense(e) {
     return;
   }
 
+  try {
+    const sheetPayload = buildExpenseSheetPayload({
+      date: expense.date,
+      amount: expense.amount,
+      notes: expense.notes,
+      category: categoryName
+    });
+
+    console.log("Sending expense to Google Sheets:", sheetPayload);
+    const syncResult = await sendToGoogleSheets("expense", sheetPayload);
+    console.log("Google Sheets sync result:", syncResult);
+  } catch (syncError) {
+    console.error("Google Sheets sync failed:", syncError);
+  }
+
+  clearExpenseForm();
   await loadExpenses();
 }
 
@@ -142,4 +165,11 @@ async function loadExpenseCategories() {
     console.error("Unexpected error loading expense categories:", err);
     categorySelect.innerHTML = `<option value="">Unable to load categories</option>`;
   }
+}
+
+function clearExpenseForm() {
+  document.getElementById("expense-date").value = "";
+  document.getElementById("expense-amount").value = "";
+  document.getElementById("expense-notes").value = "";
+  document.getElementById("expense-category").value = "";
 }

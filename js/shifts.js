@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { syncShiftToGoogleSheets } from "./googleSheets.js";
+import { sendToGoogleSheets, buildShiftSheetPayload } from "./googleSheets.js";
 
 const ids = {
   date: "shift_date",
@@ -219,22 +219,14 @@ export async function saveShift() {
     }
 
     try {
-      const sheetPayload = {
-        date: data.date,
-        start_time: data.start_time,
-        end_time: data.end_time,
-        odo_start: data.odo_start,
-        odo_end: data.odo_end,
-        gross: data.gross,
-        tips: data.tips,
-      };
+  const sheetPayload = buildShiftSheetPayload(data);
 
-      console.log("Sending shift to Google Sheets:", sheetPayload);
-      const syncResult = await syncShiftToGoogleSheets(sheetPayload);
-      console.log("Google Sheets sync result:", syncResult);
-    } catch (syncError) {
-      console.error("Google Sheets sync failed:", syncError);
-    }
+  console.log("Sending shift to Google Sheets:", sheetPayload);
+  const syncResult = await sendToGoogleSheets("shift", sheetPayload);
+  console.log("Google Sheets sync result:", syncResult);
+} catch (syncError) {
+  console.error("Google Sheets sync failed:", syncError);
+}
 
     clearShiftForm();
     await loadShifts();
