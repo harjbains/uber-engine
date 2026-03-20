@@ -1,6 +1,7 @@
 export const APP_VERSION = "1.4.0";
 
 export const RELEASE_NOTES = {
+  "1.4.1": "Confirm Google Sheets sync for shifts fuel and expenses.",
   "1.4.0": "Reconciliation pass. Single module bootstrap, fixed fuel history rendering, cleaned tab loading and date defaults.",
   "1.3.0": "Scripts changed to send multiple calls to Sheets for shift, fuel, expense.",
   "1.2.0": "History UI stabilisation. Compact shift, fuel and expense cards. Expense categories now load correctly.",
