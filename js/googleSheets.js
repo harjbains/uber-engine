@@ -1,29 +1,42 @@
 // https://script.google.com/macros/s/AKfycbw_aoGbvVnmc5p3CFLy0lQKhsrTTZDAOPq4-3yEFQoFtj0I27RaVSMh-Qko78Jitp0qoQ/exec
 
-const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw_aoGbvVnmc5p3CFLy0lQKhsrTTZDAOPq4-3yEFQoFtj0I27RaVSMh-Qko78Jitp0qoQ/exec";
 
-export async function sendToGoogleSheets(type, data) {
+const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw_aoGbvVnmc5p3CFLy0lQKhsrTTZDAOPq4-3yEFQoFtj0I27RaVSMh-Qko78Jitp0qoQ/exec";
+
+export async function sendToGoogleSheets(type, payload) {
   try {
-    const res = await fetch(GOOGLE_SCRIPT_URL, {
+    const response = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
       method: "POST",
       headers: {
-        "Content-Type": "text/plain;charset=utf-8",
+        "Content-Type": "text/plain;charset=utf-8"
       },
       body: JSON.stringify({
         type,
-        data,
-      }),
+        payload
+      })
     });
 
-    const result = await res.json().catch(() => ({}));
+    const result = await response.json();
+    console.log("Google Sheets raw response:", result);
 
-    if (!res.ok || result.success === false) {
-      throw new Error(result.error || `Google Sheets sync failed for ${type}`);
+    if (!response.ok) {
+      throw new Error(result?.message || `HTTP ${response.status}`);
+    }
+
+    const isSuccess =
+      result?.result === "success" ||
+      result?.status === "success" ||
+      result?.success === true ||
+      (typeof result?.message === "string" &&
+        result.message.toLowerCase().includes("appended"));
+
+    if (!isSuccess) {
+      throw new Error(result?.message || `Google Sheets sync failed for ${type}`);
     }
 
     return result;
   } catch (error) {
-    console.error(`sendToGoogleSheets error [${type}]`, error);
+    console.error(`sendToGoogleSheets failed for ${type}:`, error);
     throw error;
   }
 }
@@ -76,3 +89,4 @@ export function buildExpenseSheetPayload(expense) {
     category: expense.category ?? "",
   };
 }
+

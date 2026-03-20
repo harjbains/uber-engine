@@ -27,6 +27,10 @@
 <h1 id="app-version"></h1>
 <p id="app-version-notes"></p>
 
+<!-- ================= STATUS ================= -->
+
+<div id="sync-status" class="sync-status hidden"></div>
+
 <!-- ================= TAB BAR ================= -->
 
 <div class="tab-bar">
@@ -136,9 +140,7 @@ Save Shift
 <div id="month_summary" class="summary-grid"></div>
 
 
-<button id="export-month">
-Export Month to Google Sheets
-</button>
+
 
 
 </div>
@@ -204,20 +206,19 @@ Save Fuel
 <form id="expense-form">
 
 <label>Date</label>
-<input type="date" id="expense-date">
+<input type="date" id="expense_date">
 
 <label>Category</label>
-<select id="expense-category"></select>
+<select id="expense_category"></select>
 
 <label>Amount (£)</label>
-<input type="number" step="0.01" id="expense-amount">
+<input type="number" step="0.01" id="expense_amount">
 
 <label>Notes</label>
-<input type="text" id="expense-notes">
+<input type="text" id="expense_notes">
 
-<button type="submit" class="btn-primary">
-Save Expense
-</button>
+<button id="save_expense" class="btn-primary" type="button">Save Expense</button>
+
 
 </form>
 
@@ -226,22 +227,15 @@ Save Expense
 <div class="card">
 
 <h3>Expense History</h3>
-<div id="expense-history"></div>
+<div id="expenseList"></div>
 
 </div>
 
 </div>
 
-
-
-
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-<script src="js/db.js"></script>
-
-<script type="module" src="js/app.js?v=1.3.0"></script>
+<script type="module" src="js/app.js?v=1.4.0"></script>
 
 </body>
 

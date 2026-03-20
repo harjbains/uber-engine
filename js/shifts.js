@@ -1,5 +1,6 @@
 import { supabaseClient } from "./supabase.js";
 import { sendToGoogleSheets, buildShiftSheetPayload } from "./googleSheets.js";
+import { showStatus } from "./status.js";
 
 const ids = {
   date: "shift_date",
@@ -36,10 +37,6 @@ function getTimeValue(hourId, minId, fallback = "00:00") {
   if (hour === "" && min === "") return fallback;
 
   return `${pad2(hour || "0")}:${pad2(min || "0")}`;
-}
-
-function showMessage(message) {
-  alert(message);
 }
 
 function clearShiftForm() {
@@ -98,50 +95,56 @@ function renderShiftHistory(shifts) {
     return;
   }
 
-  shiftList.innerHTML = shifts.length
-  ? `<div class="history-grid">
-      ${shifts.map(shift => `
-        <div class="history-card">
-          <div class="history-card__header">
-            <div class="history-card__title">${safeValue(shift.date)}</div>
-            <div class="history-card__pill">Shift</div>
+  container.innerHTML = shifts.length
+    ? `<div class="history-grid">
+        ${shifts
+          .map(
+            (shift) => `
+          <div class="history-card">
+            <div class="history-card__header">
+              <div class="history-card__title">${escapeHtml(safeValue(shift.date))}</div>
+              <div class="history-card__pill">Shift</div>
+            </div>
+
+            <div class="history-card__grid history-card__grid--3x2">
+              <div class="history-item">
+                <span class="history-item__label">Start</span>
+                <span class="history-item__value">${escapeHtml(formatTime(shift.start_time))}</span>
+              </div>
+
+              <div class="history-item">
+                <span class="history-item__label">Odo Start</span>
+                <span class="history-item__value">${escapeHtml(safeValue(shift.odo_start))}</span>
+              </div>
+
+              <div class="history-item">
+                <span class="history-item__label">Tips</span>
+                <span class="history-item__value">${escapeHtml(formatCurrency(shift.tips))}</span>
+              </div>
+
+              <div class="history-item">
+                <span class="history-item__label">End</span>
+                <span class="history-item__value">${escapeHtml(formatTime(shift.end_time))}</span>
+              </div>
+
+              <div class="history-item">
+                <span class="history-item__label">Odo End</span>
+                <span class="history-item__value">${escapeHtml(safeValue(shift.odo_end))}</span>
+              </div>
+
+              <div class="history-item">
+                <span class="history-item__label">Earnings</span>
+                <span class="history-item__value history-item__value--strong">${escapeHtml(
+                  formatCurrency(shift.gross)
+                )}</span>
+              </div>
+            </div>
           </div>
-
-          <div class="history-card__grid history-card__grid--3x2">
-            <div class="history-item">
-              <span class="history-item__label">Start</span>
-              <span class="history-item__value">${formatTime(shift.start_time)}</span>
-            </div>
-
-            <div class="history-item">
-              <span class="history-item__label">Odo Start</span>
-              <span class="history-item__value">${safeValue(shift.odo_start)}</span>
-            </div>
-
-            <div class="history-item">
-              <span class="history-item__label">Tips</span>
-              <span class="history-item__value">${formatCurrency(shift.tips)}</span>
-            </div>
-
-            <div class="history-item">
-              <span class="history-item__label">End</span>
-              <span class="history-item__value">${formatTime(shift.end_time)}</span>
-            </div>
-
-            <div class="history-item">
-              <span class="history-item__label">Odo End</span>
-              <span class="history-item__value">${safeValue(shift.odo_end)}</span>
-            </div>
-
-            <div class="history-item">
-              <span class="history-item__label">Earnings</span>
-              <span class="history-item__value history-item__value--strong">${formatCurrency(shift.gross)}</span>
-            </div>
-          </div>
-        </div>
-      `).join("")}
-    </div>`
-  : `<div class="history-empty">No shifts logged yet.</div>`;
+        `
+          )
+          .join("")}
+      </div>`
+    : `<div class="history-empty">No shifts logged yet.</div>`;
 }
 
 function populateTimeSelect(selectId, values, defaultValue) {
@@ -184,6 +187,7 @@ export async function loadShifts() {
     if (container) {
       container.innerHTML = `<div class="error-state">Unable to load shifts.</div>`;
     }
+    showStatus("Unable to load shifts.", "error", false);
     return [];
   }
 
@@ -197,12 +201,14 @@ export async function saveShift() {
   try {
     if (saveBtn) saveBtn.disabled = true;
 
+    showStatus("Saving shift...", "info", false);
+
     const payload = buildShiftPayload();
     console.log("shift payload:", payload);
 
     const validationError = validateShift(payload);
     if (validationError) {
-      showMessage(validationError);
+      showStatus(validationError, "error");
       return;
     }
 
@@ -214,25 +220,31 @@ export async function saveShift() {
 
     if (error) {
       console.error("Error saving shift:", error);
-      showMessage(`Failed to save shift: ${error.message}`);
+      showStatus(`Failed to save shift: ${error.message}`, "error", false);
       return;
     }
 
     try {
-  const sheetPayload = buildShiftSheetPayload(data);
+      showStatus("Shift saved. Syncing to Google Sheets...", "info", false);
 
-  console.log("Sending shift to Google Sheets:", sheetPayload);
-  const syncResult = await sendToGoogleSheets("shift", sheetPayload);
-  console.log("Google Sheets sync result:", syncResult);
-} catch (syncError) {
-  console.error("Google Sheets sync failed:", syncError);
-}
+      const sheetPayload = buildShiftSheetPayload(data);
+      console.log("Sending shift to Google Sheets:", sheetPayload);
+
+      const syncResult = await sendToGoogleSheets("shift", sheetPayload);
+      console.log("Google Sheets sync result:", syncResult);
+
+      showStatus("Shift saved and synced successfully.", "success");
+    } catch (syncError) {
+      console.error("Google Sheets sync failed:", syncError);
+      showStatus("Shift saved, but Google Sheets sync failed.", "error", false);
+    }
 
     clearShiftForm();
+    initialiseTimeSelectors();
     await loadShifts();
   } catch (err) {
     console.error("Unexpected shift save error:", err);
-    showMessage("Unexpected error while saving shift.");
+    showStatus("Unexpected error while saving shift.", "error", false);
   } finally {
     if (saveBtn) saveBtn.disabled = false;
   }
@@ -246,8 +258,8 @@ function bindShiftEvents() {
 }
 
 export function initShifts() {
-  initialiseTimeSelectors();
   bindShiftEvents();
+  initialiseTimeSelectors();
   loadShifts();
 }
 

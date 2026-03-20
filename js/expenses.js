@@ -1,12 +1,27 @@
 import { supabaseClient } from "./supabase.js";
-import { sendToGoogleSheets, buildExpenseSheetPayload } from "./googleSheets.js";
+import {
+  sendToGoogleSheets,
+  buildExpenseSheetPayload,
+} from "./googleSheets.js";
+import { showStatus } from "./status.js";
 
-export function initExpenses() {
-  document.getElementById("expense-form")
-    ?.addEventListener("submit", saveExpense);
+const ids = {
+  date: "expense_date",
+  amount: "expense_amount",
+  notes: "expense_notes",
+  category: "expense_category",
+  saveBtn: "save_expense",
+  list: "expenseList",
+};
 
-    loadExpenseCategories();
-    loadExpenses();
+function el(id) {
+  return document.getElementById(id);
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 }
 
 function escapeHtml(value) {
@@ -18,113 +33,8 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
-export async function loadExpenses() {
-  const expenseHistory = document.getElementById("expense-history");
-  if (!expenseHistory) return;
-
-  try {
-    const { data, error } = await supabaseClient
-  .from("expenses")
-  .select(`
-    *,
-    expense_categories (
-      id,
-      name
-    )
-  `)
-  .order("date", { ascending: false })
-  .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error loading expenses:", error);
-      expenseHistory.innerHTML = `<div class="history-empty">Unable to load expenses.</div>`;
-      return;
-    }
-
-    const expenses = data || [];
-
-    const safeValue = (value) =>
-      value !== null && value !== undefined && value !== "" ? value : "-";
-
-    const formatCurrency = (value) => {
-      const number = Number(value || 0);
-      return `£${number.toFixed(2)}`;
-    };
-
-    expenseHistory.innerHTML = expenses.length
-      ? `
-        <div class="history-grid">
-          ${expenses.map((expense) => `
-            <div class="history-card">
-              <div class="history-card__header">
-                <div class="history-card__title">${safeValue(expense.date)}</div>
-                <div class="history-card__pill">${safeValue(expense.expense_categories?.name || "Expense")}</div>
-              </div>
-
-              <div class="history-card__grid">
-                <div class="history-item history-item--full">
-                  <span class="history-item__label">Amount & Notes</span>
-                  <div class="history-inline">
-                    <div class="history-inline__left history-item__value">
-                      ${safeValue(expense.notes)}
-                    </div>
-                    <div class="history-inline__right">
-                      ${formatCurrency(expense.amount)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          `).join("")}
-        </div>
-      `
-      : `<div class="history-empty">No expenses logged yet.</div>`;
-  } catch (err) {
-    console.error("Unexpected error loading expenses:", err);
-    expenseHistory.innerHTML = `<div class="history-empty">Unable to load expenses.</div>`;
-  }
-}
-
-async function saveExpense(e) {
-  e.preventDefault();
-
-  const categorySelect = document.getElementById("expense-category");
-  const categoryId = categorySelect?.value || "";
-  const selectedOption = categorySelect?.selectedOptions?.[0];
-  const categoryName = categoryId ? selectedOption.textContent.trim() : "";
-
-  const expense = {
-    date: document.getElementById("expense-date").value,
-    amount: Number(document.getElementById("expense-amount").value) || 0,
-    notes: document.getElementById("expense-notes").value.trim(),
-    category_id: categoryId || null
-  };
-
-  const { error } = await supabaseClient.from("expenses").insert([expense]);
-
-  if (error) {
-    console.error("Error saving expense:", error);
-    alert(`Failed to save expense: ${error.message}`);
-    return;
-  }
-
-  try {
-    const sheetPayload = buildExpenseSheetPayload({
-      date: expense.date,
-      amount: expense.amount,
-      notes: expense.notes,
-      category: categoryName
-    });
-
-    console.log("Sending expense to Google Sheets:", sheetPayload);
-    const syncResult = await sendToGoogleSheets("expense", sheetPayload);
-    console.log("Google Sheets sync result:", syncResult);
-  } catch (syncError) {
-    console.error("Google Sheets sync failed:", syncError);
-  }
-
-  clearExpenseForm();
-  await loadExpenses();
+function safeValue(value) {
+  return value ?? "-";
 }
 
 function formatCurrency(value) {
@@ -132,44 +42,239 @@ function formatCurrency(value) {
   return `£${number.toFixed(2)}`;
 }
 
-function safeValue(value) {
-  return value ?? "-";
+function buildExpensePayload() {
+  const categorySelect = el(ids.category);
+
+  return {
+    date: el(ids.date)?.value?.trim() || "",
+    amount: toNumber(el(ids.amount)?.value),
+    notes: el(ids.notes)?.value?.trim() || "",
+    category_id: toNumber(categorySelect?.value),
+    category: categorySelect?.selectedOptions?.[0]?.textContent?.trim() || "",
+  };
 }
 
-async function loadExpenseCategories() {
-  const categorySelect = document.getElementById("expense-category");
-  if (!categorySelect) return;
-
-  try {
-    const { data, error } = await supabaseClient
-      .from("expense_categories")
-      .select("id, name, active")
-      .eq("active", true)
-      .order("name", { ascending: true });
-
-    if (error) {
-      console.error("Error loading expense categories:", error);
-      categorySelect.innerHTML = `<option value="">No categories found</option>`;
-      return;
-    }
-
-    const categories = data || [];
-
-    categorySelect.innerHTML = `
-      <option value="">Select category</option>
-      ${categories.map(category => `
-        <option value="${category.id}">${category.name}</option>
-      `).join("")}
-    `;
-  } catch (err) {
-    console.error("Unexpected error loading expense categories:", err);
-    categorySelect.innerHTML = `<option value="">Unable to load categories</option>`;
-  }
+function validateExpense(payload) {
+  if (!payload.date) return "Please enter an expense date.";
+  if (payload.amount === null) return "Please enter an expense amount.";
+  if (!payload.category_id) return "Please select an expense category.";
+  return null;
 }
 
 function clearExpenseForm() {
-  document.getElementById("expense-date").value = "";
-  document.getElementById("expense-amount").value = "";
-  document.getElementById("expense-notes").value = "";
-  document.getElementById("expense-category").value = "";
+  [ids.amount, ids.notes].forEach((id) => {
+    const node = el(id);
+    if (node) node.value = "";
+  });
+
+  const category = el(ids.category);
+  if (category) category.value = "";
+}
+
+export async function loadExpenseCategories() {
+  const select = el(ids.category);
+
+  console.log("expense category select found:", !!select, select);
+
+  if (!select) {
+    console.error(`Expense category select not found: #${ids.category}`);
+    showStatus("Expense category dropdown not found in page.", "error", false);
+    return [];
+  }
+
+  const { data, error } = await supabaseClient
+    .from("expense_categories")
+    .select("id, name, active")
+    .eq("active", true)
+    .order("name", { ascending: true });
+
+  console.log("loadExpenseCategories result:", data, error);
+
+  if (error) {
+    console.error("Error loading expense categories:", error);
+    showStatus(`Unable to load expense categories: ${error.message}`, "error", false);
+    select.innerHTML = `<option value="">Select category</option>`;
+    return [];
+  }
+
+  const categories = data || [];
+
+  select.innerHTML = `
+    <option value="">Select category</option>
+    ${categories
+      .map(
+        (category) =>
+          `<option value="${category.id}">${escapeHtml(category.name)}</option>`
+      )
+      .join("")}
+  `;
+
+  console.log("expense category options rendered:", categories.length);
+
+  return categories;
+}
+
+function renderExpenseHistory(items) {
+  const container = el(ids.list);
+  if (!container) return;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    container.innerHTML = `<div class="history-empty">No expenses saved yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="history-grid">
+      ${items
+        .map(
+          (item) => `
+            <div class="history-card">
+              <div class="history-card__header">
+                <div class="history-card__title">${escapeHtml(safeValue(item.date))}</div>
+                <div class="history-card__pill">Expense</div>
+              </div>
+
+              <div class="history-card__grid history-card__grid--3x2">
+                <div class="history-item">
+                  <span class="history-item__label">Category</span>
+                  <span class="history-item__value">${escapeHtml(
+                    safeValue(item.expense_categories?.name || item.category || "-")
+                  )}</span>
+                </div>
+
+                <div class="history-item">
+                  <span class="history-item__label">Amount</span>
+                  <span class="history-item__value history-item__value--strong">${escapeHtml(
+                    formatCurrency(item.amount)
+                  )}</span>
+                </div>
+
+                <div class="history-item">
+                  <span class="history-item__label">Notes</span>
+                  <span class="history-item__value">${escapeHtml(safeValue(item.notes))}</span>
+                </div>
+              </div>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+export async function loadExpenses() {
+  const { data, error } = await supabaseClient
+    .from("expenses")
+    .select(`
+      *,
+      expense_categories(name)
+    `)
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  console.log("loadExpenses result:", data, error);
+
+  if (error) {
+    console.error("Error loading expenses:", error);
+    const container = el(ids.list);
+    if (container) {
+      container.innerHTML = `<div class="error-state">Unable to load expenses.</div>`;
+    }
+    showStatus("Unable to load expenses.", "error", false);
+    return [];
+  }
+
+  renderExpenseHistory(data || []);
+  return data || [];
+}
+
+export async function saveExpense() {
+  const saveBtn = el(ids.saveBtn);
+
+  try {
+    if (saveBtn) saveBtn.disabled = true;
+
+    showStatus("Saving expense...", "info", false);
+
+    const payload = buildExpensePayload();
+    console.log("expense payload:", payload);
+
+    const validationError = validateExpense(payload);
+    if (validationError) {
+      showStatus(validationError, "error");
+      return;
+    }
+
+    const supabasePayload = {
+      date: payload.date,
+      amount: payload.amount,
+      notes: payload.notes,
+      category_id: payload.category_id,
+    };
+
+    const { data, error } = await supabaseClient
+      .from("expenses")
+      .insert([supabasePayload])
+      .select(`
+        *,
+        expense_categories(name)
+      `)
+      .single();
+
+    if (error) {
+      console.error("Error saving expense:", error);
+      showStatus(`Failed to save expense: ${error.message}`, "error", false);
+      return;
+    }
+
+    try {
+      showStatus("Expense saved. Syncing to Google Sheets...", "info", false);
+
+      const sheetPayload = buildExpenseSheetPayload({
+        ...data,
+        category: data?.expense_categories?.name || payload.category || "",
+      });
+
+      console.log("Sending expense to Google Sheets:", sheetPayload);
+
+      const syncResult = await sendToGoogleSheets("expense", sheetPayload);
+      console.log("Google Sheets expense sync result:", syncResult);
+
+      showStatus("Expense saved and synced successfully.", "success");
+    } catch (syncError) {
+      console.error("Google Sheets expense sync failed:", syncError);
+      showStatus("Expense saved, but Google Sheets sync failed.", "error", false);
+    }
+
+    clearExpenseForm();
+    await loadExpenseCategories();
+    await loadExpenses();
+  } catch (err) {
+    console.error("Unexpected expense save error:", err);
+    showStatus("Unexpected error while saving expense.", "error", false);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+function bindExpenseEvents() {
+  const form = document.getElementById("expense-form");
+  if (form) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await saveExpense();
+    });
+  }
+
+  const saveBtn = el(ids.saveBtn);
+  if (saveBtn) {
+    saveBtn.setAttribute("type", "submit");
+  }
+}
+
+export async function initExpenses() {
+  console.log("initExpenses called");
+  bindExpenseEvents();
+  await loadExpenseCategories();
+  await loadExpenses();
 }
