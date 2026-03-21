@@ -1,6 +1,3 @@
-// https://script.google.com/macros/s/AKfycbw_aoGbvVnmc5p3CFLy0lQKhsrTTZDAOPq4-3yEFQoFtj0I27RaVSMh-Qko78Jitp0qoQ/exec
-
-
 const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw_aoGbvVnmc5p3CFLy0lQKhsrTTZDAOPq4-3yEFQoFtj0I27RaVSMh-Qko78Jitp0qoQ/exec";
 
 export async function sendToGoogleSheets(type, payload) {
@@ -20,18 +17,23 @@ export async function sendToGoogleSheets(type, payload) {
     console.log("Google Sheets raw response:", result);
 
     if (!response.ok) {
-      throw new Error(result?.message || `HTTP ${response.status}`);
+      throw new Error(result?.message || result?.error || `HTTP ${response.status}`);
     }
 
     const isSuccess =
+      result?.ok === true ||
       result?.result === "success" ||
       result?.status === "success" ||
       result?.success === true ||
       (typeof result?.message === "string" &&
-        result.message.toLowerCase().includes("appended"));
+        (
+          result.message.toLowerCase().includes("append") ||
+          result.message.toLowerCase().includes("sync") ||
+          result.message.toLowerCase().includes("update")
+        ));
 
     if (!isSuccess) {
-      throw new Error(result?.message || `Google Sheets sync failed for ${type}`);
+      throw new Error(result?.message || result?.error || `Google Sheets sync failed for ${type}`);
     }
 
     return result;
@@ -44,7 +46,6 @@ export async function sendToGoogleSheets(type, payload) {
 export function formatDateForSheet(dateValue) {
   if (!dateValue) return "";
 
-  // If already yyyy-mm-dd, return as-is
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) {
     return dateValue;
   }
@@ -67,7 +68,7 @@ export function buildShiftSheetPayload(shift) {
     odo_start: shift.odo_start ?? "",
     odo_end: shift.odo_end ?? "",
     gross: shift.gross ?? "",
-    tips: shift.tips ?? "",
+    tips: shift.tips ?? ""
   };
 }
 
@@ -77,7 +78,7 @@ export function buildFuelSheetPayload(fuel) {
     station: fuel.station ?? "",
     litres: fuel.litres ?? "",
     cost: fuel.cost ?? "",
-    miles: fuel.miles ?? "",
+    miles: fuel.miles ?? ""
   };
 }
 
@@ -86,7 +87,29 @@ export function buildExpenseSheetPayload(expense) {
     date: formatDateForSheet(expense.date),
     amount: expense.amount ?? "",
     notes: expense.notes ?? "",
-    category: expense.category ?? "",
+    category: expense.category ?? ""
   };
 }
 
+export function buildMonthlySheetPayload(summary) {
+  if (!summary.month) {
+    throw new Error("Month is required");
+  }
+
+  return {
+    month: summary.month,
+    total_income: summary.totalIncome ?? 0,
+    total_profit: summary.totalProfit ?? 0,
+    total_fuel: summary.totalFuel ?? 0,
+    total_expenses: summary.totalExpenses ?? 0,
+    net: summary.net ?? 0,
+    tax_estimate: summary.taxEstimate ?? 0,
+    true_retained: summary.trueRetained ?? 0,
+    last_updated_at: new Date().toISOString()
+  };
+}
+
+export async function exportMonthlySummary(summary) {
+  const payload = buildMonthlySheetPayload(summary);
+  return sendToGoogleSheets("monthly_summary", payload);
+}

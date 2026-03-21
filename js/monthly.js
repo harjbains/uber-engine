@@ -1,5 +1,7 @@
 import { supabaseClient } from "./supabase.js";
 
+let latestMonthlySummary = null;
+
 /* ================= INIT ================= */
 
 export function initMonthly() {
@@ -98,11 +100,9 @@ export async function loadMonthly(forceYm) {
   const fuelTotal = sumNum(fuelLogs || [], "cost");
   const expenseTotal = sumNum(expenses || [], "amount");
 
-  // Operational performance
   const grossProfit = incomeTotal - fuelTotal - expenseTotal;
   const incomePerMile = safeDiv(incomeTotal, milesTotal);
 
-  // Tax set-aside basis using stepped HMRC mileage rates
   const mileageBreakdown = hmrcMileageBreakdown(milesTotal, milesBeforeThisMonth);
   const hmrcAllowance = mileageBreakdown.allowance;
   const hmrcRateLabel = mileageBreakdown.rateLabel;
@@ -110,8 +110,18 @@ export async function loadMonthly(forceYm) {
   const taxableBasis = Math.max(0, incomeTotal - hmrcAllowance);
   const taxSetAside = taxableBasis * 0.2;
 
-  // What remains after real costs and monthly tax provisioning
   const netPay = grossProfit - taxSetAside;
+
+  latestMonthlySummary = {
+    month: yyyyMm,
+    totalIncome: incomeTotal,
+    totalProfit: grossProfit,
+    totalFuel: fuelTotal,
+    totalExpenses: expenseTotal,
+    net: netPay,
+    taxEstimate: taxSetAside,
+    trueRetained: netPay
+  };
 
   /* -------- RENDER -------- */
 
@@ -130,6 +140,16 @@ export async function loadMonthly(forceYm) {
     taxSetAside,
     netPay
   });
+}
+
+/* ================= EXPORT DATA ================= */
+
+export function getMonthlySummaryData() {
+  if (!latestMonthlySummary) {
+    throw new Error("Monthly summary not available yet");
+  }
+
+  return latestMonthlySummary;
 }
 
 /* ================= RENDER ================= */

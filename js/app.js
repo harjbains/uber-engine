@@ -3,6 +3,8 @@ import { initExpenses, loadExpenses } from "./expenses.js";
 import { initFuel, loadFuelLogs } from "./fuel.js";
 import { initShifts, loadShifts } from "./shifts.js";
 import { initVersion, APP_VERSION } from "./version.js";
+import { exportMonthlySummary } from "./googleSheets.js";
+import { getMonthlySummaryData } from "./monthly.js";
 
 /* ================= INIT ================= */
 
@@ -11,6 +13,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   setDefaultDates();
   bindTabs();
+  wireMonthlyExportButton();
 
   initShifts();
   initFuel();
@@ -73,3 +76,29 @@ function bindTabs() {
     });
   });
 }
+
+function wireMonthlyExportButton() {
+  const btn = document.getElementById("export-month");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    try {
+      btn.disabled = true;
+      btn.textContent = "Exporting...";
+
+      const summary = getMonthlySummaryData();
+      console.log("Monthly summary being exported:", summary);
+
+      await exportMonthlySummary(summary);
+
+      //alert("Monthly summary synced to Google Sheets");
+    } catch (error) {
+      console.error(error);
+      alert(`Monthly summary export failed: ${error.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Export Month";
+    }
+  });
+}
+
