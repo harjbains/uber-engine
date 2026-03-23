@@ -36,7 +36,7 @@ export async function loadMonthly(forceYm) {
   /* -------- SHIFTS -------- */
   const { data: shifts, error: shiftsErr } = await supabaseClient
     .from("shifts")
-    .select("id,date,gross,tips,odo_start,odo_end")
+    .select("id,date,gross,tips,shift_miles,odo_end")
     .gte("date", startDate)
     .lt("date", nextDate);
 
@@ -76,7 +76,7 @@ export async function loadMonthly(forceYm) {
 
   const { data: priorShifts, error: priorErr } = await supabaseClient
     .from("shifts")
-    .select("odo_start,odo_end,date")
+    .select("shift_miles,date")
     .gte("date", taxYearStartStr)
     .lt("date", startDate);
 
@@ -221,12 +221,8 @@ function sumNum(rows, key) {
 
 function sumShiftMiles(rows) {
   return rows.reduce((acc, s) => {
-    const a = Number(s.odo_start);
-    const b = Number(s.odo_end);
-
-    return Number.isFinite(a) && Number.isFinite(b) && b >= a
-      ? acc + (b - a)
-      : acc;
+    const miles = Number(s.shift_miles);
+    return Number.isFinite(miles) && miles > 0 ? acc + miles : acc;
   }, 0);
 }
 

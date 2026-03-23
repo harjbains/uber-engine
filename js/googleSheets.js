@@ -62,13 +62,16 @@ export function formatDateForSheet(dateValue) {
 
 export function buildShiftSheetPayload(shift) {
   return {
+    id: shift.id ?? "",
     date: formatDateForSheet(shift.date),
     start_time: shift.start_time ?? "",
     end_time: shift.end_time ?? "",
-    odo_start: shift.odo_start ?? "",
+    shift_miles: shift.shift_miles ?? "",
     odo_end: shift.odo_end ?? "",
     gross: shift.gross ?? "",
-    tips: shift.tips ?? ""
+    tips: shift.tips ?? "",
+    created_at: shift.created_at ?? "",
+    updated_at: shift.updated_at ?? ""
   };
 }
 

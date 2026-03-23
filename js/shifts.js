@@ -8,7 +8,7 @@ const ids = {
   startMin: "start_min",
   endHour: "end_hour",
   endMin: "end_min",
-  odoStart: "odo_start",
+  shiftMiles: "shift_miles",
   odoEnd: "odo_end",
   gross: "gross",
   tips: "tips",
@@ -40,7 +40,7 @@ function getTimeValue(hourId, minId, fallback = "00:00") {
 }
 
 function clearShiftForm() {
-  [ids.odoStart, ids.odoEnd, ids.gross, ids.tips].forEach((id) => {
+  [ids.shiftMiles, ids.odoEnd, ids.gross, ids.tips].forEach((id) => {
     const node = el(id);
     if (node) node.value = "";
   });
@@ -57,7 +57,7 @@ function escapeHtml(value) {
 
 function buildShiftPayload() {
   const date = el(ids.date)?.value?.trim() || "";
-  const odoStart = toNumber(el(ids.odoStart)?.value);
+  const shiftMiles = toNumber(el(ids.shiftMiles)?.value);
   const odoEnd = toNumber(el(ids.odoEnd)?.value);
   const gross = toNumber(el(ids.gross)?.value) ?? 0;
   const tips = toNumber(el(ids.tips)?.value) ?? 0;
@@ -69,7 +69,7 @@ function buildShiftPayload() {
     date,
     start_time: startTime,
     end_time: endTime,
-    odo_start: odoStart,
+    shift_miles: shiftMiles,
     odo_end: odoEnd,
     gross,
     tips,
@@ -78,11 +78,10 @@ function buildShiftPayload() {
 
 function validateShift(payload) {
   if (!payload.date) return "Please enter a shift date.";
-  if (payload.odo_start === null) return "Please enter odometer start.";
-  if (payload.odo_end === null) return "Please enter odometer end.";
-  if (payload.odo_end < payload.odo_start) {
-    return "Odometer end must be greater than or equal to odometer start.";
-  }
+  if (payload.shift_miles === null) return "Please enter shift miles.";
+  if (payload.odo_end === null) return "Please enter current odometer.";
+  if (payload.shift_miles <= 0) return "Shift miles must be greater than zero.";
+  if (payload.odo_end < 0) return "Current odometer must be zero or greater.";
   return null;
 }
 
@@ -113,8 +112,8 @@ function renderShiftHistory(shifts) {
               </div>
 
               <div class="history-item">
-                <span class="history-item__label">Odo Start</span>
-                <span class="history-item__value">${escapeHtml(safeValue(shift.odo_start))}</span>
+                <span class="history-item__label">Shift Miles</span>
+                <span class="history-item__value">${escapeHtml(formatMiles(shift.shift_miles))}</span>
               </div>
 
               <div class="history-item">
@@ -128,8 +127,8 @@ function renderShiftHistory(shifts) {
               </div>
 
               <div class="history-item">
-                <span class="history-item__label">Odo End</span>
-                <span class="history-item__value">${escapeHtml(safeValue(shift.odo_end))}</span>
+                <span class="history-item__label">Odometer</span>
+                <span class="history-item__value">${escapeHtml(formatMiles(shift.odo_end))}</span>
               </div>
 
               <div class="history-item">
@@ -271,6 +270,12 @@ function formatTime(value) {
 function formatCurrency(value) {
   const number = Number(value || 0);
   return `£${number.toFixed(2)}`;
+}
+
+function formatMiles(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return number.toFixed(1);
 }
 
 function safeValue(value) {

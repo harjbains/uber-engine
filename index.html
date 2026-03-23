@@ -46,70 +46,75 @@
 
 <div id="shift_tab" class="tab-content active">
 
-<div class="card">
+  <div class="card">
 
-<h3>Log Shift</h3>
+    <h3>Log Shift</h3>
 
-<label>Date</label>
-<input type="date" id="shift_date">
+    <label>Date</label>
+    <input type="date" id="shift_date">
 
-<div class="form-row-2">
+    <div class="form-row-2">
 
-<div>
-<label>Start Time</label>
+      <div>
+        <label>Start Time</label>
 
-<div class="time-row">
-<select id="start_hour"></select>
-<select id="start_min"></select>
-</div>
+        <div class="time-row">
+          <select id="start_hour"></select>
+          <select id="start_min"></select>
+        </div>
+      </div>
 
-</div>
+      <div>
+        <label>End Time</label>
 
-<div>
-<label>End Time</label>
+        <div class="time-row">
+          <select id="end_hour"></select>
+          <select id="end_min"></select>
+        </div>
+      </div>
 
-<div class="time-row">
-<select id="end_hour"></select>
-<select id="end_min"></select>
-</div>
+    </div>
 
-</div>
+    <div class="form-row-2">
 
-</div>
+      <div>
+        <label>Shift Miles</label>
+        <input type="number" id="shift_miles" step="0.1" inputmode="decimal">
+      </div>
 
-<div class="form-row-2">
+      <div>
+        <label>Current Odometer</label>
+        <input type="number" id="odo_end" step="0.1" inputmode="decimal">
+      </div>
 
-<div>
-<label>Odo Start</label>
-<input type="number" id="odo_start" inputmode="numeric">
-</div>
+    </div>
 
-<div>
-<label>Odo End</label>
-<input type="number" id="odo_end" inputmode="numeric">
-</div>
+    <div class="form-row-2">
 
-</div>
+      <div>
+        <label>Uber Earnings (£)</label>
+        <input id="gross" type="number" step="0.01" class="input">
+      </div>
 
-<div class="form-row-2">
+      <div>
+        <label>Tips (£)</label>
+        <input id="tips" type="number" step="0.01" class="input">
+      </div>
 
-  <div>
-    <label>Uber Earnings (£)</label>
-    <input id="gross" type="number" step="0.01" class="input">
+    </div>
+
+    <button id="save_shift" class="btn-primary">
+      Save Shift
+    </button>
+
   </div>
 
-  <div>
-    <label>Tips (£)</label>
-    <input id="tips" type="number" step="0.01" class="input">
+  <div class="card">
+
+    <h3>Today's Shifts</h3>
+    <div id="shiftList"></div>
+
   </div>
-
-</div>
-
-
-
-<button id="save_shift" class="btn-primary">
-Save Shift
-</button>
 
 </div>
 
@@ -237,7 +242,7 @@ Save Fuel
 
 </div>
 
-<script type="module" src="js/app.js?v=1.4.2"></script>
+<script type="module" src="js/app.js?v=1.5.0"></script>
 
 </body>
 
