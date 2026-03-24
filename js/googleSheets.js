@@ -68,6 +68,7 @@ export function buildShiftSheetPayload(shift) {
     end_time: shift.end_time ?? "",
     shift_miles: shift.shift_miles ?? "",
     odo_end: shift.odo_end ?? "",
+    trips: shift.trips ?? "",
     gross: shift.gross ?? "",
     tips: shift.tips ?? "",
     created_at: shift.created_at ?? "",

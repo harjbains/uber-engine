@@ -10,6 +10,7 @@ const ids = {
   endMin: "end_min",
   shiftMiles: "shift_miles",
   odoEnd: "odo_end",
+  trips: "trips",
   gross: "gross",
   tips: "tips",
   saveBtn: "save_shift",
@@ -40,10 +41,13 @@ function getTimeValue(hourId, minId, fallback = "00:00") {
 }
 
 function clearShiftForm() {
-  [ids.shiftMiles, ids.odoEnd, ids.gross, ids.tips].forEach((id) => {
+  [ids.shiftMiles, ids.odoEnd, ids.trips, ids.gross].forEach((id) => {
     const node = el(id);
     if (node) node.value = "";
   });
+
+  const tipsNode = el(ids.tips);
+  if (tipsNode) tipsNode.value = "0";
 }
 
 function escapeHtml(value) {
@@ -59,6 +63,7 @@ function buildShiftPayload() {
   const date = el(ids.date)?.value?.trim() || "";
   const shiftMiles = toNumber(el(ids.shiftMiles)?.value);
   const odoEnd = toNumber(el(ids.odoEnd)?.value);
+  const trips = toNumber(el(ids.trips)?.value);
   const gross = toNumber(el(ids.gross)?.value) ?? 0;
   const tips = toNumber(el(ids.tips)?.value) ?? 0;
 
@@ -71,6 +76,7 @@ function buildShiftPayload() {
     end_time: endTime,
     shift_miles: shiftMiles,
     odo_end: odoEnd,
+    trips,
     gross,
     tips,
   };
@@ -80,8 +86,10 @@ function validateShift(payload) {
   if (!payload.date) return "Please enter a shift date.";
   if (payload.shift_miles === null) return "Please enter shift miles.";
   if (payload.odo_end === null) return "Please enter current odometer.";
+  if (payload.trips === null) return "Please enter trips.";
   if (payload.shift_miles <= 0) return "Shift miles must be greater than zero.";
   if (payload.odo_end < 0) return "Current odometer must be zero or greater.";
+  if (payload.trips < 0) return "Trips must be zero or greater.";
   return null;
 }
 
@@ -117,8 +125,8 @@ function renderShiftHistory(shifts) {
               </div>
 
               <div class="history-item">
-                <span class="history-item__label">Tips</span>
-                <span class="history-item__value">${escapeHtml(formatCurrency(shift.tips))}</span>
+                <span class="history-item__label">Trips</span>
+                <span class="history-item__value">${escapeHtml(formatTrips(shift.trips))}</span>
               </div>
 
               <div class="history-item">
@@ -132,9 +140,9 @@ function renderShiftHistory(shifts) {
               </div>
 
               <div class="history-item">
-                <span class="history-item__label">Earnings</span>
+                <span class="history-item__label">Earnings / Tips</span>
                 <span class="history-item__value history-item__value--strong">${escapeHtml(
-                  formatCurrency(shift.gross)
+                  `${formatCurrency(shift.gross)} / ${formatCurrency(shift.tips)}`
                 )}</span>
               </div>
             </div>
@@ -276,6 +284,12 @@ function formatMiles(value) {
   const number = Number(value);
   if (!Number.isFinite(number)) return "-";
   return number.toFixed(1);
+}
+
+function formatTrips(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return "-";
+  return String(Math.round(number));
 }
 
 function safeValue(value) {
