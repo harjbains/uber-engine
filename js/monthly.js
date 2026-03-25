@@ -1,299 +1,207 @@
 import { supabaseClient } from "./supabase.js";
+import { exportMonthlySummary } from "./googleSheets.js";
+import { showStatus } from "./status.js";
 
-let latestMonthlySummary = null;
+const ids = {
+  picker: "month_picker",
+  summary: "month_summary",
+  exportBtn: "export-month"
+};
 
-/* ================= INIT ================= */
+const DAILY_INSURANCE_DEFAULT = 10;
+const TAX_RATE_DEFAULT = 0.20;
+
+function el(id) {
+  return document.getElementById(id);
+}
+
+function formatMoney(value) {
+  return `£${Number(value || 0).toFixed(2)}`;
+}
+
+function formatNumber(value, dp = 1) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  return n.toFixed(dp);
+}
+
+function formatInt(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  return String(Math.round(n));
+}
+
+function currentMonthValue() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  return `${yyyy}-${mm}`;
+}
+
+function monthDateRange(monthValue) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const start = `${year}-${String(month).padStart(2, "0")}-01`;
+  const endDate = new Date(year, month, 0);
+  const end = `${year}-${String(month).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
+  return { start, end };
+}
+
+export async function loadMonthSummary() {
+  const monthValue = el(ids.picker)?.value || currentMonthValue();
+  const container = el(ids.summary);
+  if (!container) return null;
+
+  const { start, end } = monthDateRange(monthValue);
+
+  const [daysRes, fuelRes, expenseRes] = await Promise.all([
+    supabaseClient
+      .from("days")
+      .select("*")
+      .gte("date", start)
+      .lte("date", end),
+    supabaseClient
+      .from("fuel_logs")
+      .select("date,cost")
+      .gte("date", start)
+      .lte("date", end),
+    supabaseClient
+      .from("expenses")
+      .select("date,amount")
+      .gte("date", start)
+      .lte("date", end)
+  ]);
+
+  if (daysRes.error || fuelRes.error || expenseRes.error) {
+    console.error("Month summary load error:", daysRes.error || fuelRes.error || expenseRes.error);
+    container.innerHTML = `<div class="error-state">Unable to load month summary.</div>`;
+    showStatus("Unable to load month summary.", "error", false);
+    return null;
+  }
+
+  const days = daysRes.data || [];
+  const fuels = fuelRes.data || [];
+  const expenses = expenseRes.data || [];
+
+  const totalIncome = days.reduce((sum, d) => sum + Number(d.gross || 0), 0);
+  const totalTrips = days.reduce((sum, d) => sum + Number(d.trips || 0), 0);
+  const totalMiles = days.reduce((sum, d) => sum + Number(d.business_miles || 0), 0);
+  const daysWorked = days.length;
+
+  const totalFuel = fuels.reduce((sum, f) => sum + Number(f.cost || 0), 0);
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
+  const totalTax = totalIncome * TAX_RATE_DEFAULT;
+  const totalInsurance = daysWorked * DAILY_INSURANCE_DEFAULT;
+  const totalTrueRetained = totalIncome - totalFuel - totalExpenses - totalTax - totalInsurance;
+
+  const summary = {
+    month: monthValue,
+    daysWorked,
+    totalIncome,
+    totalTrips,
+    totalMiles,
+    totalFuel,
+    totalExpenses,
+    totalTax,
+    totalInsurance,
+    totalTrueRetained,
+    avgPerTrip: totalTrips > 0 ? totalIncome / totalTrips : 0,
+    avgPerMile: totalMiles > 0 ? totalIncome / totalMiles : 0,
+    avgPerWorkedDay: daysWorked > 0 ? totalIncome / daysWorked : 0
+  };
+
+  container.innerHTML = `
+    <div class="summary-card">
+      <div class="summary-label">Days Worked</div>
+      <div class="summary-value">${formatInt(summary.daysWorked)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Gross</div>
+      <div class="summary-value">${formatMoney(summary.totalIncome)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Trips</div>
+      <div class="summary-value">${formatInt(summary.totalTrips)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Miles</div>
+      <div class="summary-value">${formatNumber(summary.totalMiles, 1)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Fuel</div>
+      <div class="summary-value">${formatMoney(summary.totalFuel)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Expenses</div>
+      <div class="summary-value">${formatMoney(summary.totalExpenses)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Tax</div>
+      <div class="summary-value">${formatMoney(summary.totalTax)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Insurance Allocated</div>
+      <div class="summary-value">${formatMoney(summary.totalInsurance)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">True Retained</div>
+      <div class="summary-value">${formatMoney(summary.totalTrueRetained)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">£ / Trip</div>
+      <div class="summary-value">${formatMoney(summary.avgPerTrip)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">£ / Mile</div>
+      <div class="summary-value">${formatMoney(summary.avgPerMile)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Avg / Worked Day</div>
+      <div class="summary-value">${formatMoney(summary.avgPerWorkedDay)}</div>
+    </div>
+  `;
+
+  return summary;
+}
+
+async function handleExportMonth() {
+  try {
+    showStatus("Exporting month summary...", "info", false);
+    const summary = await loadMonthSummary();
+
+    if (!summary) {
+      showStatus("No month summary to export.", "error");
+      return;
+    }
+
+    await exportMonthlySummary(summary);
+    showStatus("Month summary exported successfully.", "success");
+  } catch (error) {
+    console.error("Export month failed:", error);
+    showStatus("Failed to export month summary.", "error", false);
+  }
+}
 
 export function initMonthly() {
-  const picker = document.getElementById("month_picker");
-  const currentMonth = getCurrentMonth();
+  const picker = el(ids.picker);
+  const exportBtn = el(ids.exportBtn);
 
   if (picker && !picker.value) {
-    picker.value = currentMonth;
+    picker.value = currentMonthValue();
   }
 
-  if (picker) {
-    picker.addEventListener("change", () => loadMonthly(picker.value));
-  }
+  picker?.addEventListener("change", loadMonthSummary);
+  exportBtn?.addEventListener("click", handleExportMonth);
 
-  loadMonthly(picker?.value || currentMonth);
-}
-
-/* ================= LOAD ================= */
-
-export async function loadMonthly(forceYm) {
-  const picker = document.getElementById("month_picker");
-
-  const yyyyMm = forceYm || picker?.value || getCurrentMonth();
-
-  if (!yyyyMm) {
-    console.error("No month available");
-    return renderMonthlyError("No month selected");
-  }
-
-  const { startDate, nextDate } = monthRange(yyyyMm);
-
-  /* -------- SHIFTS -------- */
-  const { data: shifts, error: shiftsErr } = await supabaseClient
-    .from("shifts")
-    .select("id,date,gross,tips,shift_miles,odo_end")
-    .gte("date", startDate)
-    .lt("date", nextDate);
-
-  if (shiftsErr) {
-    console.error("Error loading shifts:", shiftsErr);
-    return renderMonthlyError("Error loading shifts");
-  }
-
-  /* -------- FUEL -------- */
-  const { data: fuelLogs, error: fuelErr } = await supabaseClient
-    .from("fuel_logs")
-    .select("id,date,cost")
-    .gte("date", startDate)
-    .lt("date", nextDate);
-
-  if (fuelErr) {
-    console.error("Error loading fuel:", fuelErr);
-    return renderMonthlyError("Error loading fuel");
-  }
-
-  /* -------- EXPENSES -------- */
-  const { data: expenses, error: expErr } = await supabaseClient
-    .from("expenses")
-    .select("id,date,amount")
-    .gte("date", startDate)
-    .lt("date", nextDate);
-
-  if (expErr) {
-    console.error("Error loading expenses:", expErr);
-    return renderMonthlyError("Error loading expenses");
-  }
-
-  /* -------- TAX YEAR MILEAGE -------- */
-  const monthStart = new Date(`${startDate}T00:00:00Z`);
-  const taxYearStart = taxYearStartForUK(monthStart);
-  const taxYearStartStr = taxYearStart.toISOString().slice(0, 10);
-
-  const { data: priorShifts, error: priorErr } = await supabaseClient
-    .from("shifts")
-    .select("shift_miles,date")
-    .gte("date", taxYearStartStr)
-    .lt("date", startDate);
-
-  if (priorErr) {
-    console.error("Error loading prior tax year mileage:", priorErr);
-    return renderMonthlyError("Error loading prior mileage");
-  }
-
-  /* -------- AGGREGATION -------- */
-
-  const shiftCount = shifts?.length || 0;
-
-  const grossTotal = sumNum(shifts || [], "gross");
-  const tipsTotal = sumNum(shifts || [], "tips");
-  const incomeTotal = grossTotal + tipsTotal;
-
-  const milesTotal = sumShiftMiles(shifts || []);
-  const milesBeforeThisMonth = sumShiftMiles(priorShifts || []);
-  const totalYtdMiles = milesBeforeThisMonth + milesTotal;
-
-  const fuelTotal = sumNum(fuelLogs || [], "cost");
-  const expenseTotal = sumNum(expenses || [], "amount");
-
-  const grossProfit = incomeTotal - fuelTotal - expenseTotal;
-  const incomePerMile = safeDiv(incomeTotal, milesTotal);
-
-  const mileageBreakdown = hmrcMileageBreakdown(milesTotal, milesBeforeThisMonth);
-  const hmrcAllowance = mileageBreakdown.allowance;
-  const hmrcRateLabel = mileageBreakdown.rateLabel;
-
-  const taxableBasis = Math.max(0, incomeTotal - hmrcAllowance);
-  const taxSetAside = taxableBasis * 0.2;
-
-  const netPay = grossProfit - taxSetAside;
-
-  latestMonthlySummary = {
-    month: yyyyMm,
-    totalIncome: incomeTotal,
-    totalProfit: grossProfit,
-    totalFuel: fuelTotal,
-    totalExpenses: expenseTotal,
-    net: netPay,
-    taxEstimate: taxSetAside,
-    trueRetained: netPay
-  };
-
-  /* -------- RENDER -------- */
-
-  renderMonthlySummary({
-    shiftCount,
-    incomeTotal,
-    milesTotal,
-    totalYtdMiles,
-    incomePerMile,
-    fuelTotal,
-    expenseTotal,
-    grossProfit,
-    hmrcAllowance,
-    hmrcRateLabel,
-    taxableBasis,
-    taxSetAside,
-    netPay
-  });
-}
-
-/* ================= EXPORT DATA ================= */
-
-export function getMonthlySummaryData() {
-  if (!latestMonthlySummary) {
-    throw new Error("Monthly summary not available yet");
-  }
-
-  return latestMonthlySummary;
-}
-
-/* ================= RENDER ================= */
-
-function renderMonthlySummary(m) {
-  const el = document.getElementById("month_summary");
-  if (!el) return;
-
-  el.innerHTML = `
-    <div class="summary-section">
-      <h3>Performance</h3>
-      <div class="summary-grid">
-        ${summaryItem("Shifts", m.shiftCount)}
-        ${summaryItem("Total Income", money(m.incomeTotal))}
-        ${summaryItem("Miles", Number(m.milesTotal || 0).toFixed(0))}
-        ${summaryItem("£ / Mile", money(m.incomePerMile))}
-        ${summaryItem("Fuel Cost", money(m.fuelTotal))}
-        ${summaryItem("Expenses", money(m.expenseTotal))}
-        ${summaryItemHighlight("Gross Profit", money(m.grossProfit))}
-      </div>
-    </div>
-
-    <div class="summary-section">
-      <h3>Tax Provision</h3>
-      <div class="summary-grid">
-        ${summaryItem("Tax Year Miles", Number(m.totalYtdMiles || 0).toFixed(0))}
-        ${summaryItem("HMRC Rate", m.hmrcRateLabel)}
-        ${summaryItem("HMRC Allowance", money(m.hmrcAllowance))}
-        ${summaryItem("Taxable Basis", money(m.taxableBasis))}
-        ${summaryItemTax("Tax Set-Aside", money(m.taxSetAside))}
-        ${summaryItemNet("Net Pay", money(m.netPay))}
-      </div>
-    </div>
-  `;
-}
-
-function renderMonthlyError(msg) {
-  const el = document.getElementById("month_summary");
-  if (!el) return;
-
-  el.innerHTML = `<div class="history-empty">${msg}</div>`;
-}
-
-/* ================= HELPERS ================= */
-
-function getCurrentMonth() {
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-}
-
-function monthRange(yyyyMm) {
-  const [y, m] = yyyyMm.split("-").map(Number);
-
-  const start = new Date(Date.UTC(y, m - 1, 1));
-  const next = new Date(Date.UTC(y, m, 1));
-
-  return {
-    startDate: start.toISOString().slice(0, 10),
-    nextDate: next.toISOString().slice(0, 10)
-  };
-}
-
-function sumNum(rows, key) {
-  return rows.reduce((acc, r) => {
-    const n = Number(r[key]);
-    return Number.isFinite(n) ? acc + n : acc;
-  }, 0);
-}
-
-function sumShiftMiles(rows) {
-  return rows.reduce((acc, s) => {
-    const miles = Number(s.shift_miles);
-    return Number.isFinite(miles) && miles > 0 ? acc + miles : acc;
-  }, 0);
-}
-
-function safeDiv(a, b) {
-  return b > 0 ? a / b : 0;
-}
-
-function money(n) {
-  return `£${(Number(n) || 0).toFixed(2)}`;
-}
-
-function taxYearStartForUK(dateObj) {
-  const y = dateObj.getUTCFullYear();
-  const start = new Date(Date.UTC(y, 3, 6));
-  return dateObj >= start ? start : new Date(Date.UTC(y - 1, 3, 6));
-}
-
-function hmrcMileageBreakdown(milesThisMonth, milesBeforeThisMonth) {
-  const remainingAt45p = Math.max(0, 10000 - milesBeforeThisMonth);
-  const milesAt45p = Math.min(milesThisMonth, remainingAt45p);
-  const milesAt25p = Math.max(0, milesThisMonth - milesAt45p);
-
-  const allowance = (milesAt45p * 0.45) + (milesAt25p * 0.25);
-
-  let rateLabel = "45p";
-  if (milesAt45p > 0 && milesAt25p > 0) {
-    rateLabel = "45p & 25p";
-  } else if (milesAt25p > 0 && milesAt45p === 0) {
-    rateLabel = "25p";
-  }
-
-  return {
-    milesAt45p,
-    milesAt25p,
-    allowance,
-    rateLabel
-  };
-}
-
-function summaryItem(label, value) {
-  return `
-    <div class="summary-card">
-      <span class="summary-label">${label}</span>
-      <span class="summary-value">${value}</span>
-    </div>
-  `;
-}
-
-function summaryItemHighlight(label, value) {
-  return `
-    <div class="summary-card highlight">
-      <span class="summary-label">${label}</span>
-      <span class="summary-value">${value}</span>
-    </div>
-  `;
-}
-
-function summaryItemTax(label, value) {
-  return `
-    <div class="summary-card tax">
-      <span class="summary-label">${label}</span>
-      <span class="summary-value">${value}</span>
-    </div>
-  `;
-}
-
-function summaryItemNet(label, value) {
-  return `
-    <div class="summary-card net">
-      <span class="summary-label">${label}</span>
-      <span class="summary-value">${value}</span>
-    </div>
-  `;
+  loadMonthSummary();
 }

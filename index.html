@@ -2,236 +2,182 @@
 <html lang="en">
 
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="favicon.ico">
+  <title>Uber Engine</title>
 
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="favicon.ico">
-<title>Uber Engine</title>
+  <link rel="stylesheet" href="css/styles.css">
 
-<link rel="stylesheet" href="css/styles.css">
-
-<meta http-equiv="Cache-Control" content="no-store">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
-
+  <meta http-equiv="Cache-Control" content="no-store">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
 </head>
 
 <body>
+  <div class="app-container">
 
-<div class="app-container">
+    <h1>Uber Engine</h1>
 
-<h1>Uber Engine</h1>
+    <h1 id="app-version"></h1>
+    <p id="app-version-notes"></p>
 
-<!-- ================= VERSION ================= -->
+    <div id="sync-status" class="sync-status hidden"></div>
 
-<h1 id="app-version"></h1>
-<p id="app-version-notes"></p>
+    <div class="tab-bar">
+      <button class="tab-button active" data-tab="day_tab">Day</button>
+      <button class="tab-button" data-tab="month_tab">Month</button>
+      <button class="tab-button" data-tab="fuel_tab">Fuel</button>
+      <button class="tab-button" data-tab="expenses_tab">Expenses</button>
+    </div>
 
-<!-- ================= STATUS ================= -->
+    <!-- ================= DAY TAB ================= -->
 
-<div id="sync-status" class="sync-status hidden"></div>
+    <div id="day_tab" class="tab-content active">
 
-<!-- ================= TAB BAR ================= -->
+      <div class="card">
+        <h2>Log Day</h2>
 
-<div class="tab-bar">
+        <div class="field">
+          <label for="day_date">Date</label>
+          <input id="day_date" type="date">
+        </div>
 
-<button class="tab-button active" data-tab="shift_tab">Shift</button>
-<button class="tab-button" data-tab="month_tab">Month</button>
-<button class="tab-button" data-tab="fuel_tab">Fuel</button>
-<button class="tab-button" data-tab="expenses_tab">Expenses</button>
+        <div class="form-row-3">
+          <div class="field">
+            <label for="day_gross">Gross Earnings (£)</label>
+            <input id="day_gross" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
 
-</div>
+          <div class="field">
+            <label for="day_trips">Trips</label>
+            <input id="day_trips" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+          </div>
 
-<!-- ================= SHIFT TAB ================= -->
+          <div class="field">
+            <label for="day_miles">Business Miles</label>
+            <input id="day_miles" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0">
+          </div>
+        </div>
 
-<div id="shift_tab" class="tab-content active">
-
-  <div class="card">
-  <h2>Log Shift</h2>
-
-  <div class="field">
-    <label for="shift_date">Date</label>
-    <input id="shift_date" type="date" />
-  </div>
-
-  <div class="time-grid">
-    <div class="field">
-      <label for="start_hour">Start Time</label>
-      <div class="time-row">
-        <select id="start_hour"></select>
-        <select id="start_min"></select>
+        <button id="save_day" type="button" class="btn-primary">Save Day</button>
       </div>
-    </div>
 
-    <div class="field">
-      <label for="end_hour">End Time</label>
-      <div class="time-row">
-        <select id="end_hour"></select>
-        <select id="end_min"></select>
+      <div class="card">
+        <div class="week-header">
+          <h3 id="week_title">This Week</h3>
+          <div class="week-nav">
+            <button id="prev_week" type="button">Prev Week</button>
+            <button id="this_week" type="button">This Week</button>
+            <button id="next_week" type="button">Next Week</button>
+          </div>
+        </div>
+
+        <div id="week_summary" class="summary-grid"></div>
       </div>
+
+      <div class="card">
+        <h3>Worked Days</h3>
+        <div id="dayList"></div>
+      </div>
+
     </div>
+
+    <!-- ================= MONTH TAB ================= -->
+
+    <div id="month_tab" class="tab-content">
+
+      <div class="card">
+        <h3>Month</h3>
+        <label for="month_picker">Select Month</label>
+        <input type="month" id="month_picker">
+      </div>
+
+      <div class="card">
+        <h3>Month Summary</h3>
+        <div id="month_summary" class="summary-grid"></div>
+
+        <button id="export-month" type="button" class="btn-primary">
+          Export Month
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ================= FUEL TAB ================= -->
+
+    <div id="fuel_tab" class="tab-content">
+
+      <div class="card">
+        <h3>Log Fuel</h3>
+
+        <label for="fuel_date">Date</label>
+        <input type="date" id="fuel_date">
+
+        <label for="fuel_station">Station</label>
+        <input type="text" id="fuel_station" placeholder="e.g. Tesco Penn Road">
+
+        <div class="form-row-2">
+          <div>
+            <label for="fuel_litres">Litres</label>
+            <input type="number" id="fuel_litres" step="0.01" inputmode="decimal">
+          </div>
+
+          <div>
+            <label for="fuel_cost">Cost (£)</label>
+            <input type="number" id="fuel_cost" step="0.01" inputmode="decimal">
+          </div>
+        </div>
+
+        <label for="fuel_miles">Mileage</label>
+        <input type="number" id="fuel_miles" inputmode="numeric">
+
+        <button id="save_fuel" class="btn-primary" type="button">
+          Save Fuel
+        </button>
+      </div>
+
+      <div class="card">
+        <h3>Fuel History</h3>
+        <div id="fuel_history"></div>
+      </div>
+
+    </div>
+
+    <!-- ================= EXPENSES TAB ================= -->
+
+    <div id="expenses_tab" class="tab-content">
+
+      <div class="card">
+        <h3>Log Expense</h3>
+
+        <form id="expense-form">
+          <label for="expense_date">Date</label>
+          <input type="date" id="expense_date">
+
+          <label for="expense_category">Category</label>
+          <select id="expense_category"></select>
+
+          <label for="expense_amount">Amount (£)</label>
+          <input type="number" step="0.01" id="expense_amount">
+
+          <label for="expense_notes">Notes</label>
+          <input type="text" id="expense_notes">
+
+          <button id="save_expense" class="btn-primary" type="button">Save Expense</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h3>Expense History</h3>
+        <div id="expenseList"></div>
+      </div>
+
+    </div>
+
   </div>
 
-  <div class="form-row-3">
-    <div class="field">
-      <label for="shift_miles">Shift Miles</label>
-      <input id="shift_miles" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0" />
-    </div>
-
-    <div class="field">
-      <label for="odo_end">Odometer</label>
-      <input id="odo_end" type="number" min="0" step="1" inputmode="numeric" placeholder="000000" />
-    </div>
-
-    <div class="field">
-      <label for="trips">Trips</label>
-      <input id="trips" type="number" min="0" step="1" inputmode="numeric" placeholder="0" />
-    </div>
-  </div>
-
-  <div class="form-row-2">
-    <div class="field">
-      <label for="gross">Earnings (£)</label>
-      <input id="gross" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" />
-    </div>
-
-    <div class="field">
-      <label for="tips">Tips (£)</label>
-      <input id="tips" type="number" min="0" step="0.01" inputmode="decimal" value="0" />
-    </div>
-  </div>
-
-  <button id="save_shift" type="button">Save Shift</button>
-</div>
-
-</div>
-
-<div class="card">
-
-<h3>Today's Shifts</h3>
-<div id="shiftList"></div>
-
-</div>
-
-</div>
-
-<!-- ================= MONTH TAB ================= -->
-
-<div id="month_tab" class="tab-content">
-
-<div class="card">
-<h3>Month</h3>
-
-<label>Select Month</label>
-<input type="month" id="month_picker">
-
-</div>
-
-<div class="card">
-
-<h3>Month Summary</h3>
-<div id="month_summary" class="summary-grid"></div>
-
-<button id="export-month" type="button" class="btn-primary">
-  Export Month
-</button>
-
-
-
-</div>
-
-
-
-</div>
-
-<!-- ================= FUEL TAB ================= -->
-
-<div id="fuel_tab" class="tab-content">
-
-<div class="card">
-
-<h3>Log Fuel</h3>
-
-<label>Date</label>
-<input type="date" id="fuel_date">
-
-<label>Station</label>
-<input type="text" id="fuel_station" placeholder="e.g. Tesco Penn Road">
-
-<div class="form-row-2">
-
-<div>
-<label>Litres</label>
-<input type="number" id="fuel_litres" step="0.01" inputmode="decimal">
-</div>
-
-<div>
-<label>Cost (£)</label>
-<input type="number" id="fuel_cost" step="0.01" inputmode="decimal">
-</div>
-
-</div>
-
-<label>Mileage</label>
-<input type="number" id="fuel_miles" inputmode="numeric">
-
-<button id="save_fuel" class="btn-primary">
-Save Fuel
-</button>
-
-</div>
-
-<div class="card">
-
-<h3>Fuel History</h3>
-<div id="fuel_history"></div>
-
-</div>
-
-</div>
-
-<!-- ================= EXPENSES TAB ================= -->
-
-<div id="expenses_tab" class="tab-content">
-
-<div class="card">
-
-<h3>Log Expense</h3>
-
-<form id="expense-form">
-
-<label>Date</label>
-<input type="date" id="expense_date">
-
-<label>Category</label>
-<select id="expense_category"></select>
-
-<label>Amount (£)</label>
-<input type="number" step="0.01" id="expense_amount">
-
-<label>Notes</label>
-<input type="text" id="expense_notes">
-
-<button id="save_expense" class="btn-primary" type="button">Save Expense</button>
-
-
-</form>
-
-</div>
-
-<div class="card">
-
-<h3>Expense History</h3>
-<div id="expenseList"></div>
-
-</div>
-
-</div>
-
-</div>
-
-<script type="module" src="js/app.js?v=1.5.11"></script>
-
+  <script type="module" src="js/app.js?v=2.0.0"></script>
 </body>
 
 </html>

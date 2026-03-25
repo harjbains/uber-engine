@@ -60,19 +60,15 @@ export function formatDateForSheet(dateValue) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-export function buildShiftSheetPayload(shift) {
+export function buildDaySheetPayload(day) {
   return {
-    id: shift.id ?? "",
-    date: formatDateForSheet(shift.date),
-    start_time: shift.start_time ?? "",
-    end_time: shift.end_time ?? "",
-    shift_miles: shift.shift_miles ?? "",
-    odo_end: shift.odo_end ?? "",
-    trips: shift.trips ?? "",
-    gross: shift.gross ?? "",
-    tips: shift.tips ?? "",
-    created_at: shift.created_at ?? "",
-    updated_at: shift.updated_at ?? ""
+    id: day.id ?? "",
+    date: formatDateForSheet(day.date),
+    gross: day.gross ?? 0,
+    trips: day.trips ?? 0,
+    business_miles: day.business_miles ?? 0,
+    created_at: day.created_at ?? "",
+    updated_at: day.updated_at ?? ""
   };
 }
 
@@ -103,12 +99,12 @@ export function buildMonthlySheetPayload(summary) {
   return {
     month: summary.month,
     total_income: summary.totalIncome ?? 0,
-    total_profit: summary.totalProfit ?? 0,
     total_fuel: summary.totalFuel ?? 0,
     total_expenses: summary.totalExpenses ?? 0,
-    net: summary.net ?? 0,
-    tax_estimate: summary.taxEstimate ?? 0,
-    true_retained: summary.trueRetained ?? 0,
+    total_tax: summary.totalTax ?? 0,
+    total_true_retained: summary.totalTrueRetained ?? 0,
+    total_trips: summary.totalTrips ?? 0,
+    total_miles: summary.totalMiles ?? 0,
     last_updated_at: new Date().toISOString()
   };
 }

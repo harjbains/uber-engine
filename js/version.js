@@ -1,6 +1,7 @@
-export const APP_VERSION = "v1.5.1";
+export const VERSION = "v2.0.0";
 
 export const RELEASE_NOTES = {
+  "2.0.0" : "Daily workflow replaces shifts. Added weekly day history, real-world retained view, and month summary based on days.",
   "1.5.1": "Trips add to shift workflow and Google Sheets",
   "1.4.2": "Changed shift model to use shift_miles",
   "1.4.1": "Confirm Google Sheets sync for shifts fuel and expenses.",
