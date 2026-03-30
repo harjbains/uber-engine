@@ -1,8 +1,8 @@
-import { initDays } from "./days.js";
-import { initMonthly } from "./monthly.js";
-import { initFuel } from "./fuel.js";
-import { initExpenses } from "./expenses.js";
-import { VERSION, RELEASE_NOTES } from "./version.js";
+import { initDays } from "./days.js?v=2.0.6";
+import { initMonthly } from "./monthly.js?v=2.0.6";
+import { initFuel } from "./fuel.js?v=2.0.6";
+import { initExpenses } from "./expenses.js?v=2.0.6";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.0.6";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
@@ -26,7 +26,7 @@ function initVersion() {
   const notesNode = document.getElementById("app-version-notes");
 
   if (versionNode) versionNode.textContent = `Uber Engine ${VERSION}`;
-  if (notesNode) notesNode.textContent = RELEASE_NOTES;
+  if (notesNode) notesNode.textContent = getReleaseNotes(VERSION);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -37,4 +37,3 @@ document.addEventListener("DOMContentLoaded", () => {
   initFuel();
   initExpenses();
 });
-

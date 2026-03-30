@@ -64,6 +64,8 @@ export function buildDaySheetPayload(day) {
   return {
     id: day.id ?? "",
     date: formatDateForSheet(day.date),
+    end_time: day.end_time ?? "",
+    hours_worked: day.hours_worked ?? 0,
     gross: day.gross ?? 0,
     trips: day.trips ?? 0,
     business_miles: day.business_miles ?? 0,
@@ -98,13 +100,17 @@ export function buildMonthlySheetPayload(summary) {
 
   return {
     month: summary.month,
+    sessions_worked: summary.sessionsWorked ?? 0,
+    days_worked: summary.daysWorked ?? 0,
     total_income: summary.totalIncome ?? 0,
     total_fuel: summary.totalFuel ?? 0,
     total_expenses: summary.totalExpenses ?? 0,
     total_tax: summary.totalTax ?? 0,
+    total_insurance: summary.totalInsurance ?? 0,
     total_true_retained: summary.totalTrueRetained ?? 0,
     total_trips: summary.totalTrips ?? 0,
     total_miles: summary.totalMiles ?? 0,
+    total_hours: summary.totalHours ?? 0,
     last_updated_at: new Date().toISOString()
   };
 }

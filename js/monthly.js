@@ -85,20 +85,24 @@ export async function loadMonthSummary() {
   const totalIncome = days.reduce((sum, d) => sum + Number(d.gross || 0), 0);
   const totalTrips = days.reduce((sum, d) => sum + Number(d.trips || 0), 0);
   const totalMiles = days.reduce((sum, d) => sum + Number(d.business_miles || 0), 0);
-  const daysWorked = days.length;
+  const totalHours = days.reduce((sum, d) => sum + Number(d.hours_worked || 0), 0);
+  const sessionsWorked = days.length;
+  const distinctDatesWorked = new Set(days.map(d => d.date)).size;
 
   const totalFuel = fuels.reduce((sum, f) => sum + Number(f.cost || 0), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const totalTax = totalIncome * TAX_RATE_DEFAULT;
-  const totalInsurance = daysWorked * DAILY_INSURANCE_DEFAULT;
+  const totalInsurance = distinctDatesWorked * DAILY_INSURANCE_DEFAULT;
   const totalTrueRetained = totalIncome - totalFuel - totalExpenses - totalTax - totalInsurance;
 
   const summary = {
     month: monthValue,
-    daysWorked,
+    sessionsWorked,
+    daysWorked: distinctDatesWorked,
     totalIncome,
     totalTrips,
     totalMiles,
+    totalHours,
     totalFuel,
     totalExpenses,
     totalTax,
@@ -106,10 +110,16 @@ export async function loadMonthSummary() {
     totalTrueRetained,
     avgPerTrip: totalTrips > 0 ? totalIncome / totalTrips : 0,
     avgPerMile: totalMiles > 0 ? totalIncome / totalMiles : 0,
-    avgPerWorkedDay: daysWorked > 0 ? totalIncome / daysWorked : 0
+    avgPerWorkedDay: distinctDatesWorked > 0 ? totalIncome / distinctDatesWorked : 0,
+    avgPerHour: totalHours > 0 ? totalIncome / totalHours : 0
   };
 
   container.innerHTML = `
+    <div class="summary-card">
+      <div class="summary-label">Sessions</div>
+      <div class="summary-value">${formatInt(summary.sessionsWorked)}</div>
+    </div>
+
     <div class="summary-card">
       <div class="summary-label">Days Worked</div>
       <div class="summary-value">${formatInt(summary.daysWorked)}</div>
@@ -128,6 +138,11 @@ export async function loadMonthSummary() {
     <div class="summary-card">
       <div class="summary-label">Miles</div>
       <div class="summary-value">${formatNumber(summary.totalMiles, 1)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">Hours</div>
+      <div class="summary-value">${formatNumber(summary.totalHours, 1)}</div>
     </div>
 
     <div class="summary-card">
@@ -163,6 +178,11 @@ export async function loadMonthSummary() {
     <div class="summary-card">
       <div class="summary-label">£ / Mile</div>
       <div class="summary-value">${formatMoney(summary.avgPerMile)}</div>
+    </div>
+
+    <div class="summary-card">
+      <div class="summary-label">£ / Hour</div>
+      <div class="summary-value">${formatMoney(summary.avgPerHour)}</div>
     </div>
 
     <div class="summary-card">
