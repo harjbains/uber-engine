@@ -1,6 +1,7 @@
-export const VERSION = "v2.0.0";
+export const VERSION = "v2.1.0";
 
 export const RELEASE_NOTES = {
+  "2.1.0": "Day & Month fuel calculations based on 3 most recent fills, station name removed from fuel form",
   "2.0.0": "Daily workflow replaces shifts. Added weekly day history, real-world retained view, and month summary based on days.",
   "1.5.1": "Trips add to shift workflow and Google Sheets",
   "1.4.2": "Changed shift model to use shift_miles",

@@ -2,9 +2,10 @@ import { supabaseClient } from "./supabase.js";
 import { sendToGoogleSheets, buildFuelSheetPayload } from "./googleSheets.js";
 import { showStatus } from "./status.js";
 
+const DEFAULT_STATION = "Total Energies Dudley Road";
+
 const ids = {
   date: "fuel_date",
-  station: "fuel_station",
   litres: "fuel_litres",
   cost: "fuel_cost",
   miles: "fuel_miles",
@@ -40,10 +41,34 @@ function formatCurrency(value) {
   return `£${number.toFixed(2)}`;
 }
 
+function formatDateLabel(dateString) {
+  if (!dateString) return "-";
+
+  const [y, m, d] = String(dateString).split("-").map(Number);
+  if (!y || !m || !d) return String(dateString);
+
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short",
+    year: "numeric"
+  });
+}
+
+function getPricePerLitre(item) {
+  const litres = Number(item?.litres || 0);
+  const cost = Number(item?.cost || 0);
+
+  if (!Number.isFinite(litres) || litres <= 0) return null;
+  if (!Number.isFinite(cost) || cost <= 0) return null;
+
+  return cost / litres;
+}
+
 function buildFuelPayload() {
   return {
     date: el(ids.date)?.value?.trim() || "",
-    station: el(ids.station)?.value?.trim() || "",
+    station: DEFAULT_STATION, // 👈 always set
     litres: toNumber(el(ids.litres)?.value),
     cost: toNumber(el(ids.cost)?.value),
     miles: toNumber(el(ids.miles)?.value),
@@ -58,7 +83,7 @@ function validateFuel(payload) {
 }
 
 function clearFuelForm() {
-  [ids.station, ids.litres, ids.cost, ids.miles].forEach((id) => {
+  [ids.litres, ids.cost, ids.miles].forEach((id) => {
     const node = el(id);
     if (node) node.value = "";
   });
@@ -76,19 +101,17 @@ function renderFuelHistory(items) {
   container.innerHTML = `
     <div class="history-grid">
       ${items
-        .map(
-          (item) => `
+        .map((item) => {
+          const pricePerLitre = getPricePerLitre(item);
+
+          return `
             <div class="history-card">
               <div class="history-card__header">
-                <div class="history-card__title">${escapeHtml(safeValue(item.date))}</div>
+                <div class="history-card__title">${escapeHtml(formatDateLabel(item.date))}</div>
                 <div class="history-card__pill">Fuel</div>
               </div>
 
               <div class="history-card__grid history-card__grid--3x2">
-                <div class="history-item">
-                  <span class="history-item__label">Station</span>
-                  <span class="history-item__value">${escapeHtml(safeValue(item.station))}</span>
-                </div>
 
                 <div class="history-item">
                   <span class="history-item__label">Litres</span>
@@ -106,13 +129,64 @@ function renderFuelHistory(items) {
                   <span class="history-item__label">Miles</span>
                   <span class="history-item__value">${escapeHtml(safeValue(item.miles))}</span>
                 </div>
+
+                <div class="history-item">
+                  <span class="history-item__label">Price / L</span>
+                  <span class="history-item__value">${
+                    pricePerLitre ? escapeHtml(formatCurrency(pricePerLitre)) : "-"
+                  }</span>
+                </div>
+
               </div>
             </div>
-          `
-        )
+          `;
+        })
         .join("")}
     </div>
   `;
+}
+
+export async function getRecentFuelLogs(limit = 3) {
+  const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 3;
+
+  const { data, error } = await supabaseClient
+    .from("fuel_logs")
+    .select("date, litres, cost, created_at")
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(safeLimit);
+
+  if (error) {
+    console.error("Error loading recent fuel logs:", error);
+    return [];
+  }
+
+  return data || [];
+}
+
+export async function getRollingFuelPricePerLitre(limit = 3, fallback = 1.70) {
+  const recentLogs = await getRecentFuelLogs(limit);
+
+  if (!recentLogs.length) return fallback;
+
+  const totals = recentLogs.reduce(
+    (acc, item) => {
+      const litres = Number(item?.litres || 0);
+      const cost = Number(item?.cost || 0);
+
+      if (Number.isFinite(litres) && litres > 0 && Number.isFinite(cost) && cost > 0) {
+        acc.totalLitres += litres;
+        acc.totalCost += cost;
+      }
+
+      return acc;
+    },
+    { totalLitres: 0, totalCost: 0 }
+  );
+
+  if (totals.totalLitres <= 0) return fallback;
+
+  return totals.totalCost / totals.totalLitres;
 }
 
 export async function loadFuelLogs() {
@@ -122,14 +196,8 @@ export async function loadFuelLogs() {
     .order("date", { ascending: false })
     .order("created_at", { ascending: false });
 
-  console.log("loadFuelLogs result:", data, error);
-
   if (error) {
     console.error("Error loading fuel logs:", error);
-    const container = el(ids.list);
-    if (container) {
-      container.innerHTML = `<div class="error-state">Unable to load fuel logs.</div>`;
-    }
     showStatus("Unable to load fuel logs.", "error", false);
     return [];
   }
@@ -147,7 +215,6 @@ export async function saveFuel() {
     showStatus("Saving fuel log...", "info", false);
 
     const payload = buildFuelPayload();
-    console.log("fuel payload:", payload);
 
     const validationError = validateFuel(payload);
     if (validationError) {
@@ -168,14 +235,8 @@ export async function saveFuel() {
     }
 
     try {
-      showStatus("Fuel log saved. Syncing to Google Sheets...", "info", false);
-
       const sheetPayload = buildFuelSheetPayload(data);
-      console.log("Sending fuel to Google Sheets:", sheetPayload);
-
-      const syncResult = await sendToGoogleSheets("fuel", sheetPayload);
-      console.log("Google Sheets fuel sync result:", syncResult);
-
+      await sendToGoogleSheets("fuel", sheetPayload);
       showStatus("Fuel log saved and synced successfully.", "success");
     } catch (syncError) {
       console.error("Google Sheets fuel sync failed:", syncError);
@@ -193,10 +254,7 @@ export async function saveFuel() {
 }
 
 function bindFuelEvents() {
-  const saveBtn = el(ids.saveBtn);
-  if (saveBtn) {
-    saveBtn.addEventListener("click", saveFuel);
-  }
+  el(ids.saveBtn)?.addEventListener("click", saveFuel);
 }
 
 export function initFuel() {

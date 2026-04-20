@@ -1,6 +1,7 @@
 import { supabaseClient } from "./supabase.js";
 import { exportMonthlySummary } from "./googleSheets.js";
 import { showStatus } from "./status.js";
+import { getRollingFuelPricePerLitre } from "./fuel.js";
 
 const ids = {
   picker: "month_picker",
@@ -10,6 +11,10 @@ const ids = {
 
 const DAILY_INSURANCE_DEFAULT = 10;
 const TAX_RATE_DEFAULT = 0.20;
+
+const DEFAULT_MPG = 32.5;
+const DEFAULT_FUEL_PRICE_PER_LITRE = 1.70;
+const LITRES_PER_UK_GALLON = 4.546;
 
 function el(id) {
   return document.getElementById(id);
@@ -46,6 +51,15 @@ function monthDateRange(monthValue) {
   return { start, end };
 }
 
+function getLitresPerMile(mpg = DEFAULT_MPG) {
+  return LITRES_PER_UK_GALLON / mpg;
+}
+
+function calculateFuelCost(miles, pricePerLitre, mpg = DEFAULT_MPG) {
+  const litresPerMile = getLitresPerMile(mpg);
+  return miles * litresPerMile * pricePerLitre;
+}
+
 export async function loadMonthSummary() {
   const monthValue = el(ids.picker)?.value || currentMonthValue();
   const container = el(ids.summary);
@@ -53,47 +67,53 @@ export async function loadMonthSummary() {
 
   const { start, end } = monthDateRange(monthValue);
 
-  const [daysRes, fuelRes, expenseRes] = await Promise.all([
+  const [daysRes, expenseRes, fuelPrice] = await Promise.all([
     supabaseClient
       .from("days")
       .select("*")
       .gte("date", start)
       .lte("date", end),
-    supabaseClient
-      .from("fuel_logs")
-      .select("date,cost")
-      .gte("date", start)
-      .lte("date", end),
+
     supabaseClient
       .from("expenses")
       .select("date,amount")
       .gte("date", start)
-      .lte("date", end)
+      .lte("date", end),
+
+    getRollingFuelPricePerLitre(3, DEFAULT_FUEL_PRICE_PER_LITRE)
   ]);
 
-  if (daysRes.error || fuelRes.error || expenseRes.error) {
-    console.error("Month summary load error:", daysRes.error || fuelRes.error || expenseRes.error);
+  if (daysRes.error || expenseRes.error) {
+    console.error("Month summary load error:", daysRes.error || expenseRes.error);
     container.innerHTML = `<div class="error-state">Unable to load month summary.</div>`;
     showStatus("Unable to load month summary.", "error", false);
     return null;
   }
 
   const days = daysRes.data || [];
-  const fuels = fuelRes.data || [];
   const expenses = expenseRes.data || [];
 
   const totalIncome = days.reduce((sum, d) => sum + Number(d.gross || 0), 0);
   const totalTrips = days.reduce((sum, d) => sum + Number(d.trips || 0), 0);
   const totalMiles = days.reduce((sum, d) => sum + Number(d.business_miles || 0), 0);
   const totalHours = days.reduce((sum, d) => sum + Number(d.hours_worked || 0), 0);
+
   const sessionsWorked = days.length;
   const distinctDatesWorked = new Set(days.map(d => d.date)).size;
 
-  const totalFuel = fuels.reduce((sum, f) => sum + Number(f.cost || 0), 0);
+  // ✅ NEW: estimated fuel instead of fuel_logs
+  const totalFuel = calculateFuelCost(totalMiles, fuelPrice);
+
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const totalTax = totalIncome * TAX_RATE_DEFAULT;
   const totalInsurance = distinctDatesWorked * DAILY_INSURANCE_DEFAULT;
-  const totalTrueRetained = totalIncome - totalFuel - totalExpenses - totalTax - totalInsurance;
+
+  const totalTrueRetained =
+    totalIncome -
+    totalFuel -
+    totalExpenses -
+    totalTax -
+    totalInsurance;
 
   const summary = {
     month: monthValue,
@@ -146,7 +166,7 @@ export async function loadMonthSummary() {
     </div>
 
     <div class="summary-card">
-      <div class="summary-label">Fuel</div>
+      <div class="summary-label">Fuel (Est.)</div>
       <div class="summary-value">${formatMoney(summary.totalFuel)}</div>
     </div>
 
@@ -161,7 +181,7 @@ export async function loadMonthSummary() {
     </div>
 
     <div class="summary-card">
-      <div class="summary-label">Insurance Allocated</div>
+      <div class="summary-label">Insurance</div>
       <div class="summary-value">${formatMoney(summary.totalInsurance)}</div>
     </div>
 
@@ -171,23 +191,8 @@ export async function loadMonthSummary() {
     </div>
 
     <div class="summary-card">
-      <div class="summary-label">£ / Trip</div>
-      <div class="summary-value">${formatMoney(summary.avgPerTrip)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">£ / Mile</div>
-      <div class="summary-value">${formatMoney(summary.avgPerMile)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">£ / Hour</div>
-      <div class="summary-value">${formatMoney(summary.avgPerHour)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Avg / Worked Day</div>
-      <div class="summary-value">${formatMoney(summary.avgPerWorkedDay)}</div>
+      <div class="summary-label">Fuel Price</div>
+      <div class="summary-value">${formatMoney(fuelPrice)}/L</div>
     </div>
   `;
 

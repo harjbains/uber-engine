@@ -2,6 +2,7 @@ import { supabaseClient } from "./supabase.js";
 import { sendToGoogleSheets, buildDaySheetPayload } from "./googleSheets.js";
 import { showStatus } from "./status.js";
 import { loadMonthSummary } from "./monthly.js";
+import { getRollingFuelPricePerLitre } from "./fuel.js";
 
 const ids = {
   date: "day_date",
@@ -21,8 +22,11 @@ const ids = {
 
 const DAILY_INSURANCE_DEFAULT = 10;
 const TAX_RATE_DEFAULT = 0.20;
-const FUEL_COST_PER_MILE = 0.18;
 const WORK_DATE_OPTIONS_DAYS = 7;
+
+const DEFAULT_MPG = 32.5;
+const DEFAULT_FUEL_PRICE_PER_LITRE = 1.70;
+const LITRES_PER_UK_GALLON = 4.546;
 
 let weekOffset = 0;
 
@@ -249,13 +253,31 @@ function validateDay(payload) {
   return null;
 }
 
-function buildSessionMetrics(day) {
+function getLitresPerMile(mpg = DEFAULT_MPG) {
+  if (!Number.isFinite(mpg) || mpg <= 0) {
+    return LITRES_PER_UK_GALLON / DEFAULT_MPG;
+  }
+  return LITRES_PER_UK_GALLON / mpg;
+}
+
+function calculateEstimatedFuelCost(miles, pricePerLitre, mpg = DEFAULT_MPG) {
+  const safeMiles = Number(miles || 0);
+  const safePricePerLitre =
+    Number.isFinite(pricePerLitre) && pricePerLitre > 0
+      ? pricePerLitre
+      : DEFAULT_FUEL_PRICE_PER_LITRE;
+
+  const litresPerMile = getLitresPerMile(mpg);
+  return safeMiles * litresPerMile * safePricePerLitre;
+}
+
+function buildSessionMetrics(day, pricePerLitre, mpg = DEFAULT_MPG) {
   const gross = Number(day.gross || 0);
   const trips = Number(day.trips || 0);
   const miles = Number(day.business_miles || 0);
   const hours = Number(day.hours_worked || 0);
 
-  const estimatedFuel = miles * FUEL_COST_PER_MILE;
+  const estimatedFuel = calculateEstimatedFuelCost(miles, pricePerLitre, mpg);
   const insurance = DAILY_INSURANCE_DEFAULT;
   const tax = Math.max(0, gross * TAX_RATE_DEFAULT);
   const trueRetained = gross - estimatedFuel - tax - insurance;
@@ -276,12 +298,12 @@ function buildSessionMetrics(day) {
   };
 }
 
-function renderWeekSummary(days) {
+function renderWeekSummary(days, pricePerLitre, mpg = DEFAULT_MPG) {
   const container = el(ids.weekSummary);
   if (!container) return;
 
   const totals = days.reduce((acc, day) => {
-    const m = buildSessionMetrics(day);
+    const m = buildSessionMetrics(day, pricePerLitre, mpg);
     acc.sessions += 1;
     acc.gross += m.gross;
     acc.trips += m.trips;
@@ -335,10 +357,14 @@ function renderWeekSummary(days) {
       <div class="summary-label">True Retained</div>
       <div class="summary-value">${formatMoney(totals.trueRetained)}</div>
     </div>
+    <div class="summary-card">
+      <div class="summary-label">Fuel Price</div>
+      <div class="summary-value">${formatMoney(pricePerLitre)}/L</div>
+    </div>
   `;
 }
 
-function renderDayHistory(days) {
+function renderDayHistory(days, pricePerLitre, mpg = DEFAULT_MPG) {
   const container = el(ids.list);
   if (!container) return;
 
@@ -350,7 +376,7 @@ function renderDayHistory(days) {
   container.innerHTML = `
     <div class="history-grid">
       ${days.map((day) => {
-        const m = buildSessionMetrics(day);
+        const m = buildSessionMetrics(day, pricePerLitre, mpg);
 
         return `
           <div class="history-card">
@@ -419,25 +445,28 @@ async function fetchWeekDays() {
   const { startIso, endIso } = getSelectedWeekRange();
   updateWeekTitle(startIso, endIso);
 
-  const { data: days, error } = await supabaseClient
-    .from("days")
-    .select("*")
-    .gte("date", startIso)
-    .lte("date", endIso)
-    .order("date", { ascending: false })
-    .order("end_time", { ascending: false });
+  const [{ data: days, error }, pricePerLitre] = await Promise.all([
+    supabaseClient
+      .from("days")
+      .select("*")
+      .gte("date", startIso)
+      .lte("date", endIso)
+      .order("date", { ascending: false })
+      .order("end_time", { ascending: false }),
+    getRollingFuelPricePerLitre(3, DEFAULT_FUEL_PRICE_PER_LITRE)
+  ]);
 
   if (error) {
     console.error("Error loading week sessions:", error);
     showStatus("Unable to load worked sessions.", "error", false);
-    renderWeekSummary([]);
-    renderDayHistory([]);
+    renderWeekSummary([], pricePerLitre);
+    renderDayHistory([], pricePerLitre);
     return [];
   }
 
   const rows = days || [];
-  renderWeekSummary(rows);
-  renderDayHistory(rows);
+  renderWeekSummary(rows, pricePerLitre);
+  renderDayHistory(rows, pricePerLitre);
   return rows;
 }
 
@@ -470,14 +499,14 @@ export async function saveDay() {
       .single();
 
     if (error) {
-  console.error("Error saving session:", error);
-  showStatus(
-    `Failed to save session: ${error.message || "Unknown database error"}`,
-    "error",
-    false
-  );
-  return;
-}
+      console.error("Error saving session:", error);
+      showStatus(
+        `Failed to save session: ${error.message || "Unknown database error"}`,
+        "error",
+        false
+      );
+      return;
+    }
 
     try {
       const sheetPayload = buildDaySheetPayload(data);
