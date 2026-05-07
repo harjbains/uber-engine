@@ -402,7 +402,7 @@ function clearDayForm() {
 function buildDayPayload() {
   return {
     date: el(ids.date)?.value?.trim() || "",
-    end_time: "",
+    end_time: null,
     hours_worked: 0,
     gross: toNumber(el(ids.gross)?.value) ?? 0,
     trips: 0,
