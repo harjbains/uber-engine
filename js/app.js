@@ -1,4 +1,4 @@
-import { initDays } from "./days.js?v=2.0.6";
+import { initDays } from "./days.js?v=2.1.1";
 import { initMonthly } from "./monthly.js?v=2.0.6";
 import { initFuel } from "./fuel.js?v=2.0.6";
 import { initExpenses } from "./expenses.js?v=2.0.6";

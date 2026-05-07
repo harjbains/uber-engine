@@ -674,6 +674,9 @@ function bindDayEvents() {
 }
 
 export function initDays() {
+  currentWeekRange = getSelectedWeekRange();
+  initialiseWeeklyTarget(currentWeekRange);
+  renderWeeklyTarget(currentWeekDays);
   populateWorkDateOptions();
   bindDayEvents();
   loadWeekDays();
