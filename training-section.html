@@ -1,0 +1,64 @@
+<!-- Uber Engine - Training Mode section
+     Paste this into index.html where you want the Training Mode screen/card to appear. -->
+
+<section id="training-section" class="app-section training-mode-panel">
+  <h2>Uber Training Mode</h2>
+  <p class="training-mode-subtitle">
+    Paste your current postcode from Google Maps, generate a realistic mock offer, then decide Take or Pass before revealing the numbers.
+  </p>
+
+  <div class="training-form-grid">
+    <div class="training-field training-field--full">
+      <label for="training-postcode">Current postcode / outcode</label>
+      <input
+        id="training-postcode"
+        type="text"
+        inputmode="text"
+        autocomplete="postal-code"
+        placeholder="e.g. WV1, B16, B68"
+      />
+      <span id="training-postcode-hint" class="training-hint">Enter a postcode or outcode, e.g. WV1 or B16.</span>
+    </div>
+
+    <div class="training-field">
+      <label for="training-mode">Shift mode</label>
+      <select id="training-mode">
+        <option value="morning">Morning</option>
+        <option value="evening" selected>Evening</option>
+        <option value="friday_saturday_night">Fri/Sat night</option>
+        <option value="quiet_shift">Quiet shift</option>
+        <option value="full_shift">Full shift drill</option>
+      </select>
+    </div>
+
+    <div class="training-field">
+      <label for="training-difficulty">Difficulty</label>
+      <select id="training-difficulty">
+        <option value="beginner" selected>Beginner</option>
+        <option value="intermediate">Intermediate</option>
+        <option value="pressure">Pressure</option>
+      </select>
+    </div>
+
+    <div class="training-field">
+      <label for="training-current-gross">Current gross</label>
+      <input id="training-current-gross" type="number" min="0" step="0.01" placeholder="e.g. 72.40" />
+    </div>
+
+    <div class="training-field">
+      <label for="training-target">Target gross</label>
+      <input id="training-target" type="number" min="0" step="1" placeholder="e.g. 140" />
+    </div>
+  </div>
+
+  <div class="training-actions">
+    <button id="generate-training-trip" type="button">Generate Training Trip</button>
+    <button id="training-take" type="button">Take</button>
+    <button id="training-pass" type="button">Pass</button>
+    <button id="reveal-training-analysis" type="button">Reveal Analysis</button>
+  </div>
+
+  <div id="training-status" class="training-status" aria-live="polite"></div>
+  <div id="training-card-container"></div>
+  <div id="training-feedback"></div>
+</section>

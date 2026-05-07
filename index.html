@@ -29,71 +29,78 @@
       <button class="tab-button" data-tab="month_tab">Month</button>
       <button class="tab-button" data-tab="fuel_tab">Fuel</button>
       <button class="tab-button" data-tab="expenses_tab">Expenses</button>
+      <button class="tab-button" data-tab="training_tab">Training</button>
     </div>
 
     <!-- ================= DAY TAB ================= -->
 
     <div id="day_tab" class="tab-content active">
 
-  <div class="card">
-    <h2>Log Session</h2>
+      <div class="card target-card">
+        <div class="target-card__header">
+          <div>
+            <h2>Weekly Target</h2>
+            <p id="target_status" class="target-status">Set a target to track this week.</p>
+          </div>
+        </div>
 
-    <div class="field">
-      <label for="day_date">Work Date</label>
-      <select id="day_date"></select>
+        <div class="form-row-2">
+          <div class="field">
+            <label for="weekly_target">Target Gross (&pound;)</label>
+            <input id="weekly_target" type="number" min="0" step="1" inputmode="numeric" placeholder="910">
+          </div>
+
+          <div class="field">
+            <label>Planned Work Days</label>
+            <div id="target_workdays" class="target-workdays" aria-label="Planned work days"></div>
+          </div>
+        </div>
+
+        <div id="target_summary" class="target-summary-grid"></div>
+      </div>
+
+      <div class="card">
+        <h2>Log Session</h2>
+
+        <div class="field">
+          <label for="day_date">Work Date</label>
+          <select id="day_date"></select>
+        </div>
+
+        <div class="form-row-2">
+          <div class="field">
+            <label for="day_gross">Gross Earnings (£)</label>
+            <input id="day_gross" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+
+          <div class="field">
+            <label for="day_miles">Business Miles</label>
+            <input id="day_miles" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0">
+          </div>
+        </div>
+
+        <button id="save_day" type="button" class="btn-primary">Save Session</button>
+      </div>
+
+      <div class="card">
+        <div class="week-header">
+          <h3 id="week_title">This Week</h3>
+          <div class="week-nav">
+            <button id="prev_week" type="button">Prev Week</button>
+            <button id="this_week" type="button">This Week</button>
+            <button id="next_week" type="button">Next Week</button>
+          </div>
+        </div>
+
+        <div id="week_summary" class="summary-grid"></div>
+      </div>
+
+      <div class="card">
+        <h3>Worked Sessions</h3>
+        <div id="dayList"></div>
+      </div>
+
     </div>
-
-    <div class="form-row-2">
-      <div class="field">
-        <label for="day_end_time">End Time</label>
-        <select id="day_end_time"></select>
-      </div>
-
-      <div class="field">
-        <label for="day_hours">Hours Worked</label>
-        <input id="day_hours" type="number" min="0.5" step="0.5" inputmode="decimal" placeholder="0.0">
-      </div>
-    </div>
-
-    <div class="form-row-3">
-      <div class="field">
-        <label for="day_gross">Gross Earnings (£)</label>
-        <input id="day_gross" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-      </div>
-
-      <div class="field">
-        <label for="day_trips">Trips</label>
-        <input id="day_trips" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
-      </div>
-
-      <div class="field">
-        <label for="day_miles">Business Miles</label>
-        <input id="day_miles" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0">
-      </div>
-    </div>
-
-    <button id="save_day" type="button" class="btn-primary">Save Session</button>
-  </div>
-
-  <div class="card">
-    <div class="week-header">
-      <h3 id="week_title">This Week</h3>
-      <div class="week-nav">
-        <button id="prev_week" type="button">Prev Week</button>
-        <button id="this_week" type="button">This Week</button>
-        <button id="next_week" type="button">Next Week</button>
-      </div>
-    </div>
-
-    <div id="week_summary" class="summary-grid"></div>
-  </div>
-
-  <div class="card">
-    <h3>Worked Sessions</h3>
-    <div id="dayList"></div>
-  </div>
-
-</div>
 
     <!-- ================= MONTH TAB ================= -->
 
@@ -125,11 +132,11 @@
 
         <label for="fuel_date">Date</label>
         <input type="date" id="fuel_date">
-        <!--
 
+        <!--
         <label for="fuel_station">Station</label>
         <input type="text" id="fuel_station" placeholder="e.g. Tesco Penn Road">
-      -->
+        -->
 
         <div class="form-row-2">
           <div>
@@ -189,9 +196,101 @@
 
     </div>
 
+    <!-- ================= TRAINING TAB ================= -->
+
+    <div id="training_tab" class="tab-content">
+
+      <div class="card training-mode-panel">
+        <h2>Uber Training Mode</h2>
+
+        <p class="training-mode-subtitle">
+          Paste your current postcode from Google Maps, generate a realistic mock offer,
+          then decide Take or Pass before revealing the numbers.
+        </p>
+
+        <div class="training-form-grid">
+
+          <div class="training-field training-field--full">
+            <label for="training-postcode">Current postcode / outcode</label>
+            <input
+              id="training-postcode"
+              type="text"
+              inputmode="text"
+              autocomplete="postal-code"
+              placeholder="e.g. WV1, B16, B68"
+            >
+            <span id="training-postcode-hint" class="training-hint">
+              Enter a postcode or outcode, e.g. WV1 or B16.
+            </span>
+          </div>
+
+          <div class="training-field">
+            <label for="training-mode">Shift mode</label>
+            <select id="training-mode">
+              <option value="morning">Morning</option>
+              <option value="evening" selected>Evening</option>
+              <option value="friday_saturday_night">Fri/Sat night</option>
+              <option value="quiet_shift">Quiet shift</option>
+              <option value="full_shift">Full shift drill</option>
+            </select>
+          </div>
+
+          <div class="training-field">
+            <label for="training-difficulty">Difficulty</label>
+            <select id="training-difficulty">
+              <option value="beginner" selected>Beginner</option>
+              <option value="intermediate">Intermediate</option>
+              <option value="pressure">Pressure</option>
+            </select>
+          </div>
+
+          <div class="training-field">
+            <label for="training-current-gross">Current gross</label>
+            <input
+              id="training-current-gross"
+              type="number"
+              min="0"
+              step="0.01"
+              inputmode="decimal"
+              placeholder="e.g. 72.40"
+            >
+          </div>
+
+          <div class="training-field">
+            <label for="training-target">Target gross</label>
+            <input
+              id="training-target"
+              type="number"
+              min="0"
+              step="1"
+              inputmode="numeric"
+              placeholder="e.g. 140"
+            >
+          </div>
+
+        </div>
+
+        <div class="training-actions">
+          <button id="generate-training-trip" type="button" class="btn-primary">
+            Generate Training Trip
+          </button>
+          <button id="training-take" type="button">Take</button>
+          <button id="training-pass" type="button">Pass</button>
+          <button id="reveal-training-analysis" type="button">Reveal Analysis</button>
+        </div>
+
+        <div id="training-status" class="training-status" aria-live="polite"></div>
+
+        <div id="training-card-container"></div>
+
+        <div id="training-feedback"></div>
+      </div>
+
+    </div>
+
   </div>
 
-  <script type="module" src="js/app.js?v=2.1.0"></script>
+  <script type="module" src="js/app.js?v=2.1.1"></script>
 </body>
 
 </html>

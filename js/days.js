@@ -6,15 +6,16 @@ import { getRollingFuelPricePerLitre } from "./fuel.js";
 
 const ids = {
   date: "day_date",
-  endTime: "day_end_time",
-  hours: "day_hours",
   gross: "day_gross",
-  trips: "day_trips",
   miles: "day_miles",
   saveBtn: "save_day",
   list: "dayList",
   weekTitle: "week_title",
   weekSummary: "week_summary",
+  weeklyTarget: "weekly_target",
+  targetWorkdays: "target_workdays",
+  targetSummary: "target_summary",
+  targetStatus: "target_status",
   prevWeek: "prev_week",
   thisWeek: "this_week",
   nextWeek: "next_week"
@@ -27,8 +28,13 @@ const WORK_DATE_OPTIONS_DAYS = 7;
 const DEFAULT_MPG = 32.5;
 const DEFAULT_FUEL_PRICE_PER_LITRE = 1.70;
 const LITRES_PER_UK_GALLON = 4.546;
+const TARGET_STORAGE_PREFIX = "uberEngineWeeklyTarget";
+const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
+const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 let weekOffset = 0;
+let currentWeekDays = [];
+let currentWeekRange = null;
 
 function el(id) {
   return document.getElementById(id);
@@ -134,6 +140,213 @@ function getSelectedWeekRange() {
   };
 }
 
+function getWeekDates(startIso) {
+  const start = parseLocalDate(startIso);
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const d = new Date(start);
+    d.setDate(start.getDate() + index);
+    return dateToIso(d);
+  });
+}
+
+function targetStorageKey(startIso) {
+  return `${TARGET_STORAGE_PREFIX}:${startIso}`;
+}
+
+function readTargetSettings(startIso) {
+  const fallback = {
+    target: "",
+    workDays: [...DEFAULT_TARGET_WORKDAYS]
+  };
+
+  try {
+    const raw = localStorage.getItem(targetStorageKey(startIso));
+    if (!raw) return fallback;
+
+    const parsed = JSON.parse(raw);
+    const workDays = Array.isArray(parsed.workDays)
+      ? parsed.workDays
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+      : fallback.workDays;
+
+    return {
+      target: parsed.target ?? "",
+      workDays: workDays.length ? [...new Set(workDays)] : fallback.workDays
+    };
+  } catch (error) {
+    console.warn("Unable to read weekly target settings:", error);
+    return fallback;
+  }
+}
+
+function saveTargetSettings(startIso, settings) {
+  localStorage.setItem(targetStorageKey(startIso), JSON.stringify(settings));
+}
+
+function getCurrentTargetSettings() {
+  if (!currentWeekRange) {
+    currentWeekRange = getSelectedWeekRange();
+  }
+
+  const targetInput = el(ids.weeklyTarget);
+  const checkedDays = Array.from(
+    document.querySelectorAll("[data-target-workday]:checked")
+  ).map((node) => Number(node.dataset.targetWorkday));
+
+  return {
+    target: targetInput?.value ?? "",
+    workDays: checkedDays
+  };
+}
+
+function persistCurrentTargetSettings() {
+  if (!currentWeekRange) return;
+  saveTargetSettings(currentWeekRange.startIso, getCurrentTargetSettings());
+}
+
+function renderTargetWorkdays(settings, weekDates) {
+  const container = el(ids.targetWorkdays);
+  if (!container) return;
+
+  container.innerHTML = WEEKDAY_LABELS.map((label, index) => {
+    const checked = settings.workDays.includes(index) ? "checked" : "";
+    const dateLabel = formatDateLabel(weekDates[index]);
+
+    return `
+      <label class="target-day-toggle" title="${escapeHtml(dateLabel)}">
+        <input type="checkbox" data-target-workday="${index}" ${checked}>
+        <span>${label}</span>
+      </label>
+    `;
+  }).join("");
+
+  container.querySelectorAll("[data-target-workday]").forEach((input) => {
+    input.addEventListener("change", () => {
+      persistCurrentTargetSettings();
+      renderWeeklyTarget(currentWeekDays);
+    });
+  });
+}
+
+function buildWeeklyTargetSummary(days, settings, weekDates) {
+  const target = Number(settings.target || 0);
+  const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
+  const remaining = Math.max(0, target - earned);
+  const plannedWorkDays = settings.workDays.length;
+  const today = todayIso();
+  const todayInWeek = weekDates.includes(today);
+
+  const remainingWorkDates = weekDates.filter((dateString, index) => {
+    if (!settings.workDays.includes(index)) return false;
+    if (dateString < today) return false;
+    return true;
+  });
+
+  const remainingWorkDays = remainingWorkDates.length;
+  const baseDailyTarget = plannedWorkDays > 0 ? target / plannedWorkDays : 0;
+  const requiredPerDay = remainingWorkDays > 0 ? remaining / remainingWorkDays : 0;
+
+  let status = "Set a target to track this week.";
+  let statusClass = "target-status";
+
+  if (target > 0 && plannedWorkDays === 0) {
+    status = "Choose at least one planned work day.";
+    statusClass = "target-status target-status--warning";
+  } else if (target > 0 && remaining <= 0) {
+    status = `Target hit. You are ahead by ${formatMoney(Math.abs(target - earned))}.`;
+    statusClass = "target-status target-status--good";
+  } else if (target > 0 && remainingWorkDays === 0) {
+    status = `No planned work days left. Remaining target is ${formatMoney(remaining)}.`;
+    statusClass = "target-status target-status--warning";
+  } else if (target > 0) {
+    const pressure = requiredPerDay - baseDailyTarget;
+
+    if (Math.abs(pressure) < 0.01) {
+      status = "On original daily pace.";
+    } else if (pressure > 0) {
+      status = `Behind pace. Each remaining work day needs ${formatMoney(pressure)} extra.`;
+      statusClass = "target-status target-status--warning";
+    } else {
+      status = `Ahead of pace. Each remaining work day is ${formatMoney(Math.abs(pressure))} lighter.`;
+      statusClass = "target-status target-status--good";
+    }
+  }
+
+  return {
+    target,
+    earned,
+    remaining,
+    plannedWorkDays,
+    remainingWorkDays,
+    requiredPerDay,
+    baseDailyTarget,
+    todayTargetLabel: todayInWeek ? "Today Target" : "Required / Day",
+    status,
+    statusClass
+  };
+}
+
+function renderWeeklyTarget(days) {
+  if (!currentWeekRange) return;
+
+  const summaryNode = el(ids.targetSummary);
+  const statusNode = el(ids.targetStatus);
+  const targetInput = el(ids.weeklyTarget);
+  if (!summaryNode || !statusNode || !targetInput) return;
+
+  const weekDates = getWeekDates(currentWeekRange.startIso);
+  const settings = getCurrentTargetSettings();
+  const summary = buildWeeklyTargetSummary(days, settings, weekDates);
+
+  statusNode.textContent = summary.status;
+  statusNode.className = summary.statusClass;
+
+  summaryNode.innerHTML = `
+    <div class="target-summary-card target-summary-card--primary">
+      <div class="summary-label">${escapeHtml(summary.todayTargetLabel)}</div>
+      <div class="summary-value">${formatMoney(summary.requiredPerDay)}</div>
+    </div>
+    <div class="target-summary-card">
+      <div class="summary-label">Earned</div>
+      <div class="summary-value">${formatMoney(summary.earned)}</div>
+    </div>
+    <div class="target-summary-card">
+      <div class="summary-label">Remaining</div>
+      <div class="summary-value">${formatMoney(summary.remaining)}</div>
+    </div>
+    <div class="target-summary-card">
+      <div class="summary-label">Work Days Left</div>
+      <div class="summary-value">${formatInt(summary.remainingWorkDays)}</div>
+    </div>
+    <div class="target-summary-card">
+      <div class="summary-label">Base Daily Plan</div>
+      <div class="summary-value">${formatMoney(summary.baseDailyTarget)}</div>
+    </div>
+    <div class="target-summary-card">
+      <div class="summary-label">Weekly Target</div>
+      <div class="summary-value">${formatMoney(summary.target)}</div>
+    </div>
+  `;
+}
+
+function initialiseWeeklyTarget(range) {
+  const targetInput = el(ids.weeklyTarget);
+  if (!targetInput) return;
+
+  const weekDates = getWeekDates(range.startIso);
+  const settings = readTargetSettings(range.startIso);
+
+  targetInput.value = settings.target;
+  renderTargetWorkdays(settings, weekDates);
+
+  targetInput.oninput = () => {
+    persistCurrentTargetSettings();
+    renderWeeklyTarget(currentWeekDays);
+  };
+}
+
 function updateWeekTitle(startIso, endIso) {
   const node = el(ids.weekTitle);
   if (!node) return;
@@ -176,79 +389,30 @@ function populateWorkDateOptions() {
   select.value = values.includes(currentValue) ? currentValue : todayString;
 }
 
-function getNearestQuarterHour() {
-  const now = new Date();
-  const hours = now.getHours();
-  const minutes = now.getMinutes();
-
-  const roundedMinutes = Math.round(minutes / 15) * 15;
-
-  if (roundedMinutes === 60) {
-    const nextHour = (hours + 1) % 24;
-    return `${String(nextHour).padStart(2, "0")}:00`;
-  }
-
-  return `${String(hours).padStart(2, "0")}:${String(roundedMinutes).padStart(2, "0")}`;
-}
-
-function populateEndTimeOptions() {
-  const select = el(ids.endTime);
-  if (!select) return;
-
-  const currentValue = select.value || getNearestQuarterHour();
-
-  select.innerHTML = `<option value="">Select end time</option>`;
-
-  for (let hour = 0; hour < 24; hour += 1) {
-    for (let minute = 0; minute < 60; minute += 15) {
-      const hh = String(hour).padStart(2, "0");
-      const mm = String(minute).padStart(2, "0");
-      const value = `${hh}:${mm}`;
-
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = value;
-      select.appendChild(option);
-    }
-  }
-
-  const values = Array.from(select.options).map((opt) => opt.value);
-  select.value = values.includes(currentValue) ? currentValue : getNearestQuarterHour();
-}
-
 function clearDayForm() {
   const gross = el(ids.gross);
-  const trips = el(ids.trips);
   const miles = el(ids.miles);
-  const endTime = el(ids.endTime);
-  const hours = el(ids.hours);
   const date = el(ids.date);
 
   if (gross) gross.value = "";
-  if (trips) trips.value = "";
   if (miles) miles.value = "";
-  if (endTime) endTime.value = getNearestQuarterHour();
-  if (hours) hours.value = "";
   if (date) date.value = todayIso();
 }
 
 function buildDayPayload() {
   return {
     date: el(ids.date)?.value?.trim() || "",
-    end_time: el(ids.endTime)?.value?.trim() || "",
-    hours_worked: toNumber(el(ids.hours)?.value) ?? 0,
+    end_time: "",
+    hours_worked: 0,
     gross: toNumber(el(ids.gross)?.value) ?? 0,
-    trips: toNumber(el(ids.trips)?.value) ?? 0,
+    trips: 0,
     business_miles: toNumber(el(ids.miles)?.value) ?? 0
   };
 }
 
 function validateDay(payload) {
   if (!payload.date) return "Please select a work date.";
-  if (!payload.end_time) return "Please select an end time.";
-  if (payload.hours_worked <= 0) return "Hours worked must be greater than zero.";
   if (payload.gross < 0) return "Gross earnings must be zero or greater.";
-  if (payload.trips < 0) return "Trips must be zero or greater.";
   if (payload.business_miles < 0) return "Business miles must be zero or greater.";
   return null;
 }
@@ -273,9 +437,7 @@ function calculateEstimatedFuelCost(miles, pricePerLitre, mpg = DEFAULT_MPG) {
 
 function buildSessionMetrics(day, pricePerLitre, mpg = DEFAULT_MPG) {
   const gross = Number(day.gross || 0);
-  const trips = Number(day.trips || 0);
   const miles = Number(day.business_miles || 0);
-  const hours = Number(day.hours_worked || 0);
 
   const estimatedFuel = calculateEstimatedFuelCost(miles, pricePerLitre, mpg);
   const insurance = DAILY_INSURANCE_DEFAULT;
@@ -284,31 +446,25 @@ function buildSessionMetrics(day, pricePerLitre, mpg = DEFAULT_MPG) {
 
   return {
     gross,
-    trips,
     miles,
-    hours,
     estimatedFuel,
     insurance,
     tax,
     trueRetained,
-    ratePerTrip: trips > 0 ? gross / trips : 0,
-    ratePerMile: miles > 0 ? gross / miles : 0,
-    ratePerHour: hours > 0 ? gross / hours : 0,
-    tripsPerHour: hours > 0 ? trips / hours : 0
+    ratePerMile: miles > 0 ? gross / miles : 0
   };
 }
 
 function renderWeekSummary(days, pricePerLitre, mpg = DEFAULT_MPG) {
   const container = el(ids.weekSummary);
   if (!container) return;
+  container.className = "summary-grid day-finance-grid";
 
   const totals = days.reduce((acc, day) => {
     const m = buildSessionMetrics(day, pricePerLitre, mpg);
     acc.sessions += 1;
     acc.gross += m.gross;
-    acc.trips += m.trips;
     acc.miles += m.miles;
-    acc.hours += m.hours;
     acc.estimatedFuel += m.estimatedFuel;
     acc.tax += m.tax;
     acc.trueRetained += m.trueRetained;
@@ -316,50 +472,32 @@ function renderWeekSummary(days, pricePerLitre, mpg = DEFAULT_MPG) {
   }, {
     sessions: 0,
     gross: 0,
-    trips: 0,
     miles: 0,
-    hours: 0,
     estimatedFuel: 0,
     tax: 0,
     trueRetained: 0
   });
 
   container.innerHTML = `
-    <div class="summary-card">
-      <div class="summary-label">Sessions</div>
-      <div class="summary-value">${formatInt(totals.sessions)}</div>
-    </div>
-    <div class="summary-card">
+    <div class="summary-card day-finance-card day-finance-card--third">
       <div class="summary-label">Gross</div>
       <div class="summary-value">${formatMoney(totals.gross)}</div>
     </div>
-    <div class="summary-card">
-      <div class="summary-label">Trips</div>
-      <div class="summary-value">${formatInt(totals.trips)}</div>
-    </div>
-    <div class="summary-card">
+    <div class="summary-card day-finance-card day-finance-card--third">
       <div class="summary-label">Miles</div>
       <div class="summary-value">${formatNumber(totals.miles, 1)}</div>
     </div>
-    <div class="summary-card">
-      <div class="summary-label">Hours</div>
-      <div class="summary-value">${formatNumber(totals.hours, 1)}</div>
-    </div>
-    <div class="summary-card">
+    <div class="summary-card day-finance-card day-finance-card--third">
       <div class="summary-label">Fuel Est.</div>
       <div class="summary-value">${formatMoney(totals.estimatedFuel)}</div>
     </div>
-    <div class="summary-card">
+    <div class="summary-card day-finance-card day-finance-card--half">
       <div class="summary-label">Tax</div>
       <div class="summary-value">${formatMoney(totals.tax)}</div>
     </div>
-    <div class="summary-card">
+    <div class="summary-card day-finance-card day-finance-card--half">
       <div class="summary-label">True Retained</div>
       <div class="summary-value">${formatMoney(totals.trueRetained)}</div>
-    </div>
-    <div class="summary-card">
-      <div class="summary-label">Fuel Price</div>
-      <div class="summary-value">${formatMoney(pricePerLitre)}/L</div>
     </div>
   `;
 }
@@ -383,53 +521,32 @@ function renderDayHistory(days, pricePerLitre, mpg = DEFAULT_MPG) {
             <div class="history-card__header">
               <div>
                 <div class="history-card__title">${escapeHtml(formatDateLabel(day.date))}</div>
-                ${buildSessionMeta(day, m) ? `<div class="history-card__meta">${buildSessionMeta(day, m)}</div>` : ""}
               </div>
               <div class="history-card__pill">Session</div>
             </div>
 
-            <div class="history-card__grid history-card__grid--3x2">
-              <div class="history-item">
+            <div class="history-card__grid history-card__grid--finance">
+              <div class="history-item history-item--third">
                 <span class="history-item__label">Gross</span>
                 <span class="history-item__value history-item__value--strong">${escapeHtml(formatMoney(m.gross))}</span>
               </div>
 
-              <div class="history-item">
-                <span class="history-item__label">Trips</span>
-                <span class="history-item__value">${escapeHtml(formatInt(m.trips))}</span>
-              </div>
-
-              <div class="history-item">
+              <div class="history-item history-item--third">
                 <span class="history-item__label">Miles</span>
                 <span class="history-item__value">${escapeHtml(formatNumber(m.miles, 1))}</span>
               </div>
 
-              <div class="history-item">
-                <span class="history-item__label">£ / Hour</span>
-                <span class="history-item__value">${escapeHtml(formatMoney(m.ratePerHour))}</span>
-              </div>
-
-              <div class="history-item">
+              <div class="history-item history-item--third">
                 <span class="history-item__label">Fuel Est.</span>
                 <span class="history-item__value">${escapeHtml(formatMoney(m.estimatedFuel))}</span>
               </div>
 
-              <div class="history-item">
+              <div class="history-item history-item--half">
                 <span class="history-item__label">Tax</span>
                 <span class="history-item__value">${escapeHtml(formatMoney(m.tax))}</span>
               </div>
 
-              <div class="history-item">
-                <span class="history-item__label">Trips / Hour</span>
-                <span class="history-item__value">${escapeHtml(formatNumber(m.tripsPerHour, 1))}</span>
-              </div>
-
-              <div class="history-item">
-                <span class="history-item__label">£ / Trip</span>
-                <span class="history-item__value">${escapeHtml(formatMoney(m.ratePerTrip))}</span>
-              </div>
-
-              <div class="history-item">
+              <div class="history-item history-item--half">
                 <span class="history-item__label">True Retained</span>
                 <span class="history-item__value history-item__value--strong">${escapeHtml(formatMoney(m.trueRetained))}</span>
               </div>
@@ -442,8 +559,11 @@ function renderDayHistory(days, pricePerLitre, mpg = DEFAULT_MPG) {
 }
 
 async function fetchWeekDays() {
-  const { startIso, endIso } = getSelectedWeekRange();
+  const range = getSelectedWeekRange();
+  const { startIso, endIso } = range;
+  currentWeekRange = range;
   updateWeekTitle(startIso, endIso);
+  initialiseWeeklyTarget(range);
 
   const [{ data: days, error }, pricePerLitre] = await Promise.all([
     supabaseClient
@@ -459,12 +579,16 @@ async function fetchWeekDays() {
   if (error) {
     console.error("Error loading week sessions:", error);
     showStatus("Unable to load worked sessions.", "error", false);
+    currentWeekDays = [];
+    renderWeeklyTarget(currentWeekDays);
     renderWeekSummary([], pricePerLitre);
     renderDayHistory([], pricePerLitre);
     return [];
   }
 
   const rows = days || [];
+  currentWeekDays = rows;
+  renderWeeklyTarget(rows);
   renderWeekSummary(rows, pricePerLitre);
   renderDayHistory(rows, pricePerLitre);
   return rows;
@@ -551,36 +675,7 @@ function bindDayEvents() {
 
 export function initDays() {
   populateWorkDateOptions();
-  populateEndTimeOptions();
   bindDayEvents();
   loadWeekDays();
 }
 
-function formatTimeLabel(timeString) {
-  if (!timeString) return "--:--";
-
-  const match = String(timeString).match(/^(\d{2}):(\d{2})/);
-  if (!match) return String(timeString);
-
-  const [, hh, mm] = match;
-  return `${hh}:${mm}`;
-}
-
-function buildSessionMeta(day, metrics) {
-  const hasEndTime = !!day.end_time;
-  const hasHours = Number(day.hours_worked || 0) > 0;
-
-  if (hasEndTime && hasHours) {
-    return `End ${escapeHtml(formatTimeLabel(day.end_time))} • ${escapeHtml(formatNumber(metrics.hours, 1))} hrs`;
-  }
-
-  if (hasEndTime) {
-    return `End ${escapeHtml(formatTimeLabel(day.end_time))}`;
-  }
-
-  if (hasHours) {
-    return `${escapeHtml(formatNumber(metrics.hours, 1))} hrs`;
-  }
-
-  return "";
-}
