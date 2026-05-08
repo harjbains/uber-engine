@@ -245,17 +245,10 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     return true;
   });
 
-  const completedWorkDays = weekDates.filter((dateString, index) => {
-    if (!settings.workDays.includes(index)) return false;
-    if (dateString > today) return false;
-    return true;
-  }).length;
-
   const remainingWorkDays = remainingWorkDates.length;
   const baseDailyTarget = plannedWorkDays > 0 ? target / plannedWorkDays : 0;
   const requiredPerDay = remainingWorkDays > 0 ? remaining / remainingWorkDays : 0;
-  const expectedByNow = baseDailyTarget * completedWorkDays;
-  const paceDelta = earned - expectedByNow;
+  const dailyPressure = requiredPerDay - baseDailyTarget;
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
@@ -278,20 +271,20 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     progressClass = "target-progress-fill target-progress-fill--red";
     paceLabel = "No work days left";
   } else if (target > 0) {
-    const paceTolerance = Math.max(15, baseDailyTarget * 0.12);
+    const paceTolerance = Math.max(10, baseDailyTarget * 0.08);
 
-    if (paceDelta < -paceTolerance) {
-      status = `${formatMoney(Math.abs(paceDelta))} behind planned pace.`;
+    if (dailyPressure > paceTolerance) {
+      status = `${formatMoney(dailyPressure)} extra needed per remaining work day.`;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
       paceLabel = "Behind pace";
-    } else if (paceDelta < 0) {
-      status = `${formatMoney(Math.abs(paceDelta))} below planned pace.`;
+    } else if (dailyPressure > 0) {
+      status = `${formatMoney(dailyPressure)} above base daily plan.`;
       statusClass = "target-status target-status--caution";
       progressClass = "target-progress-fill target-progress-fill--amber";
       paceLabel = "Close to pace";
     } else {
-      status = `${formatMoney(paceDelta)} ahead of planned pace.`;
+      status = `${formatMoney(Math.abs(dailyPressure))} below base daily plan.`;
       statusClass = "target-status target-status--good";
       progressClass = "target-progress-fill target-progress-fill--green";
       paceLabel = "On track";
@@ -306,8 +299,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     remainingWorkDays,
     requiredPerDay,
     baseDailyTarget,
-    expectedByNow,
-    paceDelta,
+    dailyPressure,
     progressPercent,
     progressClass,
     paceLabel,
