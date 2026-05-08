@@ -1,6 +1,7 @@
-export const VERSION = "v2.1.5";
+export const VERSION = "v2.2.0";
 
 export const RELEASE_NOTES = {
+  "2.2.0": "Settings tab added for targets, vehicle details, insurance, tax, and fuel assumptions",
   "2.1.5": "Weekly target wording simplified around required remaining daily target",
   "2.1.4": "Weekly target pace now follows required remaining daily target",
   "2.1.3": "Weekly target progress bar with red, amber, green pace states",
@@ -21,6 +22,7 @@ export function getReleaseNotes(version = VERSION) {
   const cleanVersion = String(version).replace(/^v/i, "");
   return RELEASE_NOTES[cleanVersion] || "";
 }
+
 
 
 

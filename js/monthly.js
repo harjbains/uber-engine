@@ -2,6 +2,13 @@ import { supabaseClient } from "./supabase.js";
 import { exportMonthlySummary } from "./googleSheets.js";
 import { showStatus } from "./status.js";
 import { getRollingFuelPricePerLitre } from "./fuel.js";
+import {
+  SETTINGS_UPDATED_EVENT,
+  getFallbackFuelPrice,
+  getMpg,
+  getSettings,
+  getTaxRate
+} from "./settings.js?v=2.2.0";
 
 const ids = {
   picker: "month_picker",
@@ -9,11 +16,6 @@ const ids = {
   exportBtn: "export-month"
 };
 
-const DAILY_INSURANCE_DEFAULT = 10;
-const TAX_RATE_DEFAULT = 0.20;
-
-const DEFAULT_MPG = 32.5;
-const DEFAULT_FUEL_PRICE_PER_LITRE = 1.70;
 const LITRES_PER_UK_GALLON = 4.546;
 
 function el(id) {
@@ -51,11 +53,11 @@ function monthDateRange(monthValue) {
   return { start, end };
 }
 
-function getLitresPerMile(mpg = DEFAULT_MPG) {
+function getLitresPerMile(mpg) {
   return LITRES_PER_UK_GALLON / mpg;
 }
 
-function calculateFuelCost(miles, pricePerLitre, mpg = DEFAULT_MPG) {
+function calculateFuelCost(miles, pricePerLitre, mpg) {
   const litresPerMile = getLitresPerMile(mpg);
   return miles * litresPerMile * pricePerLitre;
 }
@@ -66,6 +68,7 @@ export async function loadMonthSummary() {
   if (!container) return null;
 
   const { start, end } = monthDateRange(monthValue);
+  const settings = getSettings();
 
   const [daysRes, expenseRes, fuelPrice] = await Promise.all([
     supabaseClient
@@ -80,7 +83,7 @@ export async function loadMonthSummary() {
       .gte("date", start)
       .lte("date", end),
 
-    getRollingFuelPricePerLitre(3, DEFAULT_FUEL_PRICE_PER_LITRE)
+    getRollingFuelPricePerLitre(3, getFallbackFuelPrice(settings))
   ]);
 
   if (daysRes.error || expenseRes.error) {
@@ -102,11 +105,11 @@ export async function loadMonthSummary() {
   const distinctDatesWorked = new Set(days.map(d => d.date)).size;
 
   // ✅ NEW: estimated fuel instead of fuel_logs
-  const totalFuel = calculateFuelCost(totalMiles, fuelPrice);
+  const totalFuel = calculateFuelCost(totalMiles, fuelPrice, getMpg(settings));
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const totalTax = totalIncome * TAX_RATE_DEFAULT;
-  const totalInsurance = distinctDatesWorked * DAILY_INSURANCE_DEFAULT;
+  const totalTax = totalIncome * getTaxRate(settings);
+  const totalInsurance = Number(settings.insuranceMonthly || 0);
 
   const totalTrueRetained =
     totalIncome -
@@ -227,6 +230,7 @@ export function initMonthly() {
 
   picker?.addEventListener("change", loadMonthSummary);
   exportBtn?.addEventListener("click", handleExportMonth);
+  window.addEventListener(SETTINGS_UPDATED_EVENT, loadMonthSummary);
 
   loadMonthSummary();
 }

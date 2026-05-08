@@ -29,7 +29,7 @@
       <button class="tab-button" data-tab="month_tab">Month</button>
       <button class="tab-button" data-tab="fuel_tab">Fuel</button>
       <button class="tab-button" data-tab="expenses_tab">Expenses</button>
-      <button class="tab-button" data-tab="training_tab">Training</button>
+      <button class="tab-button" data-tab="settings_tab">Settings</button>
     </div>
 
     <!-- ================= DAY TAB ================= -->
@@ -196,104 +196,89 @@
 
     </div>
 
-    <!-- ================= TRAINING TAB ================= -->
+    <!-- ================= SETTINGS TAB ================= -->
 
-    <div id="training_tab" class="tab-content">
+    <div id="settings_tab" class="tab-content">
 
-      <div class="card training-mode-panel">
-        <h2>Uber Training Mode</h2>
+      <div class="card settings-panel">
+        <h2>Settings</h2>
 
-        <p class="training-mode-subtitle">
-          Paste your current postcode from Google Maps, generate a realistic mock offer,
-          then decide Take or Pass before revealing the numbers.
-        </p>
-
-        <div class="training-form-grid">
-
-          <div class="training-field training-field--full">
-            <label for="training-postcode">Current postcode / outcode</label>
-            <input
-              id="training-postcode"
-              type="text"
-              inputmode="text"
-              autocomplete="postal-code"
-              placeholder="e.g. WV1, B16, B68"
-            >
-            <span id="training-postcode-hint" class="training-hint">
-              Enter a postcode or outcode, e.g. WV1 or B16.
-            </span>
+        <div class="settings-section">
+          <h3>Targets</h3>
+          <div class="field">
+            <label for="settings_weekly_target">Default Weekly Target (£)</label>
+            <input id="settings_weekly_target" type="number" min="0" step="1" inputmode="numeric">
           </div>
-
-          <div class="training-field">
-            <label for="training-mode">Shift mode</label>
-            <select id="training-mode">
-              <option value="morning">Morning</option>
-              <option value="evening" selected>Evening</option>
-              <option value="friday_saturday_night">Fri/Sat night</option>
-              <option value="quiet_shift">Quiet shift</option>
-              <option value="full_shift">Full shift drill</option>
-            </select>
-          </div>
-
-          <div class="training-field">
-            <label for="training-difficulty">Difficulty</label>
-            <select id="training-difficulty">
-              <option value="beginner" selected>Beginner</option>
-              <option value="intermediate">Intermediate</option>
-              <option value="pressure">Pressure</option>
-            </select>
-          </div>
-
-          <div class="training-field">
-            <label for="training-current-gross">Current gross</label>
-            <input
-              id="training-current-gross"
-              type="number"
-              min="0"
-              step="0.01"
-              inputmode="decimal"
-              placeholder="e.g. 72.40"
-            >
-          </div>
-
-          <div class="training-field">
-            <label for="training-target">Target gross</label>
-            <input
-              id="training-target"
-              type="number"
-              min="0"
-              step="1"
-              inputmode="numeric"
-              placeholder="e.g. 140"
-            >
-          </div>
-
         </div>
 
-        <div class="training-actions">
-          <button id="generate-training-trip" type="button" class="btn-primary">
-            Generate Training Trip
-          </button>
-          <button id="training-take" type="button">Take</button>
-          <button id="training-pass" type="button">Pass</button>
-          <button id="reveal-training-analysis" type="button">Reveal Analysis</button>
+        <div class="settings-section">
+          <h3>Vehicle</h3>
+          <div class="form-row-2">
+            <div class="field">
+              <label for="settings_fuel_type">Fuel Type</label>
+              <select id="settings_fuel_type">
+                <option value="petrol">Petrol</option>
+                <option value="hybrid">Hybrid</option>
+                <option value="ev">EV</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="settings_mpg">MPG Estimate</label>
+              <input id="settings_mpg" type="number" min="1" step="0.1" inputmode="decimal">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="field">
+              <label for="settings_vehicle_model">Car Model</label>
+              <input id="settings_vehicle_model" type="text" placeholder="e.g. Toyota Prius">
+            </div>
+
+            <div class="field">
+              <label for="settings_vehicle_reg">Reg Number</label>
+              <input id="settings_vehicle_reg" type="text" placeholder="Optional">
+            </div>
+          </div>
         </div>
 
-        <div id="training-status" class="training-status" aria-live="polite"></div>
+        <div class="settings-section">
+          <h3>Operating Costs</h3>
+          <div class="form-row-2">
+            <div class="field">
+              <label for="settings_insurance_monthly">Insurance / Month (£)</label>
+              <input id="settings_insurance_monthly" type="number" min="0" step="0.01" inputmode="decimal">
+            </div>
 
-        <div id="training-card-container"></div>
+            <div class="field">
+              <label for="settings_tax_rate">Tax Rate (%)</label>
+              <input id="settings_tax_rate" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+            </div>
+          </div>
 
-        <div id="training-feedback"></div>
+          <div class="field">
+            <label for="settings_fuel_price">Fallback Fuel Price / L (£)</label>
+            <input id="settings_fuel_price" type="number" min="0" step="0.01" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="settings-actions">
+          <button id="save_settings" type="button" class="btn-primary">Save Settings</button>
+          <button id="reset_settings" type="button">Reset Defaults</button>
+        </div>
+
+        <div id="settings_status" class="settings-status" aria-live="polite"></div>
       </div>
 
     </div>
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.1.5"></script>
+  <script type="module" src="js/app.js?v=2.2.0"></script>
 </body>
 
 </html>
+
 
 
 

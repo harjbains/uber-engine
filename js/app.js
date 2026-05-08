@@ -1,9 +1,9 @@
-import { initDays } from "./days.js?v=2.1.5";
-import { initMonthly } from "./monthly.js?v=2.0.6";
+import { initDays } from "./days.js?v=2.2.0";
+import { initMonthly } from "./monthly.js?v=2.2.0";
 import { initFuel } from "./fuel.js?v=2.0.6";
 import { initExpenses } from "./expenses.js?v=2.0.6";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.1.5";
-import { initTrainingMode } from "./trainingMode.js";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.2.0";
+import { initSettings } from "./settings.js?v=2.2.0";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
@@ -37,8 +37,9 @@ document.addEventListener("DOMContentLoaded", () => {
   initMonthly();
   initFuel();
   initExpenses();
-  initTrainingMode();
+  initSettings();
 });
+
 
 
 

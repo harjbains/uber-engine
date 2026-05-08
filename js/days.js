@@ -3,6 +3,15 @@ import { sendToGoogleSheets, buildDaySheetPayload } from "./googleSheets.js";
 import { showStatus } from "./status.js";
 import { loadMonthSummary } from "./monthly.js";
 import { getRollingFuelPricePerLitre } from "./fuel.js";
+import {
+  SETTINGS_UPDATED_EVENT,
+  getDailyInsuranceEstimate,
+  getFallbackFuelPrice,
+  getMpg,
+  getSettings,
+  getTaxRate,
+  getWeeklyTargetDefault
+} from "./settings.js?v=2.2.0";
 
 const ids = {
   date: "day_date",
@@ -21,12 +30,8 @@ const ids = {
   nextWeek: "next_week"
 };
 
-const DAILY_INSURANCE_DEFAULT = 10;
-const TAX_RATE_DEFAULT = 0.20;
 const WORK_DATE_OPTIONS_DAYS = 7;
 
-const DEFAULT_MPG = 32.5;
-const DEFAULT_FUEL_PRICE_PER_LITRE = 1.70;
 const LITRES_PER_UK_GALLON = 4.546;
 const TARGET_STORAGE_PREFIX = "uberEngineWeeklyTarget";
 const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
@@ -156,7 +161,7 @@ function targetStorageKey(startIso) {
 
 function readTargetSettings(startIso) {
   const fallback = {
-    target: "",
+    target: getWeeklyTargetDefault(),
     workDays: [...DEFAULT_TARGET_WORKDAYS]
   };
 
@@ -446,31 +451,31 @@ function validateDay(payload) {
   return null;
 }
 
-function getLitresPerMile(mpg = DEFAULT_MPG) {
+function getLitresPerMile(mpg) {
   if (!Number.isFinite(mpg) || mpg <= 0) {
-    return LITRES_PER_UK_GALLON / DEFAULT_MPG;
+    return LITRES_PER_UK_GALLON / getMpg();
   }
   return LITRES_PER_UK_GALLON / mpg;
 }
 
-function calculateEstimatedFuelCost(miles, pricePerLitre, mpg = DEFAULT_MPG) {
+function calculateEstimatedFuelCost(miles, pricePerLitre, mpg) {
   const safeMiles = Number(miles || 0);
   const safePricePerLitre =
     Number.isFinite(pricePerLitre) && pricePerLitre > 0
       ? pricePerLitre
-      : DEFAULT_FUEL_PRICE_PER_LITRE;
+      : getFallbackFuelPrice();
 
   const litresPerMile = getLitresPerMile(mpg);
   return safeMiles * litresPerMile * safePricePerLitre;
 }
 
-function buildSessionMetrics(day, pricePerLitre, mpg = DEFAULT_MPG) {
+function buildSessionMetrics(day, pricePerLitre, settings = getSettings()) {
   const gross = Number(day.gross || 0);
   const miles = Number(day.business_miles || 0);
 
-  const estimatedFuel = calculateEstimatedFuelCost(miles, pricePerLitre, mpg);
-  const insurance = DAILY_INSURANCE_DEFAULT;
-  const tax = Math.max(0, gross * TAX_RATE_DEFAULT);
+  const estimatedFuel = calculateEstimatedFuelCost(miles, pricePerLitre, getMpg(settings));
+  const insurance = getDailyInsuranceEstimate(settings);
+  const tax = Math.max(0, gross * getTaxRate(settings));
   const trueRetained = gross - estimatedFuel - tax - insurance;
 
   return {
@@ -484,13 +489,13 @@ function buildSessionMetrics(day, pricePerLitre, mpg = DEFAULT_MPG) {
   };
 }
 
-function renderWeekSummary(days, pricePerLitre, mpg = DEFAULT_MPG) {
+function renderWeekSummary(days, pricePerLitre, settings = getSettings()) {
   const container = el(ids.weekSummary);
   if (!container) return;
   container.className = "summary-grid day-finance-grid";
 
   const totals = days.reduce((acc, day) => {
-    const m = buildSessionMetrics(day, pricePerLitre, mpg);
+    const m = buildSessionMetrics(day, pricePerLitre, settings);
     acc.sessions += 1;
     acc.gross += m.gross;
     acc.miles += m.miles;
@@ -531,7 +536,7 @@ function renderWeekSummary(days, pricePerLitre, mpg = DEFAULT_MPG) {
   `;
 }
 
-function renderDayHistory(days, pricePerLitre, mpg = DEFAULT_MPG) {
+function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
   const container = el(ids.list);
   if (!container) return;
 
@@ -543,7 +548,7 @@ function renderDayHistory(days, pricePerLitre, mpg = DEFAULT_MPG) {
   container.innerHTML = `
     <div class="history-grid">
       ${days.map((day) => {
-        const m = buildSessionMetrics(day, pricePerLitre, mpg);
+        const m = buildSessionMetrics(day, pricePerLitre, settings);
 
         return `
           <div class="history-card">
@@ -594,6 +599,8 @@ async function fetchWeekDays() {
   updateWeekTitle(startIso, endIso);
   initialiseWeeklyTarget(range);
 
+  const settings = getSettings();
+
   const [{ data: days, error }, pricePerLitre] = await Promise.all([
     supabaseClient
       .from("days")
@@ -602,7 +609,7 @@ async function fetchWeekDays() {
       .lte("date", endIso)
       .order("date", { ascending: false })
       .order("end_time", { ascending: false }),
-    getRollingFuelPricePerLitre(3, DEFAULT_FUEL_PRICE_PER_LITRE)
+    getRollingFuelPricePerLitre(3, getFallbackFuelPrice(settings))
   ]);
 
   if (error) {
@@ -610,16 +617,16 @@ async function fetchWeekDays() {
     showStatus("Unable to load worked sessions.", "error", false);
     currentWeekDays = [];
     renderWeeklyTarget(currentWeekDays);
-    renderWeekSummary([], pricePerLitre);
-    renderDayHistory([], pricePerLitre);
+    renderWeekSummary([], pricePerLitre, settings);
+    renderDayHistory([], pricePerLitre, settings);
     return [];
   }
 
   const rows = days || [];
   currentWeekDays = rows;
   renderWeeklyTarget(rows);
-  renderWeekSummary(rows, pricePerLitre);
-  renderDayHistory(rows, pricePerLitre);
+  renderWeekSummary(rows, pricePerLitre, settings);
+  renderDayHistory(rows, pricePerLitre, settings);
   return rows;
 }
 
@@ -683,6 +690,7 @@ export async function saveDay() {
 
 function bindDayEvents() {
   el(ids.saveBtn)?.addEventListener("click", saveDay);
+  window.addEventListener(SETTINGS_UPDATED_EVENT, loadWeekDays);
 
   el(ids.prevWeek)?.addEventListener("click", async () => {
     weekOffset -= 1;
