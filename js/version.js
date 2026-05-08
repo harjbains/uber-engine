@@ -1,6 +1,7 @@
-export const VERSION = "v2.1.2";
+export const VERSION = "v2.1.3";
 
 export const RELEASE_NOTES = {
+  "2.1.3": "Weekly target progress bar with red, amber, green pace states",
   "2.1.2": "Weekly target tracker, simplified day logging, compact finance cards, and blank end-time save fix",
   "2.1.1": "Weekly income target tracker added to Day workflow",
   "2.1.0": "Day & Month fuel calculations based on 3 most recent fills, station name removed from fuel form",
@@ -18,3 +19,4 @@ export function getReleaseNotes(version = VERSION) {
   const cleanVersion = String(version).replace(/^v/i, "");
   return RELEASE_NOTES[cleanVersion] || "";
 }
+

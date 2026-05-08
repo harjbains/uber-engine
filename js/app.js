@@ -1,8 +1,8 @@
-import { initDays } from "./days.js?v=2.1.2";
+import { initDays } from "./days.js?v=2.1.3";
 import { initMonthly } from "./monthly.js?v=2.0.6";
 import { initFuel } from "./fuel.js?v=2.0.6";
 import { initExpenses } from "./expenses.js?v=2.0.6";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.1.2";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.1.3";
 import { initTrainingMode } from "./trainingMode.js";
 
 function initTabs() {
@@ -39,4 +39,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initExpenses();
   initTrainingMode();
 });
+
 

@@ -580,6 +580,11 @@ input[type="date"] {
   font-weight: 700;
 }
 
+.target-status--caution {
+  color: #92400e;
+  font-weight: 700;
+}
+
 .target-workdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -624,6 +629,75 @@ input[type="date"] {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.target-progress-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #f9fafb;
+}
+
+.target-progress-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #374151;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.target-progress-meta strong {
+  color: #111827;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.target-progress-track {
+  height: 14px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.target-progress-fill {
+  height: 100%;
+  min-width: 4px;
+  border-radius: inherit;
+  transition: width 0.2s ease, background 0.2s ease;
+}
+
+.target-progress-fill--empty {
+  min-width: 0;
+  background: #d1d5db;
+}
+
+.target-progress-fill--red {
+  background: #dc2626;
+}
+
+.target-progress-fill--amber {
+  background: #f59e0b;
+}
+
+.target-progress-fill--green {
+  background: #16a34a;
+}
+
+.target-progress-fill--complete {
+  background: #111827;
+}
+
+.target-progress-sub {
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .target-summary-card {

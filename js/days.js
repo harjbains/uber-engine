@@ -237,6 +237,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const plannedWorkDays = settings.workDays.length;
   const today = todayIso();
   const todayInWeek = weekDates.includes(today);
+  const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
 
   const remainingWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
@@ -244,33 +245,56 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     return true;
   });
 
+  const completedWorkDays = weekDates.filter((dateString, index) => {
+    if (!settings.workDays.includes(index)) return false;
+    if (dateString > today) return false;
+    return true;
+  }).length;
+
   const remainingWorkDays = remainingWorkDates.length;
   const baseDailyTarget = plannedWorkDays > 0 ? target / plannedWorkDays : 0;
   const requiredPerDay = remainingWorkDays > 0 ? remaining / remainingWorkDays : 0;
+  const expectedByNow = baseDailyTarget * completedWorkDays;
+  const paceDelta = earned - expectedByNow;
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
+  let progressClass = "target-progress-fill target-progress-fill--empty";
+  let paceLabel = "No weekly target set";
 
   if (target > 0 && plannedWorkDays === 0) {
     status = "Choose at least one planned work day.";
     statusClass = "target-status target-status--warning";
+    progressClass = "target-progress-fill target-progress-fill--red";
+    paceLabel = "No planned work days";
   } else if (target > 0 && remaining <= 0) {
-    status = `Target hit. You are ahead by ${formatMoney(Math.abs(target - earned))}.`;
+    status = `Target hit. Ahead by ${formatMoney(Math.abs(target - earned))}.`;
     statusClass = "target-status target-status--good";
+    progressClass = "target-progress-fill target-progress-fill--complete";
+    paceLabel = "Target hit";
   } else if (target > 0 && remainingWorkDays === 0) {
     status = `No planned work days left. Remaining target is ${formatMoney(remaining)}.`;
     statusClass = "target-status target-status--warning";
+    progressClass = "target-progress-fill target-progress-fill--red";
+    paceLabel = "No work days left";
   } else if (target > 0) {
-    const pressure = requiredPerDay - baseDailyTarget;
+    const paceTolerance = Math.max(15, baseDailyTarget * 0.12);
 
-    if (Math.abs(pressure) < 0.01) {
-      status = "On original daily pace.";
-    } else if (pressure > 0) {
-      status = `Behind pace. Each remaining work day needs ${formatMoney(pressure)} extra.`;
+    if (paceDelta < -paceTolerance) {
+      status = `${formatMoney(Math.abs(paceDelta))} behind planned pace.`;
       statusClass = "target-status target-status--warning";
+      progressClass = "target-progress-fill target-progress-fill--red";
+      paceLabel = "Behind pace";
+    } else if (paceDelta < 0) {
+      status = `${formatMoney(Math.abs(paceDelta))} below planned pace.`;
+      statusClass = "target-status target-status--caution";
+      progressClass = "target-progress-fill target-progress-fill--amber";
+      paceLabel = "Close to pace";
     } else {
-      status = `Ahead of pace. Each remaining work day is ${formatMoney(Math.abs(pressure))} lighter.`;
+      status = `${formatMoney(paceDelta)} ahead of planned pace.`;
       statusClass = "target-status target-status--good";
+      progressClass = "target-progress-fill target-progress-fill--green";
+      paceLabel = "On track";
     }
   }
 
@@ -282,6 +306,11 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     remainingWorkDays,
     requiredPerDay,
     baseDailyTarget,
+    expectedByNow,
+    paceDelta,
+    progressPercent,
+    progressClass,
+    paceLabel,
     todayTargetLabel: todayInWeek ? "Today Target" : "Required / Day",
     status,
     statusClass
@@ -304,6 +333,18 @@ function renderWeeklyTarget(days) {
   statusNode.className = summary.statusClass;
 
   summaryNode.innerHTML = `
+    <div class="target-progress-panel">
+      <div class="target-progress-meta">
+        <span>${escapeHtml(summary.paceLabel)}</span>
+        <strong>${formatNumber(summary.progressPercent, 0)}%</strong>
+      </div>
+      <div class="target-progress-track" aria-label="Weekly target progress">
+        <div class="${summary.progressClass}" style="width: ${summary.progressPercent}%"></div>
+      </div>
+      <div class="target-progress-sub">
+        ${formatMoney(summary.earned)} of ${formatMoney(summary.target)} target
+      </div>
+    </div>
     <div class="target-summary-card target-summary-card--primary">
       <div class="summary-label">${escapeHtml(summary.todayTargetLabel)}</div>
       <div class="summary-value">${formatMoney(summary.requiredPerDay)}</div>
