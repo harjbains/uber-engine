@@ -284,7 +284,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
       progressClass = "target-progress-fill target-progress-fill--amber";
       paceLabel = "Close to pace";
     } else {
-      status = `${formatMoney(Math.abs(dailyPressure))} below base daily plan.`;
+      status = `${formatMoney(requiredPerDay)} needed per remaining work day to hit target.`;
       statusClass = "target-status target-status--good";
       progressClass = "target-progress-fill target-progress-fill--green";
       paceLabel = "On track";
@@ -352,10 +352,6 @@ function renderWeeklyTarget(days) {
     <div class="target-summary-card">
       <div class="summary-label">Work Days Left</div>
       <div class="summary-value">${formatInt(summary.remainingWorkDays)}</div>
-    </div>
-    <div class="target-summary-card">
-      <div class="summary-label">Base Daily Plan</div>
-      <div class="summary-value">${formatMoney(summary.baseDailyTarget)}</div>
     </div>
     <div class="target-summary-card">
       <div class="summary-label">Weekly Target</div>
