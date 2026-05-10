@@ -10,7 +10,11 @@ const DEFAULT_SETTINGS = {
   insuranceMonthly: 300,
   taxRatePercent: 20,
   mpg: 32.5,
-  fallbackFuelPrice: 1.7
+  fallbackFuelPrice: 1.7,
+  evHomeOffPeakRate: 7.5,
+  evHomePeakRate: 28,
+  evPublicRate: 55,
+  evChargingMix: "home_off_peak"
 };
 
 const ids = {
@@ -22,6 +26,10 @@ const ids = {
   taxRatePercent: "settings_tax_rate",
   mpg: "settings_mpg",
   fallbackFuelPrice: "settings_fuel_price",
+  evHomeOffPeakRate: "settings_ev_home_off_peak",
+  evHomePeakRate: "settings_ev_home_peak",
+  evPublicRate: "settings_ev_public_rate",
+  evChargingMix: "settings_ev_charging_mix",
   saveBtn: "save_settings",
   resetBtn: "reset_settings",
   status: "settings_status"
@@ -87,6 +95,10 @@ function populateSettingsForm() {
   if (el(ids.taxRatePercent)) el(ids.taxRatePercent).value = settings.taxRatePercent;
   if (el(ids.mpg)) el(ids.mpg).value = settings.mpg;
   if (el(ids.fallbackFuelPrice)) el(ids.fallbackFuelPrice).value = settings.fallbackFuelPrice;
+  if (el(ids.evHomeOffPeakRate)) el(ids.evHomeOffPeakRate).value = settings.evHomeOffPeakRate;
+  if (el(ids.evHomePeakRate)) el(ids.evHomePeakRate).value = settings.evHomePeakRate;
+  if (el(ids.evPublicRate)) el(ids.evPublicRate).value = settings.evPublicRate;
+  if (el(ids.evChargingMix)) el(ids.evChargingMix).value = settings.evChargingMix;
 }
 
 function readSettingsForm() {
@@ -98,7 +110,11 @@ function readSettingsForm() {
     insuranceMonthly: toNumber(el(ids.insuranceMonthly)?.value, DEFAULT_SETTINGS.insuranceMonthly),
     taxRatePercent: toNumber(el(ids.taxRatePercent)?.value, DEFAULT_SETTINGS.taxRatePercent),
     mpg: toNumber(el(ids.mpg)?.value, DEFAULT_SETTINGS.mpg),
-    fallbackFuelPrice: toNumber(el(ids.fallbackFuelPrice)?.value, DEFAULT_SETTINGS.fallbackFuelPrice)
+    fallbackFuelPrice: toNumber(el(ids.fallbackFuelPrice)?.value, DEFAULT_SETTINGS.fallbackFuelPrice),
+    evHomeOffPeakRate: toNumber(el(ids.evHomeOffPeakRate)?.value, DEFAULT_SETTINGS.evHomeOffPeakRate),
+    evHomePeakRate: toNumber(el(ids.evHomePeakRate)?.value, DEFAULT_SETTINGS.evHomePeakRate),
+    evPublicRate: toNumber(el(ids.evPublicRate)?.value, DEFAULT_SETTINGS.evPublicRate),
+    evChargingMix: el(ids.evChargingMix)?.value || DEFAULT_SETTINGS.evChargingMix
   };
 }
 

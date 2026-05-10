@@ -12,7 +12,7 @@ body {
 }
 
 .app-container {
-  max-width: 480px;
+  max-width: 390px;
   margin: 0 auto;
   padding: 14px;
 }
@@ -550,6 +550,42 @@ input[type="date"] {
   border: 1px solid #fecaca;
 }
 
+/* ================= COSTS ================= */
+
+.cost-toggle {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: 0 0 10px;
+  padding: 3px;
+  border-radius: 8px;
+  background: #eef1f4;
+}
+
+.cost-toggle__button {
+  min-height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.cost-toggle__button.active {
+  background: #000;
+  color: #fff;
+}
+
+.cost-panel {
+  display: none;
+}
+
+.cost-panel.active {
+  display: block;
+}
+
 /* ================= WEEKLY TARGET ================= */
 
 .target-card h2 {
@@ -583,6 +619,16 @@ input[type="date"] {
 .target-status--caution {
   color: #92400e;
   font-weight: 700;
+}
+
+.target-plan-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.target-plan-grid .field {
+  margin-bottom: 0;
 }
 
 .target-workdays {
@@ -623,6 +669,61 @@ input[type="date"] {
   background: #111827;
   border-color: #111827;
   color: #ffffff;
+}
+
+.target-week-strip {
+  margin: -6px 0 12px;
+}
+
+.target-week-days {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.target-week-day {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 6px 4px;
+  background: #f9fafb;
+  text-align: center;
+}
+
+.target-week-day strong {
+  display: block;
+  color: #111827;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-week-day--hit {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.target-week-day--under {
+  background: #fffbeb;
+  border-color: #fde68a;
+}
+
+.target-week-day--missed {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+.target-week-day--rest {
+  background: #ffffff;
+  border-color: #e5e7eb;
+}
+
+.target-week-day--future {
+  background: #f3f4f6;
+  border-color: #e5e7eb;
 }
 
 .target-summary-grid {
@@ -843,6 +944,10 @@ input[type="date"] {
   .history-item--half {
     grid-column: 1 / -1;
   }
+
+  .target-week-days {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+  }
 }
 
 .day-finance-grid,
@@ -939,5 +1044,169 @@ input[type="date"] {
 
 .settings-status--info {
   color: #1d4ed8;
+}
+
+/* ================= MONTH DASHBOARD ================= */
+
+#month_summary {
+  display: block;
+}
+
+.month-dashboard {
+  display: grid;
+  gap: 10px;
+}
+
+.month-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 12px;
+  align-items: center;
+}
+
+.month-retained {
+  min-width: 0;
+  border: 1px solid #bbf7d0;
+  border-radius: 14px;
+  padding: 12px;
+  background: #ecfdf5;
+}
+
+.month-retained__value {
+  color: #047857;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1;
+  margin-top: 4px;
+}
+
+.month-retained__sub {
+  color: #047857;
+  font-size: 13px;
+  font-weight: 800;
+  margin-top: 6px;
+}
+
+.month-donut {
+  width: 150px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle, #fff 0 55%, transparent 56%),
+    conic-gradient(
+      #16a34a 0 calc(var(--retained) * 1%),
+      #ef4444 calc(var(--retained) * 1%) calc((var(--retained) + var(--fuel)) * 1%),
+      #f59e0b calc((var(--retained) + var(--fuel)) * 1%) calc((var(--retained) + var(--fuel) + var(--tax)) * 1%),
+      #64748b calc((var(--retained) + var(--fuel) + var(--tax)) * 1%) 100%
+    );
+}
+
+.month-donut div {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  max-width: 88px;
+  text-align: center;
+}
+
+.month-donut span {
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.month-donut strong {
+  color: #111827;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.month-breakdown {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.month-breakdown-item {
+  min-width: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 9px;
+  background: #fff;
+}
+
+.month-breakdown-item span {
+  display: block;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.month-breakdown-item strong {
+  display: block;
+  margin-top: 4px;
+  color: #111827;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.month-breakdown-item--retained {
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+}
+
+.month-breakdown-item--fuel {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.month-breakdown-item--tax {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.month-breakdown-item--expenses {
+  border-color: #cbd5e1;
+  background: #f8fafc;
+}
+
+.month-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.month-metrics .summary-card {
+  padding: 9px;
+  border-radius: 12px;
+}
+
+.month-metrics .summary-value {
+  font-size: 16px;
+}
+
+@media (max-width: 430px) {
+  .month-hero {
+    grid-template-columns: minmax(0, 1fr) 118px;
+  }
+
+  .month-donut {
+    width: 118px;
+  }
+
+  .month-donut strong {
+    font-size: 12px;
+  }
+
+  .month-breakdown,
+  .month-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 

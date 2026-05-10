@@ -38,6 +38,11 @@ function formatInt(value) {
   return String(Math.round(n));
 }
 
+function pct(value, total) {
+  if (!Number.isFinite(total) || total <= 0) return 0;
+  return Math.max(0, (Number(value || 0) / total) * 100);
+}
+
 function currentMonthValue() {
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -137,65 +142,77 @@ export async function loadMonthSummary() {
     avgPerHour: totalHours > 0 ? totalIncome / totalHours : 0
   };
 
+  const retainedPct = pct(summary.totalTrueRetained, summary.totalIncome);
+  const fuelPct = pct(summary.totalFuel, summary.totalIncome);
+  const taxPct = pct(summary.totalTax, summary.totalIncome);
+  const expensePct = pct(summary.totalExpenses + summary.totalInsurance, summary.totalIncome);
+
   container.innerHTML = `
-    <div class="summary-card">
-      <div class="summary-label">Sessions</div>
-      <div class="summary-value">${formatInt(summary.sessionsWorked)}</div>
-    </div>
+    <div class="month-dashboard">
+      <div class="month-hero">
+        <div class="month-retained">
+          <div class="summary-label">True Retained</div>
+          <div class="month-retained__value">${formatMoney(summary.totalTrueRetained)}</div>
+          <div class="month-retained__sub">${formatNumber(retainedPct, 0)}% of gross</div>
+        </div>
 
-    <div class="summary-card">
-      <div class="summary-label">Days Worked</div>
-      <div class="summary-value">${formatInt(summary.daysWorked)}</div>
-    </div>
+        <div
+          class="month-donut"
+          style="--retained:${retainedPct}; --fuel:${fuelPct}; --tax:${taxPct}; --expenses:${expensePct};"
+          aria-label="Monthly earnings breakdown"
+        >
+          <div>
+            <span>Gross</span>
+            <strong>${formatMoney(summary.totalIncome)}</strong>
+          </div>
+        </div>
+      </div>
 
-    <div class="summary-card">
-      <div class="summary-label">Gross</div>
-      <div class="summary-value">${formatMoney(summary.totalIncome)}</div>
-    </div>
+      <div class="month-breakdown">
+        <div class="month-breakdown-item month-breakdown-item--retained">
+          <span>Retained</span>
+          <strong>${formatMoney(summary.totalTrueRetained)}</strong>
+        </div>
+        <div class="month-breakdown-item month-breakdown-item--fuel">
+          <span>Fuel Est.</span>
+          <strong>${formatMoney(summary.totalFuel)}</strong>
+        </div>
+        <div class="month-breakdown-item month-breakdown-item--tax">
+          <span>Tax</span>
+          <strong>${formatMoney(summary.totalTax)}</strong>
+        </div>
+        <div class="month-breakdown-item month-breakdown-item--expenses">
+          <span>Costs</span>
+          <strong>${formatMoney(summary.totalExpenses + summary.totalInsurance)}</strong>
+        </div>
+      </div>
 
-    <div class="summary-card">
-      <div class="summary-label">Trips</div>
-      <div class="summary-value">${formatInt(summary.totalTrips)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Miles</div>
-      <div class="summary-value">${formatNumber(summary.totalMiles, 1)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Hours</div>
-      <div class="summary-value">${formatNumber(summary.totalHours, 1)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Fuel (Est.)</div>
-      <div class="summary-value">${formatMoney(summary.totalFuel)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Expenses</div>
-      <div class="summary-value">${formatMoney(summary.totalExpenses)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Tax</div>
-      <div class="summary-value">${formatMoney(summary.totalTax)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Insurance</div>
-      <div class="summary-value">${formatMoney(summary.totalInsurance)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">True Retained</div>
-      <div class="summary-value">${formatMoney(summary.totalTrueRetained)}</div>
-    </div>
-
-    <div class="summary-card">
-      <div class="summary-label">Fuel Price</div>
-      <div class="summary-value">${formatMoney(fuelPrice)}/L</div>
+      <div class="month-metrics">
+        <div class="summary-card">
+          <div class="summary-label">Days</div>
+          <div class="summary-value">${formatInt(summary.daysWorked)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Sessions</div>
+          <div class="summary-value">${formatInt(summary.sessionsWorked)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Miles</div>
+          <div class="summary-value">${formatNumber(summary.totalMiles, 0)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Fuel / Mile</div>
+          <div class="summary-value">${formatMoney(summary.totalMiles > 0 ? summary.totalFuel / summary.totalMiles : 0)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Avg / Day</div>
+          <div class="summary-value">${formatMoney(summary.avgPerWorkedDay)}</div>
+        </div>
+        <div class="summary-card">
+          <div class="summary-label">Fuel Price</div>
+          <div class="summary-value">${formatMoney(fuelPrice)}/L</div>
+        </div>
+      </div>
     </div>
   `;
 

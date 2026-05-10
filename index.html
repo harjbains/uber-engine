@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -27,8 +27,7 @@
     <div class="tab-bar">
       <button class="tab-button active" data-tab="day_tab">Day</button>
       <button class="tab-button" data-tab="month_tab">Month</button>
-      <button class="tab-button" data-tab="fuel_tab">Fuel</button>
-      <button class="tab-button" data-tab="expenses_tab">Expenses</button>
+      <button class="tab-button" data-tab="fuel_tab">Costs</button>
       <button class="tab-button" data-tab="settings_tab">Settings</button>
     </div>
 
@@ -44,7 +43,7 @@
           </div>
         </div>
 
-        <div class="form-row-2">
+        <div class="target-plan-grid">
           <div class="field">
             <label for="weekly_target">Target Gross (&pound;)</label>
             <input id="weekly_target" type="number" min="0" step="1" inputmode="numeric" placeholder="910">
@@ -55,6 +54,8 @@
             <div id="target_workdays" class="target-workdays" aria-label="Planned work days"></div>
           </div>
         </div>
+
+        <div id="target_week_strip" class="target-week-strip" aria-label="Week so far"></div>
 
         <div id="target_summary" class="target-summary-grid"></div>
       </div>
@@ -69,7 +70,7 @@
 
         <div class="form-row-2">
           <div class="field">
-            <label for="day_gross">Gross Earnings (£)</label>
+            <label for="day_gross">Gross Earnings (Â£)</label>
             <input id="day_gross" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
           </div>
 
@@ -123,79 +124,76 @@
 
     </div>
 
-    <!-- ================= FUEL TAB ================= -->
+    <!-- ================= COSTS TAB ================= -->
 
     <div id="fuel_tab" class="tab-content">
 
-      <div class="card">
-        <h3>Log Fuel</h3>
+      <div class="cost-toggle" role="tablist" aria-label="Cost type">
+        <button class="cost-toggle__button active" type="button" data-cost-panel="fuel_cost_panel">Fuel</button>
+        <button class="cost-toggle__button" type="button" data-cost-panel="expense_cost_panel">Expense</button>
+      </div>
 
-        <label for="fuel_date">Date</label>
-        <input type="date" id="fuel_date">
+      <div id="fuel_cost_panel" class="cost-panel active">
+        <div class="card">
+          <h3>Log Fuel</h3>
 
-        <!--
-        <label for="fuel_station">Station</label>
-        <input type="text" id="fuel_station" placeholder="e.g. Tesco Penn Road">
-        -->
+          <label for="fuel_date">Date</label>
+          <input type="date" id="fuel_date">
 
-        <div class="form-row-2">
-          <div>
-            <label for="fuel_litres">Litres</label>
-            <input type="number" id="fuel_litres" step="0.01" inputmode="decimal">
+          <div class="form-row-2">
+            <div>
+              <label for="fuel_litres">Litres</label>
+              <input type="number" id="fuel_litres" step="0.01" inputmode="decimal">
+            </div>
+
+            <div>
+              <label for="fuel_cost">Cost (&pound;)</label>
+              <input type="number" id="fuel_cost" step="0.01" inputmode="decimal" required>
+            </div>
           </div>
 
-          <div>
-            <label for="fuel_cost">Cost (£)</label>
-            <input type="number" id="fuel_cost" step="0.01" inputmode="decimal" required>
-          </div>
+          <label for="fuel_miles">Mileage</label>
+          <input type="number" id="fuel_miles" inputmode="numeric" required>
+
+          <button id="save_fuel" class="btn-primary" type="button">
+            Save Fuel
+          </button>
         </div>
 
-        <label for="fuel_miles">Mileage</label>
-        <input type="number" id="fuel_miles" inputmode="numeric" required>
-
-        <button id="save_fuel" class="btn-primary" type="button">
-          Save Fuel
-        </button>
+        <div class="card">
+          <h3>Fuel History</h3>
+          <div id="fuel_history"></div>
+        </div>
       </div>
 
-      <div class="card">
-        <h3>Fuel History</h3>
-        <div id="fuel_history"></div>
-      </div>
+      <div id="expense_cost_panel" class="cost-panel">
+        <div class="card">
+          <h3>Log Expense</h3>
 
-    </div>
+          <form id="expense-form">
+            <label for="expense_date">Date</label>
+            <input type="date" id="expense_date">
 
-    <!-- ================= EXPENSES TAB ================= -->
+            <label for="expense_category">Category</label>
+            <select id="expense_category"></select>
 
-    <div id="expenses_tab" class="tab-content">
+            <label for="expense_amount">Amount (&pound;)</label>
+            <input type="number" step="0.01" id="expense_amount">
 
-      <div class="card">
-        <h3>Log Expense</h3>
+            <label for="expense_notes">Notes</label>
+            <input type="text" id="expense_notes">
 
-        <form id="expense-form">
-          <label for="expense_date">Date</label>
-          <input type="date" id="expense_date">
+            <button id="save_expense" class="btn-primary" type="button">Save Expense</button>
+          </form>
+        </div>
 
-          <label for="expense_category">Category</label>
-          <select id="expense_category"></select>
-
-          <label for="expense_amount">Amount (£)</label>
-          <input type="number" step="0.01" id="expense_amount">
-
-          <label for="expense_notes">Notes</label>
-          <input type="text" id="expense_notes">
-
-          <button id="save_expense" class="btn-primary" type="button">Save Expense</button>
-        </form>
-      </div>
-
-      <div class="card">
-        <h3>Expense History</h3>
-        <div id="expenseList"></div>
+        <div class="card">
+          <h3>Expense History</h3>
+          <div id="expenseList"></div>
+        </div>
       </div>
 
     </div>
-
     <!-- ================= SETTINGS TAB ================= -->
 
     <div id="settings_tab" class="tab-content">
@@ -206,7 +204,7 @@
         <div class="settings-section">
           <h3>Targets</h3>
           <div class="field">
-            <label for="settings_weekly_target">Default Weekly Target (£)</label>
+            <label for="settings_weekly_target">Default Weekly Target (Â£)</label>
             <input id="settings_weekly_target" type="number" min="0" step="1" inputmode="numeric">
           </div>
         </div>
@@ -218,6 +216,7 @@
               <label for="settings_fuel_type">Fuel Type</label>
               <select id="settings_fuel_type">
                 <option value="petrol">Petrol</option>
+                <option value="diesel">Diesel</option>
                 <option value="hybrid">Hybrid</option>
                 <option value="ev">EV</option>
               </select>
@@ -246,7 +245,7 @@
           <h3>Operating Costs</h3>
           <div class="form-row-2">
             <div class="field">
-              <label for="settings_insurance_monthly">Insurance / Month (£)</label>
+              <label for="settings_insurance_monthly">Insurance / Month (Â£)</label>
               <input id="settings_insurance_monthly" type="number" min="0" step="0.01" inputmode="decimal">
             </div>
 
@@ -257,8 +256,39 @@
           </div>
 
           <div class="field">
-            <label for="settings_fuel_price">Fallback Fuel Price / L (£)</label>
+            <label for="settings_fuel_price">Fallback Fuel Price / L (Â£)</label>
             <input id="settings_fuel_price" type="number" min="0" step="0.01" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <h3>EV Charging</h3>
+          <div class="form-row-2">
+            <div class="field">
+              <label for="settings_ev_home_off_peak">Home Off-Peak (p/kWh)</label>
+              <input id="settings_ev_home_off_peak" type="number" min="0" step="0.1" inputmode="decimal">
+            </div>
+
+            <div class="field">
+              <label for="settings_ev_home_peak">Home Peak (p/kWh)</label>
+              <input id="settings_ev_home_peak" type="number" min="0" step="0.1" inputmode="decimal">
+            </div>
+          </div>
+
+          <div class="form-row-2">
+            <div class="field">
+              <label for="settings_ev_public_rate">Public Charging (p/kWh)</label>
+              <input id="settings_ev_public_rate" type="number" min="0" step="0.1" inputmode="decimal">
+            </div>
+
+            <div class="field">
+              <label for="settings_ev_charging_mix">Main Charging</label>
+              <select id="settings_ev_charging_mix">
+                <option value="home_off_peak">Home off-peak</option>
+                <option value="home_mixed">Home mixed</option>
+                <option value="public_mixed">Public mixed</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -274,10 +304,12 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.2.0"></script>
+  <script type="module" src="js/app.js?v=2.2.1"></script>
 </body>
 
 </html>
+
+
 
 
 

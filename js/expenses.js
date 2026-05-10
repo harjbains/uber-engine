@@ -37,6 +37,19 @@ function safeValue(value) {
   return value ?? "-";
 }
 
+function todayIso() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function setDefaultExpenseDate() {
+  const date = el(ids.date);
+  if (date && !date.value) date.value = todayIso();
+}
+
 function formatCurrency(value) {
   const number = Number(value || 0);
   return `£${number.toFixed(2)}`;
@@ -69,6 +82,8 @@ function clearExpenseForm() {
 
   const category = el(ids.category);
   if (category) category.value = "";
+
+  setDefaultExpenseDate();
 }
 
 export async function loadExpenseCategories() {
@@ -274,6 +289,7 @@ function bindExpenseEvents() {
 
 export async function initExpenses() {
   console.log("initExpenses called");
+  setDefaultExpenseDate();
   bindExpenseEvents();
   await loadExpenseCategories();
   await loadExpenses();

@@ -23,6 +23,7 @@ const ids = {
   weekSummary: "week_summary",
   weeklyTarget: "weekly_target",
   targetWorkdays: "target_workdays",
+  targetWeekStrip: "target_week_strip",
   targetSummary: "target_summary",
   targetStatus: "target_status",
   prevWeek: "prev_week",
@@ -52,7 +53,11 @@ function toNumber(value) {
 }
 
 function formatMoney(value) {
-  return `£${Number(value || 0).toFixed(2)}`;
+  return `\u00a3${Number(value || 0).toFixed(2)}`;
+}
+
+function formatCompactMoney(value) {
+  return `\u00a3${Math.round(Number(value || 0))}`;
 }
 
 function formatNumber(value, dp = 1) {
@@ -314,6 +319,77 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   };
 }
 
+function buildDayTotals(days) {
+  return days.reduce((totals, day) => {
+    const date = day.date;
+    if (!date) return totals;
+
+    totals[date] = (totals[date] || 0) + Number(day.gross || 0);
+    return totals;
+  }, {});
+}
+
+function getWeekDayState(dateString, index, settings, dayTotals, today, dailyTarget) {
+  const isPlanned = settings.workDays.includes(index);
+  const total = dayTotals[dateString] || 0;
+
+  if (dateString > today) {
+    return {
+      className: "target-week-day target-week-day--future",
+      amount: isPlanned ? "TBC" : "Rest"
+    };
+  }
+
+  if (!isPlanned && total <= 0) {
+    return {
+      className: "target-week-day target-week-day--rest",
+      amount: "Rest"
+    };
+  }
+
+  if (total >= dailyTarget) {
+    return {
+      className: "target-week-day target-week-day--hit",
+      amount: formatCompactMoney(total)
+    };
+  }
+
+  if (total > 0) {
+    return {
+      className: "target-week-day target-week-day--under",
+      amount: formatCompactMoney(total)
+    };
+  }
+
+  return {
+    className: "target-week-day target-week-day--missed",
+    amount: isPlanned ? formatCompactMoney(0) : "Rest"
+  };
+}
+
+function renderTargetWeekStrip(days, settings, weekDates, summary) {
+  const container = el(ids.targetWeekStrip);
+  if (!container) return;
+
+  const today = todayIso();
+  const dayTotals = buildDayTotals(days);
+  const dailyTarget = summary.requiredPerDay || summary.baseDailyTarget || 0;
+
+  container.innerHTML = `
+    <div class="target-week-days">
+      ${weekDates.map((dateString, index) => {
+        const state = getWeekDayState(dateString, index, settings, dayTotals, today, dailyTarget);
+
+        return `
+          <div class="${state.className}">
+            <strong>${state.amount}</strong>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
 function renderWeeklyTarget(days) {
   if (!currentWeekRange) return;
 
@@ -325,6 +401,7 @@ function renderWeeklyTarget(days) {
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
   const summary = buildWeeklyTargetSummary(days, settings, weekDates);
+  renderTargetWeekStrip(days, settings, weekDates, summary);
 
   statusNode.textContent = summary.status;
   statusNode.className = summary.statusClass;
@@ -718,4 +795,7 @@ export function initDays() {
   bindDayEvents();
   loadWeekDays();
 }
+
+
+
 

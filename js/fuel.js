@@ -55,6 +55,19 @@ function formatDateLabel(dateString) {
   });
 }
 
+function todayIso() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function setDefaultFuelDate() {
+  const date = el(ids.date);
+  if (date && !date.value) date.value = todayIso();
+}
+
 function getPricePerLitre(item) {
   const litres = Number(item?.litres || 0);
   const cost = Number(item?.cost || 0);
@@ -87,6 +100,8 @@ function clearFuelForm() {
     const node = el(id);
     if (node) node.value = "";
   });
+
+  setDefaultFuelDate();
 }
 
 function renderFuelHistory(items) {
@@ -258,6 +273,7 @@ function bindFuelEvents() {
 }
 
 export function initFuel() {
+  setDefaultFuelDate();
   bindFuelEvents();
   loadFuelLogs();
 }
