@@ -553,22 +553,22 @@ input[type="date"] {
 /* ================= COSTS ================= */
 
 .cost-toggle {
-  display: inline-grid;
+  display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  margin: 0 0 10px;
-  padding: 3px;
-  border-radius: 8px;
+  gap: 6px;
+  margin: 0 0 12px;
+  padding: 4px;
+  border-radius: 10px;
   background: #eef1f4;
 }
 
 .cost-toggle__button {
-  min-height: 28px;
+  min-height: 40px;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
-  padding: 5px 12px;
-  font-size: 12px;
+  padding: 8px 12px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
