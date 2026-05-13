@@ -4,6 +4,7 @@ import {
   buildExpenseSheetPayload,
 } from "./googleSheets.js";
 import { showStatus } from "./status.js";
+import { loadMonthSummary } from "./monthly.js";
 
 const ids = {
   date: "expense_date",
@@ -13,6 +14,8 @@ const ids = {
   saveBtn: "save_expense",
   list: "expenseList",
 };
+
+let currentExpenses = [];
 
 function el(id) {
   return document.getElementById(id);
@@ -146,7 +149,17 @@ function renderExpenseHistory(items) {
             <div class="history-card">
               <div class="history-card__header">
                 <div class="history-card__title">${escapeHtml(safeValue(item.date))}</div>
-                <div class="history-card__pill">Expense</div>
+                <div class="history-card__actions">
+                  <div class="history-card__pill">Expense</div>
+                  <button
+                    type="button"
+                    class="history-card__delete"
+                    data-delete-expense="${escapeHtml(item.id)}"
+                    aria-label="Delete expense for ${escapeHtml(safeValue(item.date))}"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
 
               <div class="history-card__grid history-card__grid--3x2">
@@ -177,6 +190,38 @@ function renderExpenseHistory(items) {
   `;
 }
 
+async function deleteExpense(expenseId, button) {
+  const item = currentExpenses.find((expense) => String(expense.id) === String(expenseId));
+  const label = item ? `${safeValue(item.date)} (${formatCurrency(item.amount)})` : "this expense";
+
+  if (!window.confirm(`Delete ${label}?`)) return;
+
+  try {
+    if (button) button.disabled = true;
+    showStatus("Deleting expense...", "info", false);
+
+    const { error } = await supabaseClient
+      .from("expenses")
+      .delete()
+      .eq("id", expenseId);
+
+    if (error) {
+      console.error("Error deleting expense:", error);
+      showStatus(`Failed to delete expense: ${error.message}`, "error", false);
+      return;
+    }
+
+    showStatus("Expense deleted.", "success");
+    await loadExpenses();
+    await loadMonthSummary();
+  } catch (err) {
+    console.error("Unexpected expense delete error:", err);
+    showStatus("Unexpected error while deleting expense.", "error", false);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 export async function loadExpenses() {
   const { data, error } = await supabaseClient
     .from("expenses")
@@ -199,8 +244,9 @@ export async function loadExpenses() {
     return [];
   }
 
-  renderExpenseHistory(data || []);
-  return data || [];
+  currentExpenses = data || [];
+  renderExpenseHistory(currentExpenses);
+  return currentExpenses;
 }
 
 export async function saveExpense() {
@@ -285,6 +331,13 @@ function bindExpenseEvents() {
   if (saveBtn) {
     saveBtn.setAttribute("type", "submit");
   }
+
+  el(ids.list)?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-delete-expense]");
+    if (!button) return;
+
+    await deleteExpense(button.dataset.deleteExpense, button);
+  });
 }
 
 export async function initExpenses() {

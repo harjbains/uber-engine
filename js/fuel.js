@@ -13,6 +13,8 @@ const ids = {
   list: "fuel_history",
 };
 
+let currentFuelLogs = [];
+
 function el(id) {
   return document.getElementById(id);
 }
@@ -123,7 +125,17 @@ function renderFuelHistory(items) {
             <div class="history-card">
               <div class="history-card__header">
                 <div class="history-card__title">${escapeHtml(formatDateLabel(item.date))}</div>
-                <div class="history-card__pill">Fuel</div>
+                <div class="history-card__actions">
+                  <div class="history-card__pill">Fuel</div>
+                  <button
+                    type="button"
+                    class="history-card__delete"
+                    data-delete-fuel="${escapeHtml(item.id)}"
+                    aria-label="Delete fuel log for ${escapeHtml(formatDateLabel(item.date))}"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
 
               <div class="history-card__grid history-card__grid--3x2">
@@ -159,6 +171,39 @@ function renderFuelHistory(items) {
         .join("")}
     </div>
   `;
+}
+
+async function deleteFuelLog(logId, button) {
+  const item = currentFuelLogs.find((log) => String(log.id) === String(logId));
+  const label = item ? `${formatDateLabel(item.date)} (${formatCurrency(item.cost)})` : "this fuel log";
+
+  if (!window.confirm(`Delete ${label}?`)) return;
+
+  try {
+    if (button) button.disabled = true;
+    showStatus("Deleting fuel log...", "info", false);
+
+    const { error } = await supabaseClient
+      .from("fuel_logs")
+      .delete()
+      .eq("id", logId);
+
+    if (error) {
+      console.error("Error deleting fuel log:", error);
+      showStatus(`Failed to delete fuel log: ${error.message}`, "error", false);
+      return;
+    }
+
+    showStatus("Fuel log deleted.", "success");
+    await loadFuelLogs();
+    const { loadMonthSummary } = await import("./monthly.js");
+    await loadMonthSummary();
+  } catch (err) {
+    console.error("Unexpected fuel delete error:", err);
+    showStatus("Unexpected error while deleting fuel log.", "error", false);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 export async function getRecentFuelLogs(limit = 3) {
@@ -217,8 +262,9 @@ export async function loadFuelLogs() {
     return [];
   }
 
-  renderFuelHistory(data || []);
-  return data || [];
+  currentFuelLogs = data || [];
+  renderFuelHistory(currentFuelLogs);
+  return currentFuelLogs;
 }
 
 export async function saveFuel() {
@@ -270,6 +316,12 @@ export async function saveFuel() {
 
 function bindFuelEvents() {
   el(ids.saveBtn)?.addEventListener("click", saveFuel);
+  el(ids.list)?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-delete-fuel]");
+    if (!button) return;
+
+    await deleteFuelLog(button.dataset.deleteFuel, button);
+  });
 }
 
 export function initFuel() {

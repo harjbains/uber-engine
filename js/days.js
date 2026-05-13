@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getWeeklyTargetDefault
-} from "./settings.js?v=2.2.0";
+} from "./settings.js?v=2.2.17";
 
 const ids = {
   date: "day_date",
@@ -26,6 +26,8 @@ const ids = {
   targetWeekStrip: "target_week_strip",
   targetSummary: "target_summary",
   targetStatus: "target_status",
+  targetPrevWeek: "target_prev_week",
+  targetNextWeek: "target_next_week",
   prevWeek: "prev_week",
   thisWeek: "this_week",
   nextWeek: "next_week"
@@ -246,12 +248,13 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
   const today = todayIso();
-  const todayInWeek = weekDates.includes(today);
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
+  const workedDates = new Set(days.map((day) => day.date).filter(Boolean));
 
   const remainingWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
     if (dateString < today) return false;
+    if (workedDates.has(dateString)) return false;
     return true;
   });
 
@@ -284,12 +287,12 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     const paceTolerance = Math.max(10, baseDailyTarget * 0.08);
 
     if (dailyPressure > paceTolerance) {
-      status = `${formatMoney(dailyPressure)} extra needed per remaining work day.`;
+      status = `${formatMoney(requiredPerDay)} needed per remaining work day to hit target.`;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
       paceLabel = "Behind pace";
     } else if (dailyPressure > 0) {
-      status = `${formatMoney(dailyPressure)} above base daily plan.`;
+      status = `${formatMoney(requiredPerDay)} needed per remaining work day to hit target.`;
       statusClass = "target-status target-status--caution";
       progressClass = "target-progress-fill target-progress-fill--amber";
       paceLabel = "Close to pace";
@@ -313,7 +316,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     progressPercent,
     progressClass,
     paceLabel,
-    todayTargetLabel: todayInWeek ? "Today Target" : "Required / Day",
+    dailyTargetLabel: "Daily Target",
     status,
     statusClass
   };
@@ -420,7 +423,7 @@ function renderWeeklyTarget(days) {
       </div>
     </div>
     <div class="target-summary-card target-summary-card--primary">
-      <div class="summary-label">${escapeHtml(summary.todayTargetLabel)}</div>
+      <div class="summary-label">${escapeHtml(summary.dailyTargetLabel)}</div>
       <div class="summary-value">${formatMoney(summary.requiredPerDay)}</div>
     </div>
     <div class="target-summary-card">
@@ -456,6 +459,13 @@ function initialiseWeeklyTarget(range) {
     persistCurrentTargetSettings();
     renderWeeklyTarget(currentWeekDays);
   };
+}
+
+async function moveSelectedWeek(delta) {
+  if (delta > 0 && weekOffset >= 0) return;
+
+  weekOffset += delta;
+  await loadWeekDays();
 }
 
 function updateWeekTitle(startIso, endIso) {
@@ -633,7 +643,17 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
               <div>
                 <div class="history-card__title">${escapeHtml(formatDateLabel(day.date))}</div>
               </div>
-              <div class="history-card__pill">Session</div>
+              <div class="history-card__actions">
+                <div class="history-card__pill">Session</div>
+                <button
+                  type="button"
+                  class="history-card__delete"
+                  data-delete-day="${escapeHtml(day.id)}"
+                  aria-label="Delete session for ${escapeHtml(formatDateLabel(day.date))}"
+                >
+                  Delete
+                </button>
+              </div>
             </div>
 
             <div class="history-card__grid history-card__grid--finance">
@@ -667,6 +687,42 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
       }).join("")}
     </div>
   `;
+}
+
+async function deleteDay(dayId, button) {
+  const day = currentWeekDays.find((item) => String(item.id) === String(dayId));
+  const label = day ? `${formatDateLabel(day.date)} (${formatMoney(day.gross)})` : "this session";
+
+  if (!window.confirm(`Delete ${label}?`)) return;
+
+  try {
+    if (button) button.disabled = true;
+    showStatus("Deleting session...", "info", false);
+
+    const { error } = await supabaseClient
+      .from("days")
+      .delete()
+      .eq("id", dayId);
+
+    if (error) {
+      console.error("Error deleting session:", error);
+      showStatus(
+        `Failed to delete session: ${error.message || "Unknown database error"}`,
+        "error",
+        false
+      );
+      return;
+    }
+
+    showStatus("Session deleted.", "success");
+    await loadWeekDays();
+    await loadMonthSummary();
+  } catch (err) {
+    console.error("Unexpected session delete error:", err);
+    showStatus("Unexpected error while deleting session.", "error", false);
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 async function fetchWeekDays() {
@@ -767,11 +823,16 @@ export async function saveDay() {
 
 function bindDayEvents() {
   el(ids.saveBtn)?.addEventListener("click", saveDay);
+  el(ids.list)?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-delete-day]");
+    if (!button) return;
+
+    await deleteDay(button.dataset.deleteDay, button);
+  });
   window.addEventListener(SETTINGS_UPDATED_EVENT, loadWeekDays);
 
   el(ids.prevWeek)?.addEventListener("click", async () => {
-    weekOffset -= 1;
-    await loadWeekDays();
+    await moveSelectedWeek(-1);
   });
 
   el(ids.thisWeek)?.addEventListener("click", async () => {
@@ -780,10 +841,15 @@ function bindDayEvents() {
   });
 
   el(ids.nextWeek)?.addEventListener("click", async () => {
-    if (weekOffset < 0) {
-      weekOffset += 1;
-      await loadWeekDays();
-    }
+    await moveSelectedWeek(1);
+  });
+
+  el(ids.targetPrevWeek)?.addEventListener("click", async () => {
+    await moveSelectedWeek(-1);
+  });
+
+  el(ids.targetNextWeek)?.addEventListener("click", async () => {
+    await moveSelectedWeek(1);
   });
 }
 

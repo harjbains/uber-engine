@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.2.2">
+  <link rel="stylesheet" href="css/styles.css?v=2.2.18">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -46,7 +46,11 @@
         <div class="target-plan-grid">
           <div class="field">
             <label for="weekly_target">Target Gross (&pound;)</label>
-            <input id="weekly_target" type="number" min="0" step="1" inputmode="numeric" placeholder="910">
+            <div class="target-gross-nav">
+              <button id="target_prev_week" type="button" aria-label="Previous week's target">&lt;&lt;</button>
+              <input id="weekly_target" type="number" min="0" step="1" inputmode="numeric" placeholder="910">
+              <button id="target_next_week" type="button" aria-label="Next week's target">&gt;&gt;</button>
+            </div>
           </div>
 
           <div class="field">
@@ -114,12 +118,79 @@
       </div>
 
       <div class="card">
+        <h3>Uber Weekly Statement</h3>
+
+        <div class="form-row-2">
+          <div class="field">
+            <label for="uber_statement_week_start">Week Start</label>
+            <input id="uber_statement_week_start" type="date">
+          </div>
+
+          <div class="field">
+            <label for="uber_statement_week_end">Week End</label>
+            <input id="uber_statement_week_end" type="date">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="field">
+            <label for="uber_customer_payments">Customer Payments (&pound;)</label>
+            <input id="uber_customer_payments" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+
+          <div class="field">
+            <label for="uber_tips">Tips (&pound;)</label>
+            <input id="uber_tips" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="field">
+            <label for="uber_taxes_third_party_fees">Taxes &amp; 3rd Party Fees (&pound;)</label>
+            <input id="uber_taxes_third_party_fees" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+
+          <div class="field">
+            <label for="uber_service_fee">Uber Service Fee (&pound;)</label>
+            <input id="uber_service_fee" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+        </div>
+
+        <div class="form-row-2">
+          <div class="field">
+            <label for="uber_earnings">Earnings (&pound;)</label>
+            <input id="uber_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+
+          <div class="field">
+            <label for="uber_total_earnings">Total Earnings (&pound;)</label>
+            <input id="uber_total_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+          </div>
+        </div>
+
+        <button id="save_uber_weekly" type="button" class="btn-primary">
+          Save Weekly Statement
+        </button>
+      </div>
+
+      <div class="card">
+        <h3>Uber Weekly Statements</h3>
+        <div id="uber_weekly_history"></div>
+      </div>
+
+      <div class="card">
         <h3>Month Summary</h3>
         <div id="month_summary" class="summary-grid"></div>
 
-        <button id="export-month" type="button" class="btn-primary">
-          Export Month
-        </button>
+        <div class="month-export-actions">
+          <button id="export-month" type="button" class="btn-primary">
+            Export Month
+          </button>
+
+          <button id="export-mtd" type="button" class="btn-secondary">
+            Export MTD
+          </button>
+        </div>
       </div>
 
     </div>
@@ -259,6 +330,14 @@
             <label for="settings_fuel_price">Fallback Fuel Price / L (Â£)</label>
             <input id="settings_fuel_price" type="number" min="0" step="0.01" inputmode="decimal">
           </div>
+
+          <div class="field">
+            <label for="settings_vehicle_expense_method">Vehicle Expense Method</label>
+            <select id="settings_vehicle_expense_method">
+              <option value="mileage">Mileage claim (45p / mile)</option>
+              <option value="actual">Actual vehicle costs</option>
+            </select>
+          </div>
         </div>
 
         <div class="settings-section">
@@ -304,7 +383,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.2.2"></script>
+  <script type="module" src="js/app.js?v=2.2.18"></script>
 </body>
 
 </html>

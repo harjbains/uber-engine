@@ -11,6 +11,7 @@ const DEFAULT_SETTINGS = {
   taxRatePercent: 20,
   mpg: 32.5,
   fallbackFuelPrice: 1.7,
+  vehicleExpenseMethod: "mileage",
   evHomeOffPeakRate: 7.5,
   evHomePeakRate: 28,
   evPublicRate: 55,
@@ -26,6 +27,7 @@ const ids = {
   taxRatePercent: "settings_tax_rate",
   mpg: "settings_mpg",
   fallbackFuelPrice: "settings_fuel_price",
+  vehicleExpenseMethod: "settings_vehicle_expense_method",
   evHomeOffPeakRate: "settings_ev_home_off_peak",
   evHomePeakRate: "settings_ev_home_peak",
   evPublicRate: "settings_ev_public_rate",
@@ -84,6 +86,10 @@ export function getWeeklyTargetDefault(settings = getSettings()) {
   return toNumber(settings.weeklyTarget, DEFAULT_SETTINGS.weeklyTarget);
 }
 
+export function getVehicleExpenseMethod(settings = getSettings()) {
+  return settings.vehicleExpenseMethod === "actual" ? "actual" : "mileage";
+}
+
 function populateSettingsForm() {
   const settings = getSettings();
 
@@ -95,6 +101,7 @@ function populateSettingsForm() {
   if (el(ids.taxRatePercent)) el(ids.taxRatePercent).value = settings.taxRatePercent;
   if (el(ids.mpg)) el(ids.mpg).value = settings.mpg;
   if (el(ids.fallbackFuelPrice)) el(ids.fallbackFuelPrice).value = settings.fallbackFuelPrice;
+  if (el(ids.vehicleExpenseMethod)) el(ids.vehicleExpenseMethod).value = getVehicleExpenseMethod(settings);
   if (el(ids.evHomeOffPeakRate)) el(ids.evHomeOffPeakRate).value = settings.evHomeOffPeakRate;
   if (el(ids.evHomePeakRate)) el(ids.evHomePeakRate).value = settings.evHomePeakRate;
   if (el(ids.evPublicRate)) el(ids.evPublicRate).value = settings.evPublicRate;
@@ -111,6 +118,7 @@ function readSettingsForm() {
     taxRatePercent: toNumber(el(ids.taxRatePercent)?.value, DEFAULT_SETTINGS.taxRatePercent),
     mpg: toNumber(el(ids.mpg)?.value, DEFAULT_SETTINGS.mpg),
     fallbackFuelPrice: toNumber(el(ids.fallbackFuelPrice)?.value, DEFAULT_SETTINGS.fallbackFuelPrice),
+    vehicleExpenseMethod: el(ids.vehicleExpenseMethod)?.value === "actual" ? "actual" : "mileage",
     evHomeOffPeakRate: toNumber(el(ids.evHomeOffPeakRate)?.value, DEFAULT_SETTINGS.evHomeOffPeakRate),
     evHomePeakRate: toNumber(el(ids.evHomePeakRate)?.value, DEFAULT_SETTINGS.evHomePeakRate),
     evPublicRate: toNumber(el(ids.evPublicRate)?.value, DEFAULT_SETTINGS.evPublicRate),

@@ -1,4 +1,7 @@
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbw_aoGbvVnmc5p3CFLy0lQKhsrTTZDAOPq4-3yEFQoFtj0I27RaVSMh-Qko78Jitp0qoQ/exec";
+const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxYayh5arViBxDTYjLJd2m2MGnid-RDqgLP6M4cUbXM3vQ7DLGLwhE7li68X8ErE9Nfow/exec";
+const SIMPLIFIED_CAR_MILE_RATE = 0.45;
+const SIMPLIFIED_CAR_MILE_RATE_AFTER_THRESHOLD = 0.25;
+const SIMPLIFIED_CAR_MILE_THRESHOLD = 10000;
 
 export async function sendToGoogleSheets(type, payload) {
   try {
@@ -115,7 +118,88 @@ export function buildMonthlySheetPayload(summary) {
   };
 }
 
+export function buildMtdSheetPayload(summary) {
+  const uber = summary.uberStatement || {};
+  const period = summary.month ?? "";
+  const vehicleExpenseMethod = summary.vehicleExpenseMethod === "actual" ? "actual" : "mileage";
+  const grossIncome = (uber.customerPayments ?? 0) + (uber.tips ?? 0);
+  const fallbackGrossIncome = summary.totalIncome ?? 0;
+  const income = grossIncome > 0 ? grossIncome : fallbackGrossIncome;
+  const uberServiceFee = uber.serviceFee ?? 0;
+  const taxesFees = uber.taxesThirdPartyFees ?? 0;
+  const netUberIncome = income - uberServiceFee - taxesFees;
+  const mileage = summary.totalMiles ?? 0;
+  const mileageExpense = vehicleExpenseMethod === "mileage"
+    ? summary.mileageExpense ?? mileage * SIMPLIFIED_CAR_MILE_RATE
+    : 0;
+  const actualVehicleCosts = (summary.totalFuel ?? 0) + (summary.totalInsurance ?? 0);
+  const otherExpenses = vehicleExpenseMethod === "actual"
+    ? (summary.totalExpenses ?? 0) + actualVehicleCosts
+    : 0;
+  const totalExpenses = mileageExpense + otherExpenses;
+  const netProfit = netUberIncome - totalExpenses;
+
+  return {
+    sheet_name: "MTD_READY",
+    columns: [
+      "Period",
+      "Gross Income",
+      "Uber Service Fee",
+      "Taxes & Fees",
+      "Net Uber Income",
+      "Mileage",
+      "Mileage Expense",
+      "Other Expenses",
+      "Total Expenses",
+      "Net Profit"
+    ],
+    row: [
+      period,
+      income,
+      uberServiceFee,
+      taxesFees,
+      netUberIncome,
+      mileage,
+      mileageExpense,
+      otherExpenses,
+      totalExpenses,
+      netProfit
+    ],
+    period,
+    gross_income: income,
+    uber_service_fee: uberServiceFee,
+    taxes_fees: taxesFees,
+    net_uber_income: netUberIncome,
+    mileage,
+    mileage_expense: mileageExpense,
+    other_expenses: otherExpenses,
+    total_expenses: totalExpenses,
+    net_profit: netProfit,
+    vehicle_expense_method: vehicleExpenseMethod,
+    mileage_rate: SIMPLIFIED_CAR_MILE_RATE,
+    mileage_rate_after_threshold: SIMPLIFIED_CAR_MILE_RATE_AFTER_THRESHOLD,
+    mileage_threshold: SIMPLIFIED_CAR_MILE_THRESHOLD,
+    tax_year_miles_before_month: summary.taxYearMilesBeforeMonth ?? 0,
+    tax_year_miles_after_month: summary.taxYearMilesAfterMonth ?? 0,
+    actual_vehicle_costs: actualVehicleCosts,
+    app_logged_income: summary.totalIncome ?? 0,
+    uber_customer_payments: uber.customerPayments ?? 0,
+    uber_tips: uber.tips ?? 0,
+    uber_taxes_third_party_fees: uber.taxesThirdPartyFees ?? 0,
+    uber_service_fee: uber.serviceFee ?? 0,
+    uber_earnings: uber.earnings ?? 0,
+    uber_total_earnings: uber.totalEarnings ?? 0,
+    uber_statement_count: uber.statementCount ?? 0,
+    app_vs_uber_income_difference: (summary.totalIncome ?? 0) - (uber.totalEarnings ?? 0)
+  };
+}
+
 export async function exportMonthlySummary(summary) {
   const payload = buildMonthlySheetPayload(summary);
   return sendToGoogleSheets("monthly_summary", payload);
+}
+
+export async function exportMtdSummary(summary) {
+  const payload = buildMtdSheetPayload(summary);
+  return sendToGoogleSheets("mtd_ready", payload);
 }
