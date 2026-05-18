@@ -13,7 +13,7 @@ import {
   getTaxRate,
   getWeeklyTargetDefault,
   getWeeklyTargetMode
-} from "./settings.js?v=2.2.20";
+} from "./settings.js?v=2.2.21";
 
 const ids = {
   date: "day_date",
@@ -41,6 +41,7 @@ const LITRES_PER_UK_GALLON = 4.546;
 const TARGET_STORAGE_PREFIX = "uberEngineWeeklyTarget";
 const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAY_FORECAST_WEIGHTS = [0.9, 0.95, 1, 1, 1.2, 1.25, 0.75];
 
 let weekOffset = 0;
 let currentWeekDays = [];
@@ -183,6 +184,8 @@ function targetStorageKey(startIso) {
 function readTargetSettings(startIso) {
   const fallback = {
     target: getWeeklyTargetDefault(),
+    targetSnapshot: null,
+    targetSnapshotMode: "",
     workDays: [...DEFAULT_TARGET_WORKDAYS]
   };
 
@@ -197,8 +200,13 @@ function readTargetSettings(startIso) {
           .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
       : fallback.workDays;
 
+    const storedTarget = parsed.target ?? fallback.target;
+    const isCompletedWeek = addDaysIso(startIso, 6) < todayIso();
+
     return {
-      target: parsed.targetIsCustom ? parsed.target ?? "" : fallback.target,
+      target: parsed.targetIsCustom || isCompletedWeek ? storedTarget : fallback.target,
+      targetSnapshot: toNumber(parsed.targetSnapshot),
+      targetSnapshotMode: parsed.targetSnapshotMode || "",
       targetIsCustom: parsed.targetIsCustom === true,
       workDays: workDays.length ? [...new Set(workDays)] : fallback.workDays
     };
@@ -210,6 +218,24 @@ function readTargetSettings(startIso) {
 
 function saveTargetSettings(startIso, settings) {
   localStorage.setItem(targetStorageKey(startIso), JSON.stringify(settings));
+}
+
+function updateTargetSettings(startIso, updates) {
+  const current = readRawTargetSettings(startIso);
+  saveTargetSettings(startIso, {
+    ...current,
+    ...updates
+  });
+}
+
+function readRawTargetSettings(startIso) {
+  try {
+    const raw = localStorage.getItem(targetStorageKey(startIso));
+    return raw ? JSON.parse(raw) : {};
+  } catch (error) {
+    console.warn("Unable to read raw weekly target settings:", error);
+    return {};
+  }
 }
 
 function syncStoredTargetWithDefault(startIso, previousDefault, nextDefault) {
@@ -257,7 +283,18 @@ function getCurrentTargetSettings(targetIsCustom = false) {
 
 function persistCurrentTargetSettings(targetIsCustom = false) {
   if (!currentWeekRange) return;
-  saveTargetSettings(currentWeekRange.startIso, getCurrentTargetSettings(targetIsCustom));
+  saveTargetSettings(currentWeekRange.startIso, {
+    ...readRawTargetSettings(currentWeekRange.startIso),
+    ...getCurrentTargetSettings(targetIsCustom)
+  });
+}
+
+function shouldUseStoredTargetSnapshot(settings) {
+  return currentWeekRange?.endIso < todayIso() && Number(settings.targetSnapshot) > 0;
+}
+
+function isCompletedTargetWeek() {
+  return currentWeekRange?.endIso < todayIso();
 }
 
 function renderTargetWorkdays(settings, weekDates) {
@@ -288,9 +325,20 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const appSettings = getSettings();
   const targetMode = getWeeklyTargetMode(appSettings);
   const dynamicUplift = getDynamicUpliftPercent(appSettings);
-  const dynamicTarget = calculateDynamicWeeklyTarget(currentHistoricalDays, currentWeekRange.startIso, dynamicUplift);
   const manualTarget = Number(settings.target || 0);
-  const target = targetMode === "dynamic" && dynamicTarget > 0 ? dynamicTarget : manualTarget;
+  const dynamicTarget = calculateDynamicWeeklyTarget(
+    currentHistoricalDays,
+    currentWeekRange.startIso,
+    dynamicUplift,
+    manualTarget
+  );
+  const liveTarget = targetMode === "dynamic" ? dynamicTarget : manualTarget;
+  const hasSnapshot = shouldUseStoredTargetSnapshot(settings);
+  const completedWeek = isCompletedTargetWeek();
+  const target = completedWeek ? (hasSnapshot ? settings.targetSnapshot : manualTarget) : liveTarget;
+  const displayMode = hasSnapshot
+    ? settings.targetSnapshotMode || targetMode
+    : completedWeek ? "manual" : targetMode;
   const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
@@ -363,7 +411,9 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     progressPercent,
     progressClass,
     paceLabel,
-    targetMode,
+    targetMode: displayMode,
+    liveTargetMode: targetMode,
+    liveTarget,
     dynamicUplift,
     dynamicTarget,
     dailyTargetLabel: "Daily Target",
@@ -382,7 +432,7 @@ function buildDayTotals(days) {
   }, {});
 }
 
-function calculateDynamicWeeklyTarget(days, startIso, upliftPercent) {
+function calculateDynamicWeeklyTarget(days, startIso, upliftPercent, fallbackTarget = 0) {
   const weekTotals = new Map();
 
   days.forEach((day) => {
@@ -401,10 +451,13 @@ function calculateDynamicWeeklyTarget(days, startIso, upliftPercent) {
     }
   }
 
-  if (!previousTotals.length) return 0;
+  if (!previousTotals.length) {
+    return Number(fallbackTarget || 0) * (1 + (upliftPercent / 100));
+  }
 
   const average = previousTotals.reduce((sum, total) => sum + total, 0) / previousTotals.length;
-  return average * (1 + (upliftPercent / 100));
+  const baseTarget = Math.max(average, Number(fallbackTarget || 0));
+  return baseTarget * (1 + (upliftPercent / 100));
 }
 
 function calculateWeekdayForecasts(historicalDays, weeklyTarget, weekDates, workDays) {
@@ -422,17 +475,27 @@ function calculateWeekdayForecasts(historicalDays, weeklyTarget, weekDates, work
     return totals.reduce((sum, total) => sum + total, 0) / totals.length;
   });
 
-  const plannedAverages = weekDates.map((_, index) => (
-    workDays.includes(index) ? weekdayAverages[index] : 0
-  ));
-  const plannedAverageTotal = plannedAverages.reduce((sum, value) => sum + value, 0);
   const plannedCount = workDays.length || 1;
   const flatForecast = weeklyTarget > 0 ? weeklyTarget / plannedCount : 0;
+  const plannedHistoricalAverages = weekdayAverages.filter((value, index) => (
+    workDays.includes(index) && value > 0
+  ));
+  const averageHistoricalWeekday = plannedHistoricalAverages.length
+    ? plannedHistoricalAverages.reduce((sum, value) => sum + value, 0) / plannedHistoricalAverages.length
+    : 0;
+  const plannedWeights = weekDates.map((_, index) => {
+    if (!workDays.includes(index)) return 0;
+    if (averageHistoricalWeekday > 0 && weekdayAverages[index] > 0) {
+      return (weekdayAverages[index] / averageHistoricalWeekday) * WEEKDAY_FORECAST_WEIGHTS[index];
+    }
+    return WEEKDAY_FORECAST_WEIGHTS[index];
+  });
+  const plannedWeightTotal = plannedWeights.reduce((sum, value) => sum + value, 0);
 
   return weekDates.map((_, index) => {
     if (!workDays.includes(index)) return 0;
-    if (plannedAverageTotal <= 0 || weeklyTarget <= 0) return flatForecast;
-    return (plannedAverages[index] / plannedAverageTotal) * weeklyTarget;
+    if (plannedWeightTotal <= 0 || weeklyTarget <= 0) return flatForecast;
+    return (plannedWeights[index] / plannedWeightTotal) * weeklyTarget;
   });
 }
 
@@ -509,10 +572,27 @@ function renderWeeklyTarget(days) {
   const settings = getCurrentTargetSettings();
   const summary = buildWeeklyTargetSummary(days, settings, weekDates);
 
-  targetInput.disabled = summary.targetMode === "dynamic";
-  targetInput.value = summary.targetMode === "dynamic"
-    ? Math.round(summary.target)
-    : (targetInput.dataset.manualTarget || settings.target);
+  if (summary.targetMode === "dynamic") {
+    targetInput.type = "text";
+    targetInput.disabled = true;
+    targetInput.value = formatMoney(summary.target);
+  } else {
+    targetInput.type = "number";
+    targetInput.disabled = false;
+    targetInput.value = targetInput.dataset.manualTarget || settings.target;
+  }
+
+  if (isCompletedTargetWeek() && !shouldUseStoredTargetSnapshot(settings) && summary.target > 0) {
+    updateTargetSettings(currentWeekRange.startIso, {
+      targetSnapshot: summary.target,
+      targetSnapshotMode: summary.targetMode
+    });
+  } else if (summary.liveTarget > 0 && !isCompletedTargetWeek()) {
+    updateTargetSettings(currentWeekRange.startIso, {
+      targetSnapshot: summary.liveTarget,
+      targetSnapshotMode: summary.liveTargetMode
+    });
+  }
 
   renderTargetWeekStrip(days, settings, weekDates, summary);
 
@@ -572,6 +652,8 @@ function initialiseWeeklyTarget(range) {
     persistCurrentTargetSettings(true);
     renderWeeklyTarget(currentWeekDays);
   };
+
+  renderWeeklyTarget(currentWeekDays);
 }
 
 async function moveSelectedWeek(delta) {

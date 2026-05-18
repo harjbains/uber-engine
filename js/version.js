@@ -1,6 +1,7 @@
-export const VERSION = "v2.2.20";
+export const VERSION = "v2.2.21";
 
 export const RELEASE_NOTES = {
+  "2.2.21": "Weekly target forecasts now use tighter mobile tiles, stored week snapshots, and Fri/Sat weighting",
   "2.2.20": "Weekly target default changes now refresh weeks that have not been manually overridden",
   "2.2.19": "Weekly target dynamic mode adds rolling four-week uplift targets and weekday forecasts",
   "2.2.18": "MTD mileage mode now excludes other expenses to avoid vehicle cost double counting",
