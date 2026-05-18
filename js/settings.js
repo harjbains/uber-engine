@@ -4,6 +4,9 @@ const STORAGE_KEY = "uberEngineSettings";
 
 const DEFAULT_SETTINGS = {
   weeklyTarget: 750,
+  weeklyTargetMode: "manual",
+  dynamicUpliftPreset: "5",
+  dynamicUpliftCustom: 5,
   fuelType: "petrol",
   vehicleModel: "",
   vehicleReg: "",
@@ -20,6 +23,9 @@ const DEFAULT_SETTINGS = {
 
 const ids = {
   weeklyTarget: "settings_weekly_target",
+  weeklyTargetMode: "settings_weekly_target_mode",
+  dynamicUpliftPreset: "settings_dynamic_uplift",
+  dynamicUpliftCustom: "settings_dynamic_uplift_custom",
   fuelType: "settings_fuel_type",
   vehicleModel: "settings_vehicle_model",
   vehicleReg: "settings_vehicle_reg",
@@ -62,8 +68,14 @@ export function getSettings() {
 }
 
 function saveSettings(settings) {
+  const previousSettings = getSettings();
   localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-  window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT, { detail: settings }));
+  window.dispatchEvent(new CustomEvent(SETTINGS_UPDATED_EVENT, {
+    detail: {
+      settings,
+      previousSettings
+    }
+  }));
 }
 
 export function getDailyInsuranceEstimate(settings = getSettings()) {
@@ -86,14 +98,39 @@ export function getWeeklyTargetDefault(settings = getSettings()) {
   return toNumber(settings.weeklyTarget, DEFAULT_SETTINGS.weeklyTarget);
 }
 
+export function getWeeklyTargetMode(settings = getSettings()) {
+  return settings.weeklyTargetMode === "dynamic" ? "dynamic" : "manual";
+}
+
+export function getDynamicUpliftPercent(settings = getSettings()) {
+  const preset = String(settings.dynamicUpliftPreset ?? DEFAULT_SETTINGS.dynamicUpliftPreset);
+  const value = preset === "custom"
+    ? toNumber(settings.dynamicUpliftCustom, DEFAULT_SETTINGS.dynamicUpliftCustom)
+    : toNumber(preset, DEFAULT_SETTINGS.dynamicUpliftCustom);
+
+  return Math.max(0, value);
+}
+
 export function getVehicleExpenseMethod(settings = getSettings()) {
   return settings.vehicleExpenseMethod === "actual" ? "actual" : "mileage";
+}
+
+function updateDynamicUpliftCustomVisibility() {
+  const input = el(ids.dynamicUpliftCustom);
+  if (!input) return;
+
+  const hidden = el(ids.dynamicUpliftPreset)?.value !== "custom";
+  input.hidden = hidden;
+  input.closest(".field")?.toggleAttribute("hidden", hidden);
 }
 
 function populateSettingsForm() {
   const settings = getSettings();
 
   if (el(ids.weeklyTarget)) el(ids.weeklyTarget).value = settings.weeklyTarget;
+  if (el(ids.weeklyTargetMode)) el(ids.weeklyTargetMode).value = getWeeklyTargetMode(settings);
+  if (el(ids.dynamicUpliftPreset)) el(ids.dynamicUpliftPreset).value = settings.dynamicUpliftPreset ?? DEFAULT_SETTINGS.dynamicUpliftPreset;
+  if (el(ids.dynamicUpliftCustom)) el(ids.dynamicUpliftCustom).value = settings.dynamicUpliftCustom ?? DEFAULT_SETTINGS.dynamicUpliftCustom;
   if (el(ids.fuelType)) el(ids.fuelType).value = settings.fuelType;
   if (el(ids.vehicleModel)) el(ids.vehicleModel).value = settings.vehicleModel;
   if (el(ids.vehicleReg)) el(ids.vehicleReg).value = settings.vehicleReg;
@@ -106,11 +143,16 @@ function populateSettingsForm() {
   if (el(ids.evHomePeakRate)) el(ids.evHomePeakRate).value = settings.evHomePeakRate;
   if (el(ids.evPublicRate)) el(ids.evPublicRate).value = settings.evPublicRate;
   if (el(ids.evChargingMix)) el(ids.evChargingMix).value = settings.evChargingMix;
+
+  updateDynamicUpliftCustomVisibility();
 }
 
 function readSettingsForm() {
   return {
     weeklyTarget: toNumber(el(ids.weeklyTarget)?.value, DEFAULT_SETTINGS.weeklyTarget),
+    weeklyTargetMode: el(ids.weeklyTargetMode)?.value === "dynamic" ? "dynamic" : "manual",
+    dynamicUpliftPreset: el(ids.dynamicUpliftPreset)?.value || DEFAULT_SETTINGS.dynamicUpliftPreset,
+    dynamicUpliftCustom: toNumber(el(ids.dynamicUpliftCustom)?.value, DEFAULT_SETTINGS.dynamicUpliftCustom),
     fuelType: el(ids.fuelType)?.value || DEFAULT_SETTINGS.fuelType,
     vehicleModel: el(ids.vehicleModel)?.value?.trim() || "",
     vehicleReg: el(ids.vehicleReg)?.value?.trim().toUpperCase() || "",
@@ -135,6 +177,8 @@ function setStatus(message, type = "info") {
 }
 
 function bindSettingsEvents() {
+  el(ids.dynamicUpliftPreset)?.addEventListener("change", updateDynamicUpliftCustomVisibility);
+
   el(ids.saveBtn)?.addEventListener("click", () => {
     saveSettings(readSettingsForm());
     setStatus("Settings saved.", "success");

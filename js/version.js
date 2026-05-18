@@ -1,6 +1,8 @@
-export const VERSION = "v2.2.18";
+export const VERSION = "v2.2.20";
 
 export const RELEASE_NOTES = {
+  "2.2.20": "Weekly target default changes now refresh weeks that have not been manually overridden",
+  "2.2.19": "Weekly target dynamic mode adds rolling four-week uplift targets and weekday forecasts",
   "2.2.18": "MTD mileage mode now excludes other expenses to avoid vehicle cost double counting",
   "2.2.17": "Mileage claim now tracks the 10,000 business mile threshold by tax year",
   "2.2.16": "Settings now controls MTD mileage claim versus actual vehicle costs",

@@ -6,12 +6,14 @@ import { getRollingFuelPricePerLitre } from "./fuel.js";
 import {
   SETTINGS_UPDATED_EVENT,
   getDailyInsuranceEstimate,
+  getDynamicUpliftPercent,
   getFallbackFuelPrice,
   getMpg,
   getSettings,
   getTaxRate,
-  getWeeklyTargetDefault
-} from "./settings.js?v=2.2.17";
+  getWeeklyTargetDefault,
+  getWeeklyTargetMode
+} from "./settings.js?v=2.2.20";
 
 const ids = {
   date: "day_date",
@@ -42,6 +44,7 @@ const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 let weekOffset = 0;
 let currentWeekDays = [];
+let currentHistoricalDays = [];
 let currentWeekRange = null;
 
 function el(id) {
@@ -162,6 +165,17 @@ function getWeekDates(startIso) {
   });
 }
 
+function addDaysIso(dateString, days) {
+  const d = parseLocalDate(dateString);
+  d.setDate(d.getDate() + days);
+  return dateToIso(d);
+}
+
+function getWeekdayIndex(dateString) {
+  const day = parseLocalDate(dateString).getDay();
+  return day === 0 ? 6 : day - 1;
+}
+
 function targetStorageKey(startIso) {
   return `${TARGET_STORAGE_PREFIX}:${startIso}`;
 }
@@ -184,7 +198,8 @@ function readTargetSettings(startIso) {
       : fallback.workDays;
 
     return {
-      target: parsed.target ?? "",
+      target: parsed.targetIsCustom ? parsed.target ?? "" : fallback.target,
+      targetIsCustom: parsed.targetIsCustom === true,
       workDays: workDays.length ? [...new Set(workDays)] : fallback.workDays
     };
   } catch (error) {
@@ -197,7 +212,33 @@ function saveTargetSettings(startIso, settings) {
   localStorage.setItem(targetStorageKey(startIso), JSON.stringify(settings));
 }
 
-function getCurrentTargetSettings() {
+function syncStoredTargetWithDefault(startIso, previousDefault, nextDefault) {
+  if (!startIso) return;
+
+  try {
+    const key = targetStorageKey(startIso);
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    const storedTarget = Number(parsed.target);
+    const oldDefault = Number(previousDefault);
+
+    if (!Number.isFinite(storedTarget) || !Number.isFinite(oldDefault)) return;
+    if (parsed.targetIsCustom === true && Math.round(storedTarget) !== Math.round(oldDefault)) return;
+
+    const nextSettings = {
+      ...parsed,
+      target: nextDefault,
+      targetIsCustom: false
+    };
+    localStorage.setItem(key, JSON.stringify(nextSettings));
+  } catch (error) {
+    console.warn("Unable to sync weekly target default:", error);
+  }
+}
+
+function getCurrentTargetSettings(targetIsCustom = false) {
   if (!currentWeekRange) {
     currentWeekRange = getSelectedWeekRange();
   }
@@ -208,14 +249,15 @@ function getCurrentTargetSettings() {
   ).map((node) => Number(node.dataset.targetWorkday));
 
   return {
-    target: targetInput?.value ?? "",
+    target: targetInput?.dataset.manualTarget || targetInput?.value || "",
+    targetIsCustom,
     workDays: checkedDays
   };
 }
 
-function persistCurrentTargetSettings() {
+function persistCurrentTargetSettings(targetIsCustom = false) {
   if (!currentWeekRange) return;
-  saveTargetSettings(currentWeekRange.startIso, getCurrentTargetSettings());
+  saveTargetSettings(currentWeekRange.startIso, getCurrentTargetSettings(targetIsCustom));
 }
 
 function renderTargetWorkdays(settings, weekDates) {
@@ -236,14 +278,19 @@ function renderTargetWorkdays(settings, weekDates) {
 
   container.querySelectorAll("[data-target-workday]").forEach((input) => {
     input.addEventListener("change", () => {
-      persistCurrentTargetSettings();
+      persistCurrentTargetSettings(false);
       renderWeeklyTarget(currentWeekDays);
     });
   });
 }
 
 function buildWeeklyTargetSummary(days, settings, weekDates) {
-  const target = Number(settings.target || 0);
+  const appSettings = getSettings();
+  const targetMode = getWeeklyTargetMode(appSettings);
+  const dynamicUplift = getDynamicUpliftPercent(appSettings);
+  const dynamicTarget = calculateDynamicWeeklyTarget(currentHistoricalDays, currentWeekRange.startIso, dynamicUplift);
+  const manualTarget = Number(settings.target || 0);
+  const target = targetMode === "dynamic" && dynamicTarget > 0 ? dynamicTarget : manualTarget;
   const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
@@ -316,6 +363,9 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     progressPercent,
     progressClass,
     paceLabel,
+    targetMode,
+    dynamicUplift,
+    dynamicTarget,
     dailyTargetLabel: "Daily Target",
     status,
     statusClass
@@ -332,32 +382,86 @@ function buildDayTotals(days) {
   }, {});
 }
 
-function getWeekDayState(dateString, index, settings, dayTotals, today, dailyTarget) {
+function calculateDynamicWeeklyTarget(days, startIso, upliftPercent) {
+  const weekTotals = new Map();
+
+  days.forEach((day) => {
+    if (!day.date || day.date >= startIso) return;
+
+    const weekStart = dateToIso(startOfWeek(parseLocalDate(day.date)));
+    weekTotals.set(weekStart, (weekTotals.get(weekStart) || 0) + Number(day.gross || 0));
+  });
+
+  const previousTotals = [];
+  for (let i = 1; i <= 4; i += 1) {
+    const weekStart = addDaysIso(startIso, i * -7);
+    const total = weekTotals.get(weekStart);
+    if (Number.isFinite(total) && total > 0) {
+      previousTotals.push(total);
+    }
+  }
+
+  if (!previousTotals.length) return 0;
+
+  const average = previousTotals.reduce((sum, total) => sum + total, 0) / previousTotals.length;
+  return average * (1 + (upliftPercent / 100));
+}
+
+function calculateWeekdayForecasts(historicalDays, weeklyTarget, weekDates, workDays) {
+  const totalsByDate = buildDayTotals(historicalDays);
+  const weekdayTotals = Array.from({ length: 7 }, () => []);
+
+  Object.entries(totalsByDate).forEach(([dateString, total]) => {
+    if (total > 0) {
+      weekdayTotals[getWeekdayIndex(dateString)].push(total);
+    }
+  });
+
+  const weekdayAverages = weekdayTotals.map((totals) => {
+    if (!totals.length) return 0;
+    return totals.reduce((sum, total) => sum + total, 0) / totals.length;
+  });
+
+  const plannedAverages = weekDates.map((_, index) => (
+    workDays.includes(index) ? weekdayAverages[index] : 0
+  ));
+  const plannedAverageTotal = plannedAverages.reduce((sum, value) => sum + value, 0);
+  const plannedCount = workDays.length || 1;
+  const flatForecast = weeklyTarget > 0 ? weeklyTarget / plannedCount : 0;
+
+  return weekDates.map((_, index) => {
+    if (!workDays.includes(index)) return 0;
+    if (plannedAverageTotal <= 0 || weeklyTarget <= 0) return flatForecast;
+    return (plannedAverages[index] / plannedAverageTotal) * weeklyTarget;
+  });
+}
+
+function getWeekDayState(dateString, index, settings, dayTotals, today, forecast) {
   const isPlanned = settings.workDays.includes(index);
   const total = dayTotals[dateString] || 0;
-
-  if (dateString > today) {
-    return {
-      className: "target-week-day target-week-day--future",
-      amount: isPlanned ? "TBC" : "Rest"
-    };
-  }
 
   if (!isPlanned && total <= 0) {
     return {
       className: "target-week-day target-week-day--rest",
-      amount: "Rest"
+      amount: "OFF"
     };
   }
 
-  if (total >= dailyTarget) {
+  if (dateString >= today && total <= 0) {
+    return {
+      className: "target-week-day target-week-day--future",
+      amount: isPlanned ? `~${formatCompactMoney(forecast)}` : "OFF"
+    };
+  }
+
+  if (total >= forecast) {
     return {
       className: "target-week-day target-week-day--hit",
       amount: formatCompactMoney(total)
     };
   }
 
-  if (total > 0) {
+  if (total >= forecast * 0.85) {
     return {
       className: "target-week-day target-week-day--under",
       amount: formatCompactMoney(total)
@@ -366,7 +470,7 @@ function getWeekDayState(dateString, index, settings, dayTotals, today, dailyTar
 
   return {
     className: "target-week-day target-week-day--missed",
-    amount: isPlanned ? formatCompactMoney(0) : "Rest"
+    amount: formatCompactMoney(total)
   };
 }
 
@@ -376,12 +480,12 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
 
   const today = todayIso();
   const dayTotals = buildDayTotals(days);
-  const dailyTarget = summary.requiredPerDay || summary.baseDailyTarget || 0;
+  const forecasts = calculateWeekdayForecasts(currentHistoricalDays, summary.target, weekDates, settings.workDays);
 
   container.innerHTML = `
     <div class="target-week-days">
       ${weekDates.map((dateString, index) => {
-        const state = getWeekDayState(dateString, index, settings, dayTotals, today, dailyTarget);
+        const state = getWeekDayState(dateString, index, settings, dayTotals, today, forecasts[index]);
 
         return `
           <div class="${state.className}">
@@ -404,6 +508,12 @@ function renderWeeklyTarget(days) {
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
   const summary = buildWeeklyTargetSummary(days, settings, weekDates);
+
+  targetInput.disabled = summary.targetMode === "dynamic";
+  targetInput.value = summary.targetMode === "dynamic"
+    ? Math.round(summary.target)
+    : (targetInput.dataset.manualTarget || settings.target);
+
   renderTargetWeekStrip(days, settings, weekDates, summary);
 
   statusNode.textContent = summary.status;
@@ -441,6 +551,7 @@ function renderWeeklyTarget(days) {
     <div class="target-summary-card">
       <div class="summary-label">Weekly Target</div>
       <div class="summary-value">${formatMoney(summary.target)}</div>
+      <div class="summary-sub">${summary.targetMode === "dynamic" ? "Dynamic" : "Manual"}</div>
     </div>
   `;
 }
@@ -453,10 +564,12 @@ function initialiseWeeklyTarget(range) {
   const settings = readTargetSettings(range.startIso);
 
   targetInput.value = settings.target;
+  targetInput.dataset.manualTarget = settings.target;
   renderTargetWorkdays(settings, weekDates);
 
   targetInput.oninput = () => {
-    persistCurrentTargetSettings();
+    targetInput.dataset.manualTarget = targetInput.value;
+    persistCurrentTargetSettings(true);
     renderWeeklyTarget(currentWeekDays);
   };
 }
@@ -733,8 +846,9 @@ async function fetchWeekDays() {
   initialiseWeeklyTarget(range);
 
   const settings = getSettings();
+  const historyStartIso = addDaysIso(startIso, -56);
 
-  const [{ data: days, error }, pricePerLitre] = await Promise.all([
+  const [{ data: days, error }, { data: historicalDays, error: historicalError }, pricePerLitre] = await Promise.all([
     supabaseClient
       .from("days")
       .select("*")
@@ -742,13 +856,24 @@ async function fetchWeekDays() {
       .lte("date", endIso)
       .order("date", { ascending: false })
       .order("end_time", { ascending: false }),
+    supabaseClient
+      .from("days")
+      .select("*")
+      .gte("date", historyStartIso)
+      .lt("date", startIso)
+      .order("date", { ascending: false }),
     getRollingFuelPricePerLitre(3, getFallbackFuelPrice(settings))
   ]);
+
+  if (historicalError) {
+    console.warn("Unable to load historical weekday forecast data:", historicalError);
+  }
 
   if (error) {
     console.error("Error loading week sessions:", error);
     showStatus("Unable to load worked sessions.", "error", false);
     currentWeekDays = [];
+    currentHistoricalDays = [];
     renderWeeklyTarget(currentWeekDays);
     renderWeekSummary([], pricePerLitre, settings);
     renderDayHistory([], pricePerLitre, settings);
@@ -756,6 +881,7 @@ async function fetchWeekDays() {
   }
 
   const rows = days || [];
+  currentHistoricalDays = historicalDays || [];
   currentWeekDays = rows;
   renderWeeklyTarget(rows);
   renderWeekSummary(rows, pricePerLitre, settings);
@@ -765,6 +891,26 @@ async function fetchWeekDays() {
 
 export async function loadWeekDays() {
   return fetchWeekDays();
+}
+
+async function handleSettingsUpdated(event) {
+  const previousSettings = event.detail?.previousSettings;
+  const nextSettings = event.detail?.settings || getSettings();
+
+  if (
+    currentWeekRange &&
+    previousSettings &&
+    getWeeklyTargetMode(nextSettings) === "manual" &&
+    getWeeklyTargetDefault(previousSettings) !== getWeeklyTargetDefault(nextSettings)
+  ) {
+    syncStoredTargetWithDefault(
+      currentWeekRange.startIso,
+      getWeeklyTargetDefault(previousSettings),
+      getWeeklyTargetDefault(nextSettings)
+    );
+  }
+
+  await loadWeekDays();
 }
 
 export async function saveDay() {
@@ -829,7 +975,7 @@ function bindDayEvents() {
 
     await deleteDay(button.dataset.deleteDay, button);
   });
-  window.addEventListener(SETTINGS_UPDATED_EVENT, loadWeekDays);
+  window.addEventListener(SETTINGS_UPDATED_EVENT, handleSettingsUpdated);
 
   el(ids.prevWeek)?.addEventListener("click", async () => {
     await moveSelectedWeek(-1);
