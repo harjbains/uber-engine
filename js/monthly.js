@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.2.22";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.2.23";
 import { showStatus } from "./status.js";
 import { getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -9,7 +9,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.2.22";
+} from "./settings.js?v=2.2.23";
 
 const ids = {
   picker: "month_picker",

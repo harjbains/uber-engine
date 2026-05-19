@@ -13,7 +13,7 @@ import {
   getTaxRate,
   getWeeklyTargetDefault,
   getWeeklyTargetMode
-} from "./settings.js?v=2.2.22";
+} from "./settings.js?v=2.2.23";
 
 const ids = {
   date: "day_date",
@@ -357,6 +357,18 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const baseDailyTarget = plannedWorkDays > 0 ? target / plannedWorkDays : 0;
   const requiredPerDay = remainingWorkDays > 0 ? remaining / remainingWorkDays : 0;
   const dailyPressure = requiredPerDay - baseDailyTarget;
+  const remainingWorkDayIndexes = remainingWorkDates.map((dateString) => weekDates.indexOf(dateString));
+  const completedForecasts = calculateWeekdayForecasts(currentHistoricalDays, target, weekDates, settings.workDays);
+  const futureForecasts = calculateWeekdayForecasts(
+    currentHistoricalDays,
+    remaining,
+    weekDates,
+    remainingWorkDayIndexes
+  );
+  const todayIndex = weekDates.indexOf(today);
+  const todayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex)
+    ? workedDates.has(today) ? completedForecasts[todayIndex] : futureForecasts[todayIndex]
+    : 0;
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
@@ -380,19 +392,22 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     paceLabel = "No work days left";
   } else if (target > 0) {
     const paceTolerance = Math.max(10, baseDailyTarget * 0.08);
+    const targetPhrase = todayTarget > 0
+      ? `${formatMoney(todayTarget)} target for today.`
+      : `${formatMoney(requiredPerDay)} average needed per remaining work day.`;
 
     if (dailyPressure > paceTolerance) {
-      status = `${formatMoney(requiredPerDay)} needed per remaining work day to hit target.`;
+      status = targetPhrase;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
       paceLabel = "Behind pace";
     } else if (dailyPressure > 0) {
-      status = `${formatMoney(requiredPerDay)} needed per remaining work day to hit target.`;
+      status = targetPhrase;
       statusClass = "target-status target-status--caution";
       progressClass = "target-progress-fill target-progress-fill--amber";
       paceLabel = "Close to pace";
     } else {
-      status = `${formatMoney(requiredPerDay)} needed per remaining work day to hit target.`;
+      status = targetPhrase;
       statusClass = "target-status target-status--good";
       progressClass = "target-progress-fill target-progress-fill--green";
       paceLabel = "On track";
@@ -407,6 +422,9 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     remainingWorkDays,
     remainingWorkDates,
     requiredPerDay,
+    todayTarget,
+    completedForecasts,
+    futureForecasts,
     baseDailyTarget,
     dailyPressure,
     progressPercent,
@@ -417,7 +435,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     liveTarget,
     dynamicUplift,
     dynamicTarget,
-    dailyTargetLabel: "Daily Target",
+    dailyTargetLabel: todayTarget > 0 ? "Today Target" : "Daily Target",
     status,
     statusClass
   };
@@ -544,14 +562,6 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
 
   const today = todayIso();
   const dayTotals = buildDayTotals(days);
-  const completedForecasts = calculateWeekdayForecasts(currentHistoricalDays, summary.target, weekDates, settings.workDays);
-  const remainingWorkDayIndexes = summary.remainingWorkDates.map((dateString) => weekDates.indexOf(dateString));
-  const futureForecasts = calculateWeekdayForecasts(
-    currentHistoricalDays,
-    summary.remaining,
-    weekDates,
-    remainingWorkDayIndexes
-  );
 
   container.innerHTML = `
     <div class="target-week-days">
@@ -562,8 +572,8 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
           settings,
           dayTotals,
           today,
-          completedForecasts[index],
-          futureForecasts[index]
+          summary.completedForecasts[index],
+          summary.futureForecasts[index]
         );
 
         return `
@@ -630,7 +640,7 @@ function renderWeeklyTarget(days) {
     </div>
     <div class="target-summary-card target-summary-card--primary">
       <div class="summary-label">${escapeHtml(summary.dailyTargetLabel)}</div>
-      <div class="summary-value">${formatMoney(summary.requiredPerDay)}</div>
+      <div class="summary-value">${formatMoney(summary.todayTarget || summary.requiredPerDay)}</div>
     </div>
     <div class="target-summary-card">
       <div class="summary-label">Earned</div>
