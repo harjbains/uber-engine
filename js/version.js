@@ -1,6 +1,7 @@
-export const VERSION = "v2.2.23";
+export const VERSION = "v2.2.24";
 
 export const RELEASE_NOTES = {
+  "2.2.24": "Behind-target progress wording softened to keep the dashboard operational",
   "2.2.23": "Primary target card now shows today's specific weighted target",
   "2.2.22": "Remaining week forecast tiles now rebalance from the current remaining target",
   "2.2.21": "Weekly target forecasts now use tighter mobile tiles, stored week snapshots, and Fri/Sat weighting",

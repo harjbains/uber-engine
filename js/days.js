@@ -13,7 +13,7 @@ import {
   getTaxRate,
   getWeeklyTargetDefault,
   getWeeklyTargetMode
-} from "./settings.js?v=2.2.23";
+} from "./settings.js?v=2.2.24";
 
 const ids = {
   date: "day_date",
@@ -400,7 +400,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
       status = targetPhrase;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
-      paceLabel = "Behind pace";
+      paceLabel = "Adjust plan";
     } else if (dailyPressure > 0) {
       status = targetPhrase;
       statusClass = "target-status target-status--caution";
