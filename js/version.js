@@ -1,6 +1,7 @@
-export const VERSION = "v2.2.21";
+export const VERSION = "v2.2.22";
 
 export const RELEASE_NOTES = {
+  "2.2.22": "Remaining week forecast tiles now rebalance from the current remaining target",
   "2.2.21": "Weekly target forecasts now use tighter mobile tiles, stored week snapshots, and Fri/Sat weighting",
   "2.2.20": "Weekly target default changes now refresh weeks that have not been manually overridden",
   "2.2.19": "Weekly target dynamic mode adds rolling four-week uplift targets and weekday forecasts",

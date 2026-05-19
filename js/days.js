@@ -13,7 +13,7 @@ import {
   getTaxRate,
   getWeeklyTargetDefault,
   getWeeklyTargetMode
-} from "./settings.js?v=2.2.21";
+} from "./settings.js?v=2.2.22";
 
 const ids = {
   date: "day_date",
@@ -405,6 +405,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     remaining,
     plannedWorkDays,
     remainingWorkDays,
+    remainingWorkDates,
     requiredPerDay,
     baseDailyTarget,
     dailyPressure,
@@ -460,7 +461,7 @@ function calculateDynamicWeeklyTarget(days, startIso, upliftPercent, fallbackTar
   return baseTarget * (1 + (upliftPercent / 100));
 }
 
-function calculateWeekdayForecasts(historicalDays, weeklyTarget, weekDates, workDays) {
+function calculateWeekdayForecasts(historicalDays, amount, weekDates, workDays) {
   const totalsByDate = buildDayTotals(historicalDays);
   const weekdayTotals = Array.from({ length: 7 }, () => []);
 
@@ -476,7 +477,7 @@ function calculateWeekdayForecasts(historicalDays, weeklyTarget, weekDates, work
   });
 
   const plannedCount = workDays.length || 1;
-  const flatForecast = weeklyTarget > 0 ? weeklyTarget / plannedCount : 0;
+  const flatForecast = amount > 0 ? amount / plannedCount : 0;
   const plannedHistoricalAverages = weekdayAverages.filter((value, index) => (
     workDays.includes(index) && value > 0
   ));
@@ -494,12 +495,12 @@ function calculateWeekdayForecasts(historicalDays, weeklyTarget, weekDates, work
 
   return weekDates.map((_, index) => {
     if (!workDays.includes(index)) return 0;
-    if (plannedWeightTotal <= 0 || weeklyTarget <= 0) return flatForecast;
-    return (plannedWeights[index] / plannedWeightTotal) * weeklyTarget;
+    if (plannedWeightTotal <= 0 || amount <= 0) return flatForecast;
+    return (plannedWeights[index] / plannedWeightTotal) * amount;
   });
 }
 
-function getWeekDayState(dateString, index, settings, dayTotals, today, forecast) {
+function getWeekDayState(dateString, index, settings, dayTotals, today, completedForecast, futureForecast) {
   const isPlanned = settings.workDays.includes(index);
   const total = dayTotals[dateString] || 0;
 
@@ -513,18 +514,18 @@ function getWeekDayState(dateString, index, settings, dayTotals, today, forecast
   if (dateString >= today && total <= 0) {
     return {
       className: "target-week-day target-week-day--future",
-      amount: isPlanned ? `~${formatCompactMoney(forecast)}` : "OFF"
+      amount: isPlanned ? `~${formatCompactMoney(futureForecast)}` : "OFF"
     };
   }
 
-  if (total >= forecast) {
+  if (total >= completedForecast) {
     return {
       className: "target-week-day target-week-day--hit",
       amount: formatCompactMoney(total)
     };
   }
 
-  if (total >= forecast * 0.85) {
+  if (total >= completedForecast * 0.85) {
     return {
       className: "target-week-day target-week-day--under",
       amount: formatCompactMoney(total)
@@ -543,12 +544,27 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
 
   const today = todayIso();
   const dayTotals = buildDayTotals(days);
-  const forecasts = calculateWeekdayForecasts(currentHistoricalDays, summary.target, weekDates, settings.workDays);
+  const completedForecasts = calculateWeekdayForecasts(currentHistoricalDays, summary.target, weekDates, settings.workDays);
+  const remainingWorkDayIndexes = summary.remainingWorkDates.map((dateString) => weekDates.indexOf(dateString));
+  const futureForecasts = calculateWeekdayForecasts(
+    currentHistoricalDays,
+    summary.remaining,
+    weekDates,
+    remainingWorkDayIndexes
+  );
 
   container.innerHTML = `
     <div class="target-week-days">
       ${weekDates.map((dateString, index) => {
-        const state = getWeekDayState(dateString, index, settings, dayTotals, today, forecasts[index]);
+        const state = getWeekDayState(
+          dateString,
+          index,
+          settings,
+          dayTotals,
+          today,
+          completedForecasts[index],
+          futureForecasts[index]
+        );
 
         return `
           <div class="${state.className}">
