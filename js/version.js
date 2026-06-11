@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.8";
+export const VERSION = "v2.3.9";
 
 export const RELEASE_NOTES = {
+  "2.3.9": "Session logging now uses separate hours and minutes fields",
   "2.3.8": "Hours now display and accept clock shorthand where 7.5 means 7h 50m",
   "2.3.7": "Weekday targets now have a static fallback while the app script loads",
   "2.3.6": "Target controls simplified with aligned week buttons and cleaner week strips",

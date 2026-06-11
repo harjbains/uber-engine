@@ -17,13 +17,14 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.8";
+} from "./settings.js?v=2.3.9";
 
 const ids = {
   date: "day_date",
   gross: "day_gross",
   miles: "day_miles",
   hours: "day_hours",
+  minutes: "day_minutes",
   saveBtn: "save_day",
   list: "dayList",
   weekTitle: "week_title",
@@ -886,19 +887,27 @@ function clearDayForm() {
   const gross = el(ids.gross);
   const miles = el(ids.miles);
   const hours = el(ids.hours);
+  const minutes = el(ids.minutes);
   const date = el(ids.date);
 
   if (gross) gross.value = "";
   if (miles) miles.value = "";
   if (hours) hours.value = "";
+  if (minutes) minutes.value = "0";
   if (date) date.value = todayIso();
+}
+
+function readWorkedHoursInput() {
+  const hours = toNumber(el(ids.hours)?.value) ?? 0;
+  const minutes = toNumber(el(ids.minutes)?.value) ?? 0;
+  return hours + (minutes / 60);
 }
 
 function buildDayPayload() {
   return {
     date: el(ids.date)?.value?.trim() || "",
     end_time: null,
-    hours_worked: parseClockHoursInput(el(ids.hours)?.value, 0),
+    hours_worked: readWorkedHoursInput(),
     gross: toNumber(el(ids.gross)?.value) ?? 0,
     trips: 0,
     business_miles: toNumber(el(ids.miles)?.value) ?? 0
