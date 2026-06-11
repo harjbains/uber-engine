@@ -15,7 +15,7 @@ import {
   getTaxRate,
   getWeeklyTargetDefault,
   getWeeklyTargetMode
-} from "./settings.js?v=2.3.6";
+} from "./settings.js?v=2.3.7";
 
 const ids = {
   date: "day_date",

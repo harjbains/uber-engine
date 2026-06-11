@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.6";
+export const VERSION = "v2.3.7";
 
 export const RELEASE_NOTES = {
+  "2.3.7": "Weekday targets now have a static fallback while the app script loads",
   "2.3.6": "Target controls simplified with aligned week buttons and cleaner week strips",
   "2.3.5": "Target amount and daily hours inputs now stay adjacent on narrow screens",
   "2.3.4": "Hours target layout refined with rebalanced hour strip and collapsible session history",
