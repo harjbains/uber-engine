@@ -4,6 +4,7 @@ const STORAGE_KEY = "uberEngineSettings";
 
 const DEFAULT_SETTINGS = {
   weeklyTarget: 750,
+  dailyHoursTarget: 7,
   weeklyTargetMode: "manual",
   dynamicUpliftPreset: "5",
   dynamicUpliftCustom: 5,
@@ -16,13 +17,12 @@ const DEFAULT_SETTINGS = {
   fallbackFuelPrice: 1.7,
   vehicleExpenseMethod: "mileage",
   evHomeOffPeakRate: 7.5,
-  evHomePeakRate: 28,
-  evPublicRate: 55,
-  evChargingMix: "home_off_peak"
+  evEfficiencyMilesPerKwh: 3.6
 };
 
 const ids = {
   weeklyTarget: "settings_weekly_target",
+  dailyHoursTarget: "settings_daily_hours_target",
   weeklyTargetMode: "settings_weekly_target_mode",
   dynamicUpliftPreset: "settings_dynamic_uplift",
   dynamicUpliftCustom: "settings_dynamic_uplift_custom",
@@ -35,9 +35,7 @@ const ids = {
   fallbackFuelPrice: "settings_fuel_price",
   vehicleExpenseMethod: "settings_vehicle_expense_method",
   evHomeOffPeakRate: "settings_ev_home_off_peak",
-  evHomePeakRate: "settings_ev_home_peak",
-  evPublicRate: "settings_ev_public_rate",
-  evChargingMix: "settings_ev_charging_mix",
+  evEfficiencyMilesPerKwh: "settings_ev_efficiency",
   saveBtn: "save_settings",
   resetBtn: "reset_settings",
   status: "settings_status"
@@ -90,12 +88,37 @@ export function getMpg(settings = getSettings()) {
   return toNumber(settings.mpg, DEFAULT_SETTINGS.mpg);
 }
 
+export function getFuelType(settings = getSettings()) {
+  return settings.fuelType === "ev" ? "ev" : settings.fuelType || DEFAULT_SETTINGS.fuelType;
+}
+
 export function getFallbackFuelPrice(settings = getSettings()) {
   return toNumber(settings.fallbackFuelPrice, DEFAULT_SETTINGS.fallbackFuelPrice);
 }
 
+export function getEvOffPeakRate(settings = getSettings()) {
+  return toNumber(settings.evHomeOffPeakRate, DEFAULT_SETTINGS.evHomeOffPeakRate);
+}
+
+export function getEvEfficiencyMilesPerKwh(settings = getSettings()) {
+  if (settings.evEfficiencyMilesPerKwh !== undefined) {
+    return toNumber(settings.evEfficiencyMilesPerKwh, DEFAULT_SETTINGS.evEfficiencyMilesPerKwh);
+  }
+
+  const legacyKwhPer100Miles = toNumber(settings.evEfficiencyKwhPer100Miles, 0);
+  if (legacyKwhPer100Miles > 0) {
+    return 100 / legacyKwhPer100Miles;
+  }
+
+  return DEFAULT_SETTINGS.evEfficiencyMilesPerKwh;
+}
+
 export function getWeeklyTargetDefault(settings = getSettings()) {
   return toNumber(settings.weeklyTarget, DEFAULT_SETTINGS.weeklyTarget);
+}
+
+export function getDailyHoursTargetDefault(settings = getSettings()) {
+  return toNumber(settings.dailyHoursTarget, DEFAULT_SETTINGS.dailyHoursTarget);
 }
 
 export function getWeeklyTargetMode(settings = getSettings()) {
@@ -124,10 +147,19 @@ function updateDynamicUpliftCustomVisibility() {
   input.closest(".field")?.toggleAttribute("hidden", hidden);
 }
 
+function updateVehicleCostVisibility() {
+  const isEv = el(ids.fuelType)?.value === "ev";
+
+  el(ids.mpg)?.closest(".field")?.toggleAttribute("hidden", isEv);
+  el(ids.fallbackFuelPrice)?.closest(".field")?.toggleAttribute("hidden", isEv);
+  el(ids.evHomeOffPeakRate)?.closest(".settings-section")?.toggleAttribute("hidden", !isEv);
+}
+
 function populateSettingsForm() {
   const settings = getSettings();
 
   if (el(ids.weeklyTarget)) el(ids.weeklyTarget).value = settings.weeklyTarget;
+  if (el(ids.dailyHoursTarget)) el(ids.dailyHoursTarget).value = settings.dailyHoursTarget;
   if (el(ids.weeklyTargetMode)) el(ids.weeklyTargetMode).value = getWeeklyTargetMode(settings);
   if (el(ids.dynamicUpliftPreset)) el(ids.dynamicUpliftPreset).value = settings.dynamicUpliftPreset ?? DEFAULT_SETTINGS.dynamicUpliftPreset;
   if (el(ids.dynamicUpliftCustom)) el(ids.dynamicUpliftCustom).value = settings.dynamicUpliftCustom ?? DEFAULT_SETTINGS.dynamicUpliftCustom;
@@ -140,16 +172,16 @@ function populateSettingsForm() {
   if (el(ids.fallbackFuelPrice)) el(ids.fallbackFuelPrice).value = settings.fallbackFuelPrice;
   if (el(ids.vehicleExpenseMethod)) el(ids.vehicleExpenseMethod).value = getVehicleExpenseMethod(settings);
   if (el(ids.evHomeOffPeakRate)) el(ids.evHomeOffPeakRate).value = settings.evHomeOffPeakRate;
-  if (el(ids.evHomePeakRate)) el(ids.evHomePeakRate).value = settings.evHomePeakRate;
-  if (el(ids.evPublicRate)) el(ids.evPublicRate).value = settings.evPublicRate;
-  if (el(ids.evChargingMix)) el(ids.evChargingMix).value = settings.evChargingMix;
+  if (el(ids.evEfficiencyMilesPerKwh)) el(ids.evEfficiencyMilesPerKwh).value = getEvEfficiencyMilesPerKwh(settings);
 
   updateDynamicUpliftCustomVisibility();
+  updateVehicleCostVisibility();
 }
 
 function readSettingsForm() {
   return {
     weeklyTarget: toNumber(el(ids.weeklyTarget)?.value, DEFAULT_SETTINGS.weeklyTarget),
+    dailyHoursTarget: toNumber(el(ids.dailyHoursTarget)?.value, DEFAULT_SETTINGS.dailyHoursTarget),
     weeklyTargetMode: el(ids.weeklyTargetMode)?.value === "dynamic" ? "dynamic" : "manual",
     dynamicUpliftPreset: el(ids.dynamicUpliftPreset)?.value || DEFAULT_SETTINGS.dynamicUpliftPreset,
     dynamicUpliftCustom: toNumber(el(ids.dynamicUpliftCustom)?.value, DEFAULT_SETTINGS.dynamicUpliftCustom),
@@ -162,9 +194,10 @@ function readSettingsForm() {
     fallbackFuelPrice: toNumber(el(ids.fallbackFuelPrice)?.value, DEFAULT_SETTINGS.fallbackFuelPrice),
     vehicleExpenseMethod: el(ids.vehicleExpenseMethod)?.value === "actual" ? "actual" : "mileage",
     evHomeOffPeakRate: toNumber(el(ids.evHomeOffPeakRate)?.value, DEFAULT_SETTINGS.evHomeOffPeakRate),
-    evHomePeakRate: toNumber(el(ids.evHomePeakRate)?.value, DEFAULT_SETTINGS.evHomePeakRate),
-    evPublicRate: toNumber(el(ids.evPublicRate)?.value, DEFAULT_SETTINGS.evPublicRate),
-    evChargingMix: el(ids.evChargingMix)?.value || DEFAULT_SETTINGS.evChargingMix
+    evEfficiencyMilesPerKwh: toNumber(
+      el(ids.evEfficiencyMilesPerKwh)?.value,
+      DEFAULT_SETTINGS.evEfficiencyMilesPerKwh
+    )
   };
 }
 
@@ -178,6 +211,7 @@ function setStatus(message, type = "info") {
 
 function bindSettingsEvents() {
   el(ids.dynamicUpliftPreset)?.addEventListener("change", updateDynamicUpliftCustomVisibility);
+  el(ids.fuelType)?.addEventListener("change", updateVehicleCostVisibility);
 
   el(ids.saveBtn)?.addEventListener("click", () => {
     saveSettings(readSettingsForm());

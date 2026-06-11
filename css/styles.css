@@ -299,7 +299,7 @@ input[type="date"] {
 .section-card {
   max-width: 800px;
   width: 100%;
-  margin: 0 auto;
+  margin: 0 auto 14px;
 }
 
 /* ===== SECTION ===== */
@@ -675,11 +675,12 @@ input[type="date"] {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 6px;
-  align-items: center;
+  align-items: end;
 }
 
 .target-gross-nav button {
-  min-width: 40px;
+  min-width: 34px;
+  min-height: 38px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   background: #f9fafb;
@@ -692,6 +693,31 @@ input[type="date"] {
 
 .target-gross-nav input {
   min-width: 0;
+}
+
+.target-input-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+}
+
+.target-input-pair > div {
+  min-width: 0;
+}
+
+.target-input-pair label {
+  margin-top: 0;
+  color: #6b7280;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.target-input-pair input {
+  margin-top: 3px;
 }
 
 .target-gross-nav input:disabled {
@@ -742,6 +768,12 @@ input[type="date"] {
 
 .target-week-strip {
   margin: -6px 0 12px;
+  display: grid;
+  gap: 5px;
+}
+
+.target-week-strip-row {
+  min-width: 0;
 }
 
 .target-week-days {
@@ -768,6 +800,14 @@ input[type="date"] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.target-week-days--hours .target-week-day strong {
+  color: #0f766e;
+}
+
+.target-week-days--hours .target-week-day--rest strong {
+  color: #f9fafb;
 }
 
 .target-week-day--hit {
@@ -898,6 +938,50 @@ input[type="date"] {
   font-size: 11px;
   font-weight: 700;
   line-height: 1.2;
+}
+
+.history-accordion {
+  padding-top: 0;
+}
+
+.history-accordion summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  cursor: pointer;
+  color: #111827;
+  font-size: 16px;
+  font-weight: 800;
+  list-style: none;
+}
+
+.history-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.history-accordion__hint {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 8px;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.history-accordion[open] .history-accordion__hint {
+  color: #fff;
+  background: #111827;
+  border-color: #111827;
+  font-size: 0;
+}
+
+.history-accordion[open] .history-accordion__hint::after {
+  content: "Hide history";
+  font-size: 11px;
 }
 
 @media (max-width: 380px) {

@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.2.24">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.6">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -45,10 +45,18 @@
 
         <div class="target-plan-grid">
           <div class="field">
-            <label for="weekly_target">Target Gross (&pound;)</label>
             <div class="target-gross-nav">
               <button id="target_prev_week" type="button" aria-label="Previous week's target">&lt;&lt;</button>
-              <input id="weekly_target" type="number" min="0" step="0.01" inputmode="decimal" placeholder="910">
+              <div class="target-input-pair">
+                <div>
+                  <label for="weekly_target">Target (&pound;)</label>
+                  <input id="weekly_target" type="number" min="0" step="0.01" inputmode="decimal" placeholder="910">
+                </div>
+                <div>
+                  <label for="daily_hours_target">Daily Hours</label>
+                  <input id="daily_hours_target" type="number" min="0" step="0.25" inputmode="decimal" placeholder="7.0">
+                </div>
+              </div>
               <button id="target_next_week" type="button" aria-label="Next week's target">&gt;&gt;</button>
             </div>
           </div>
@@ -84,6 +92,11 @@
           </div>
         </div>
 
+        <div class="field">
+          <label for="day_hours">Hours Worked</label>
+          <input id="day_hours" type="number" min="0" step="0.25" inputmode="decimal" placeholder="3.5">
+        </div>
+
         <button id="save_day" type="button" class="btn-primary">Save Session</button>
       </div>
 
@@ -100,10 +113,13 @@
         <div id="week_summary" class="summary-grid"></div>
       </div>
 
-      <div class="card">
-        <h3>Worked Sessions</h3>
+      <details class="card history-accordion">
+        <summary>
+          <span>Worked Sessions</span>
+          <span class="history-accordion__hint">Show history</span>
+        </summary>
         <div id="dayList"></div>
-      </div>
+      </details>
 
     </div>
 
@@ -200,40 +216,66 @@
     <div id="fuel_tab" class="tab-content">
 
       <div class="cost-toggle" role="tablist" aria-label="Cost type">
-        <button class="cost-toggle__button active" type="button" data-cost-panel="fuel_cost_panel">Fuel</button>
+        <button class="cost-toggle__button active" type="button" data-cost-panel="fuel_cost_panel">Charging</button>
         <button class="cost-toggle__button" type="button" data-cost-panel="expense_cost_panel">Expense</button>
       </div>
 
       <div id="fuel_cost_panel" class="cost-panel active">
         <div class="card">
-          <h3>Log Fuel</h3>
-
-          <label for="fuel_date">Date</label>
-          <input type="date" id="fuel_date">
+          <h3>Weekly Charging</h3>
 
           <div class="form-row-2">
             <div>
-              <label for="fuel_litres">Litres</label>
-              <input type="number" id="fuel_litres" step="0.01" inputmode="decimal">
+              <label for="charging_week_start">Week Start</label>
+              <input type="date" id="charging_week_start">
             </div>
 
             <div>
-              <label for="fuel_cost">Cost (&pound;)</label>
-              <input type="number" id="fuel_cost" step="0.01" inputmode="decimal" required>
+              <label for="charging_tariff_name">Tariff / Source</label>
+              <input type="text" id="charging_tariff_name" placeholder="Ohme / Octopus Intelligent Go">
             </div>
           </div>
 
-          <label for="fuel_miles">Mileage</label>
-          <input type="number" id="fuel_miles" inputmode="numeric" required>
+          <div class="form-row-2">
+            <div>
+              <label for="charging_total_kwh">Total kWh</label>
+              <input type="number" id="charging_total_kwh" min="0" step="0.01" inputmode="decimal">
+            </div>
 
-          <button id="save_fuel" class="btn-primary" type="button">
-            Save Fuel
+            <div>
+              <label for="charging_total_cost">Total Cost (&pound;)</label>
+              <input type="number" id="charging_total_cost" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+
+          <div class="form-row-3">
+            <div>
+              <label for="charging_home_cost">Home (&pound;)</label>
+              <input type="number" id="charging_home_cost" min="0" step="0.01" inputmode="decimal">
+            </div>
+
+            <div>
+              <label for="charging_public_cost">Public (&pound;)</label>
+              <input type="number" id="charging_public_cost" min="0" step="0.01" inputmode="decimal">
+            </div>
+
+            <div>
+              <label for="charging_supercharger_cost">Supercharger (&pound;)</label>
+              <input type="number" id="charging_supercharger_cost" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+
+          <label for="charging_notes">Notes</label>
+          <input type="text" id="charging_notes" placeholder="Optional">
+
+          <button id="save_charging" class="btn-primary" type="button">
+            Save Charging
           </button>
         </div>
 
         <div class="card">
-          <h3>Fuel History</h3>
-          <div id="fuel_history"></div>
+          <h3>Charging History</h3>
+          <div id="charging_history"></div>
         </div>
       </div>
 
@@ -303,6 +345,11 @@
             <label for="settings_weekly_target">Default Weekly Target (Â£)</label>
             <input id="settings_weekly_target" type="number" min="0" step="1" inputmode="numeric">
           </div>
+
+          <div class="field">
+            <label for="settings_daily_hours_target">Default Daily Hours Target</label>
+            <input id="settings_daily_hours_target" type="number" min="0" step="0.25" inputmode="decimal">
+          </div>
         </div>
 
         <div class="settings-section">
@@ -359,7 +406,7 @@
           <div class="field">
             <label for="settings_vehicle_expense_method">Vehicle Expense Method</label>
             <select id="settings_vehicle_expense_method">
-              <option value="mileage">Mileage claim (45p / mile)</option>
+              <option value="mileage">Mileage claim (25p / mile)</option>
               <option value="actual">Actual vehicle costs</option>
             </select>
           </div>
@@ -369,29 +416,13 @@
           <h3>EV Charging</h3>
           <div class="form-row-2">
             <div class="field">
-              <label for="settings_ev_home_off_peak">Home Off-Peak (p/kWh)</label>
+              <label for="settings_ev_home_off_peak">Off-Peak Rate (p/kWh)</label>
               <input id="settings_ev_home_off_peak" type="number" min="0" step="0.1" inputmode="decimal">
             </div>
 
             <div class="field">
-              <label for="settings_ev_home_peak">Home Peak (p/kWh)</label>
-              <input id="settings_ev_home_peak" type="number" min="0" step="0.1" inputmode="decimal">
-            </div>
-          </div>
-
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_ev_public_rate">Public Charging (p/kWh)</label>
-              <input id="settings_ev_public_rate" type="number" min="0" step="0.1" inputmode="decimal">
-            </div>
-
-            <div class="field">
-              <label for="settings_ev_charging_mix">Main Charging</label>
-              <select id="settings_ev_charging_mix">
-                <option value="home_off_peak">Home off-peak</option>
-                <option value="home_mixed">Home mixed</option>
-                <option value="public_mixed">Public mixed</option>
-              </select>
+              <label for="settings_ev_efficiency">Vehicle Efficiency (mi/kWh)</label>
+              <input id="settings_ev_efficiency" type="number" min="0.1" step="0.1" inputmode="decimal">
             </div>
           </div>
         </div>
@@ -408,7 +439,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.2.24"></script>
+  <script type="module" src="js/app.js?v=2.3.6"></script>
 </body>
 
 </html>

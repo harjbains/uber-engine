@@ -1,7 +1,7 @@
 const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxYayh5arViBxDTYjLJd2m2MGnid-RDqgLP6M4cUbXM3vQ7DLGLwhE7li68X8ErE9Nfow/exec";
-const SIMPLIFIED_CAR_MILE_RATE = 0.45;
+const SIMPLIFIED_CAR_MILE_RATE = 0.25;
 const SIMPLIFIED_CAR_MILE_RATE_AFTER_THRESHOLD = 0.25;
-const SIMPLIFIED_CAR_MILE_THRESHOLD = 10000;
+const SIMPLIFIED_CAR_MILE_THRESHOLD = 0;
 
 export async function sendToGoogleSheets(type, payload) {
   try {
@@ -107,6 +107,11 @@ export function buildMonthlySheetPayload(summary) {
     days_worked: summary.daysWorked ?? 0,
     total_income: summary.totalIncome ?? 0,
     total_fuel: summary.totalFuel ?? 0,
+    total_kwh: summary.totalKwh ?? 0,
+    average_pence_per_kwh: summary.averagePencePerKwh ?? 0,
+    home_charging_cost: summary.homeChargingCost ?? 0,
+    public_charging_cost: summary.publicChargingCost ?? 0,
+    supercharger_cost: summary.superchargerCost ?? 0,
     total_expenses: summary.totalExpenses ?? 0,
     total_tax: summary.totalTax ?? 0,
     total_insurance: summary.totalInsurance ?? 0,

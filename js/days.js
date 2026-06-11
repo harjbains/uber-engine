@@ -2,28 +2,32 @@ import { supabaseClient } from "./supabase.js";
 import { sendToGoogleSheets, buildDaySheetPayload } from "./googleSheets.js";
 import { showStatus } from "./status.js";
 import { loadMonthSummary } from "./monthly.js";
-import { getRollingFuelPricePerLitre } from "./fuel.js";
+import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
   SETTINGS_UPDATED_EVENT,
   getDailyInsuranceEstimate,
+  getDailyHoursTargetDefault,
   getDynamicUpliftPercent,
   getFallbackFuelPrice,
+  getFuelType,
   getMpg,
   getSettings,
   getTaxRate,
   getWeeklyTargetDefault,
   getWeeklyTargetMode
-} from "./settings.js?v=2.2.24";
+} from "./settings.js?v=2.3.6";
 
 const ids = {
   date: "day_date",
   gross: "day_gross",
   miles: "day_miles",
+  hours: "day_hours",
   saveBtn: "save_day",
   list: "dayList",
   weekTitle: "week_title",
   weekSummary: "week_summary",
   weeklyTarget: "weekly_target",
+  dailyHoursTarget: "daily_hours_target",
   targetWorkdays: "target_workdays",
   targetWeekStrip: "target_week_strip",
   targetSummary: "target_summary",
@@ -184,6 +188,7 @@ function targetStorageKey(startIso) {
 function readTargetSettings(startIso) {
   const fallback = {
     target: getWeeklyTargetDefault(),
+    dailyHoursTarget: getDailyHoursTargetDefault(),
     targetSnapshot: null,
     targetSnapshotMode: "",
     workDays: [...DEFAULT_TARGET_WORKDAYS]
@@ -201,13 +206,16 @@ function readTargetSettings(startIso) {
       : fallback.workDays;
 
     const storedTarget = parsed.target ?? fallback.target;
+    const storedHoursTarget = parsed.dailyHoursTarget ?? fallback.dailyHoursTarget;
     const isCompletedWeek = addDaysIso(startIso, 6) < todayIso();
 
     return {
       target: parsed.targetIsCustom || isCompletedWeek ? storedTarget : fallback.target,
+      dailyHoursTarget: parsed.hoursTargetIsCustom || isCompletedWeek ? storedHoursTarget : fallback.dailyHoursTarget,
       targetSnapshot: toNumber(parsed.targetSnapshot),
       targetSnapshotMode: parsed.targetSnapshotMode || "",
       targetIsCustom: parsed.targetIsCustom === true,
+      hoursTargetIsCustom: parsed.hoursTargetIsCustom === true,
       workDays: workDays.length ? [...new Set(workDays)] : fallback.workDays
     };
   } catch (error) {
@@ -264,28 +272,30 @@ function syncStoredTargetWithDefault(startIso, previousDefault, nextDefault) {
   }
 }
 
-function getCurrentTargetSettings(targetIsCustom = false) {
+function getCurrentTargetSettings(customFlags = {}) {
   if (!currentWeekRange) {
     currentWeekRange = getSelectedWeekRange();
   }
 
   const targetInput = el(ids.weeklyTarget);
+  const dailyHoursTargetInput = el(ids.dailyHoursTarget);
   const checkedDays = Array.from(
     document.querySelectorAll("[data-target-workday]:checked")
   ).map((node) => Number(node.dataset.targetWorkday));
 
   return {
     target: targetInput?.dataset.manualTarget || targetInput?.value || "",
-    targetIsCustom,
+    dailyHoursTarget: dailyHoursTargetInput?.dataset.manualTarget || dailyHoursTargetInput?.value || "",
     workDays: checkedDays
   };
 }
 
-function persistCurrentTargetSettings(targetIsCustom = false) {
+function persistCurrentTargetSettings(customFlags = {}) {
   if (!currentWeekRange) return;
   saveTargetSettings(currentWeekRange.startIso, {
     ...readRawTargetSettings(currentWeekRange.startIso),
-    ...getCurrentTargetSettings(targetIsCustom)
+    ...getCurrentTargetSettings(),
+    ...customFlags
   });
 }
 
@@ -315,7 +325,7 @@ function renderTargetWorkdays(settings, weekDates) {
 
   container.querySelectorAll("[data-target-workday]").forEach((input) => {
     input.addEventListener("change", () => {
-      persistCurrentTargetSettings(false);
+      persistCurrentTargetSettings();
       renderWeeklyTarget(currentWeekDays);
     });
   });
@@ -340,11 +350,17 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     ? settings.targetSnapshotMode || targetMode
     : completedWeek ? "manual" : targetMode;
   const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
+  const hoursWorked = days.reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
+  const dailyHoursTarget = Number(settings.dailyHoursTarget || 0);
+  const weeklyHoursTarget = dailyHoursTarget * plannedWorkDays;
+  const remainingHours = Math.max(0, weeklyHoursTarget - hoursWorked);
   const today = todayIso();
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
+  const hoursProgressPercent = weeklyHoursTarget > 0 ? Math.min(100, (hoursWorked / weeklyHoursTarget) * 100) : 0;
   const workedDates = new Set(days.map((day) => day.date).filter(Boolean));
+  const hourTotals = buildDayHourTotals(days);
 
   const remainingWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
@@ -354,6 +370,18 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   });
 
   const remainingWorkDays = remainingWorkDates.length;
+  const remainingHourWorkDates = weekDates.filter((dateString, index) => {
+    if (!settings.workDays.includes(index)) return false;
+    if (dateString < today) return false;
+    return (hourTotals[dateString] || 0) < dailyHoursTarget;
+  });
+  const remainingHourWorkDayIndexes = remainingHourWorkDates.map((dateString) => weekDates.indexOf(dateString));
+  const requiredHoursPerRemainingDay = remainingHourWorkDates.length > 0
+    ? remainingHours / remainingHourWorkDates.length
+    : 0;
+  const futureHourTargets = weekDates.map((_, index) => (
+    remainingHourWorkDayIndexes.includes(index) ? requiredHoursPerRemainingDay : 0
+  ));
   const baseDailyTarget = plannedWorkDays > 0 ? target / plannedWorkDays : 0;
   const requiredPerDay = remainingWorkDays > 0 ? remaining / remainingWorkDays : 0;
   const dailyPressure = requiredPerDay - baseDailyTarget;
@@ -366,6 +394,10 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     remainingWorkDayIndexes
   );
   const todayIndex = weekDates.indexOf(today);
+  const todayHoursWorked = days
+    .filter((day) => day.date === today)
+    .reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
+  const todayHoursRemaining = Math.max(0, futureHourTargets[todayIndex] || 0);
   const todayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex)
     ? workedDates.has(today) ? completedForecasts[todayIndex] : futureForecasts[todayIndex]
     : 0;
@@ -373,51 +405,59 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
   let progressClass = "target-progress-fill target-progress-fill--empty";
-  let paceLabel = "No weekly target set";
+  let paceLabel = "Ready when you are";
 
   if (target > 0 && plannedWorkDays === 0) {
     status = "Choose at least one planned work day.";
     statusClass = "target-status target-status--warning";
     progressClass = "target-progress-fill target-progress-fill--red";
-    paceLabel = "No planned work days";
+    paceLabel = "Pick your work days";
   } else if (target > 0 && remaining <= 0) {
-    status = `Target hit. Ahead by ${formatMoney(Math.abs(target - earned))}.`;
+    status = `Target reached. You are ${formatMoney(Math.abs(target - earned))} ahead.`;
     statusClass = "target-status target-status--good";
     progressClass = "target-progress-fill target-progress-fill--complete";
-    paceLabel = "Target hit";
+    paceLabel = "Nice work";
   } else if (target > 0 && remainingWorkDays === 0) {
-    status = `No planned work days left. Remaining target is ${formatMoney(remaining)}.`;
+    status = `${formatMoney(remaining)} remains after the planned work days.`;
     statusClass = "target-status target-status--warning";
     progressClass = "target-progress-fill target-progress-fill--red";
-    paceLabel = "No work days left";
+    paceLabel = "Review the plan";
   } else if (target > 0) {
     const paceTolerance = Math.max(10, baseDailyTarget * 0.08);
     const targetPhrase = todayTarget > 0
-      ? `${formatMoney(todayTarget)} target for today.`
-      : `${formatMoney(requiredPerDay)} average needed per remaining work day.`;
+      ? `${formatMoney(todayTarget)} keeps today moving.`
+      : `${formatMoney(requiredPerDay)} average per remaining work day keeps it reachable.`;
 
     if (dailyPressure > paceTolerance) {
       status = targetPhrase;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
-      paceLabel = "Adjust plan";
+      paceLabel = "A steady push from here";
     } else if (dailyPressure > 0) {
       status = targetPhrase;
       statusClass = "target-status target-status--caution";
       progressClass = "target-progress-fill target-progress-fill--amber";
-      paceLabel = "Close to pace";
+      paceLabel = "Within reach";
     } else {
       status = targetPhrase;
       statusClass = "target-status target-status--good";
       progressClass = "target-progress-fill target-progress-fill--green";
-      paceLabel = "On track";
+      paceLabel = "Nicely on track";
     }
   }
 
   return {
     target,
     earned,
+    hoursWorked,
     remaining,
+    dailyHoursTarget,
+    weeklyHoursTarget,
+    remainingHours,
+    todayHoursWorked,
+    todayHoursRemaining,
+    futureHourTargets,
+    requiredHoursPerRemainingDay,
     plannedWorkDays,
     remainingWorkDays,
     remainingWorkDates,
@@ -428,6 +468,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     baseDailyTarget,
     dailyPressure,
     progressPercent,
+    hoursProgressPercent,
     progressClass,
     paceLabel,
     targetMode: displayMode,
@@ -447,6 +488,16 @@ function buildDayTotals(days) {
     if (!date) return totals;
 
     totals[date] = (totals[date] || 0) + Number(day.gross || 0);
+    return totals;
+  }, {});
+}
+
+function buildDayHourTotals(days) {
+  return days.reduce((totals, day) => {
+    const date = day.date;
+    if (!date) return totals;
+
+    totals[date] = (totals[date] || 0) + Number(day.hours_worked || 0);
     return totals;
   }, {});
 }
@@ -556,24 +607,85 @@ function getWeekDayState(dateString, index, settings, dayTotals, today, complete
   };
 }
 
+function getHourDayState(dateString, index, settings, hourTotals, today, dailyHoursTarget, futureHoursTarget) {
+  const isPlanned = settings.workDays.includes(index);
+  const hours = hourTotals[dateString] || 0;
+
+  if (!isPlanned && hours <= 0) {
+    return {
+      className: "target-week-day target-week-day--rest",
+      amount: "OFF"
+    };
+  }
+
+  if (dateString >= today && hours <= 0) {
+    return {
+      className: "target-week-day target-week-day--future",
+      amount: isPlanned ? `~${formatNumber(futureHoursTarget, 1)}h` : "OFF"
+    };
+  }
+
+  if (hours >= dailyHoursTarget) {
+    return {
+      className: "target-week-day target-week-day--hit",
+      amount: `${formatNumber(hours, 1)}h`
+    };
+  }
+
+  if (hours >= dailyHoursTarget * 0.85) {
+    return {
+      className: "target-week-day target-week-day--under",
+      amount: `${formatNumber(hours, 1)}h`
+    };
+  }
+
+  return {
+    className: "target-week-day target-week-day--missed",
+    amount: `${formatNumber(hours, 1)}h`
+  };
+}
+
 function renderTargetWeekStrip(days, settings, weekDates, summary) {
   const container = el(ids.targetWeekStrip);
   if (!container) return;
 
   const today = todayIso();
   const dayTotals = buildDayTotals(days);
+  const hourTotals = buildDayHourTotals(days);
 
   container.innerHTML = `
-    <div class="target-week-days">
+    <div class="target-week-strip-row">
+      <div class="target-week-days">
+        ${weekDates.map((dateString, index) => {
+          const state = getWeekDayState(
+            dateString,
+            index,
+            settings,
+            dayTotals,
+            today,
+            summary.completedForecasts[index],
+            summary.futureForecasts[index]
+          );
+
+          return `
+            <div class="${state.className}">
+              <strong>${state.amount}</strong>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+    <div class="target-week-strip-row target-week-strip-row--hours">
+      <div class="target-week-days target-week-days--hours">
       ${weekDates.map((dateString, index) => {
-        const state = getWeekDayState(
+        const state = getHourDayState(
           dateString,
           index,
           settings,
-          dayTotals,
+          hourTotals,
           today,
-          summary.completedForecasts[index],
-          summary.futureForecasts[index]
+          summary.dailyHoursTarget,
+          summary.futureHourTargets[index]
         );
 
         return `
@@ -582,6 +694,7 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
           </div>
         `;
       }).join("")}
+      </div>
     </div>
   `;
 }
@@ -592,7 +705,8 @@ function renderWeeklyTarget(days) {
   const summaryNode = el(ids.targetSummary);
   const statusNode = el(ids.targetStatus);
   const targetInput = el(ids.weeklyTarget);
-  if (!summaryNode || !statusNode || !targetInput) return;
+  const dailyHoursTargetInput = el(ids.dailyHoursTarget);
+  if (!summaryNode || !statusNode || !targetInput || !dailyHoursTargetInput) return;
 
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
@@ -607,6 +721,8 @@ function renderWeeklyTarget(days) {
     targetInput.disabled = false;
     targetInput.value = targetInput.dataset.manualTarget || settings.target;
   }
+
+  dailyHoursTargetInput.value = dailyHoursTargetInput.dataset.manualTarget || settings.dailyHoursTarget;
 
   if (isCompletedTargetWeek() && !shouldUseStoredTargetSnapshot(settings) && summary.target > 0) {
     updateTargetSettings(currentWeekRange.startIso, {
@@ -638,9 +754,26 @@ function renderWeeklyTarget(days) {
         ${formatMoney(summary.earned)} of ${formatMoney(summary.target)} target
       </div>
     </div>
+    <div class="target-progress-panel target-progress-panel--hours">
+      <div class="target-progress-meta">
+        <span>Stay in the game</span>
+        <strong>${formatNumber(summary.hoursProgressPercent, 0)}%</strong>
+      </div>
+      <div class="target-progress-track" aria-label="Weekly hours progress">
+        <div class="target-progress-fill target-progress-fill--green" style="width: ${summary.hoursProgressPercent}%"></div>
+      </div>
+      <div class="target-progress-sub">
+        ${formatNumber(summary.hoursWorked, 1)} of ${formatNumber(summary.weeklyHoursTarget, 1)} hours target
+      </div>
+    </div>
     <div class="target-summary-card target-summary-card--primary">
       <div class="summary-label">${escapeHtml(summary.dailyTargetLabel)}</div>
       <div class="summary-value">${formatMoney(summary.todayTarget || summary.requiredPerDay)}</div>
+    </div>
+    <div class="target-summary-card target-summary-card--primary">
+      <div class="summary-label">Hours Remaining</div>
+      <div class="summary-value">${formatNumber(summary.todayHoursRemaining, 1)}</div>
+      <div class="summary-sub">${formatNumber(summary.todayHoursWorked, 1)} worked today</div>
     </div>
     <div class="target-summary-card">
       <div class="summary-label">Earned</div>
@@ -649,6 +782,10 @@ function renderWeeklyTarget(days) {
     <div class="target-summary-card">
       <div class="summary-label">Remaining</div>
       <div class="summary-value">${formatMoney(summary.remaining)}</div>
+    </div>
+    <div class="target-summary-card">
+      <div class="summary-label">Hours Left</div>
+      <div class="summary-value">${formatNumber(summary.remainingHours, 1)}</div>
     </div>
     <div class="target-summary-card">
       <div class="summary-label">Work Days Left</div>
@@ -664,18 +801,27 @@ function renderWeeklyTarget(days) {
 
 function initialiseWeeklyTarget(range) {
   const targetInput = el(ids.weeklyTarget);
-  if (!targetInput) return;
+  const dailyHoursTargetInput = el(ids.dailyHoursTarget);
+  if (!targetInput || !dailyHoursTargetInput) return;
 
   const weekDates = getWeekDates(range.startIso);
   const settings = readTargetSettings(range.startIso);
 
   targetInput.value = settings.target;
   targetInput.dataset.manualTarget = settings.target;
+  dailyHoursTargetInput.value = settings.dailyHoursTarget;
+  dailyHoursTargetInput.dataset.manualTarget = settings.dailyHoursTarget;
   renderTargetWorkdays(settings, weekDates);
 
   targetInput.oninput = () => {
     targetInput.dataset.manualTarget = targetInput.value;
-    persistCurrentTargetSettings(true);
+    persistCurrentTargetSettings({ targetIsCustom: true });
+    renderWeeklyTarget(currentWeekDays);
+  };
+
+  dailyHoursTargetInput.oninput = () => {
+    dailyHoursTargetInput.dataset.manualTarget = dailyHoursTargetInput.value;
+    persistCurrentTargetSettings({ hoursTargetIsCustom: true });
     renderWeeklyTarget(currentWeekDays);
   };
 
@@ -734,10 +880,12 @@ function populateWorkDateOptions() {
 function clearDayForm() {
   const gross = el(ids.gross);
   const miles = el(ids.miles);
+  const hours = el(ids.hours);
   const date = el(ids.date);
 
   if (gross) gross.value = "";
   if (miles) miles.value = "";
+  if (hours) hours.value = "";
   if (date) date.value = todayIso();
 }
 
@@ -745,7 +893,7 @@ function buildDayPayload() {
   return {
     date: el(ids.date)?.value?.trim() || "",
     end_time: null,
-    hours_worked: 0,
+    hours_worked: toNumber(el(ids.hours)?.value) ?? 0,
     gross: toNumber(el(ids.gross)?.value) ?? 0,
     trips: 0,
     business_miles: toNumber(el(ids.miles)?.value) ?? 0
@@ -754,6 +902,7 @@ function buildDayPayload() {
 
 function validateDay(payload) {
   if (!payload.date) return "Please select a work date.";
+  if (payload.hours_worked < 0) return "Hours worked must be zero or greater.";
   if (payload.gross < 0) return "Gross earnings must be zero or greater.";
   if (payload.business_miles < 0) return "Business miles must be zero or greater.";
   return null;
@@ -777,11 +926,25 @@ function calculateEstimatedFuelCost(miles, pricePerLitre, mpg) {
   return safeMiles * litresPerMile * safePricePerLitre;
 }
 
+function calculateEstimatedVehicleEnergyCost(miles, pricePerLitre, settings = getSettings()) {
+  const safeMiles = Number(miles || 0);
+
+  if (getFuelType(settings) === "ev") {
+    return 0;
+  }
+
+  return calculateEstimatedFuelCost(safeMiles, pricePerLitre, getMpg(settings));
+}
+
+function vehicleEnergyLabel(settings = getSettings()) {
+  return getFuelType(settings) === "ev" ? "Charging" : "Fuel Est.";
+}
+
 function buildSessionMetrics(day, pricePerLitre, settings = getSettings()) {
   const gross = Number(day.gross || 0);
   const miles = Number(day.business_miles || 0);
 
-  const estimatedFuel = calculateEstimatedFuelCost(miles, pricePerLitre, getMpg(settings));
+  const estimatedFuel = calculateEstimatedVehicleEnergyCost(miles, pricePerLitre, settings);
   const insurance = getDailyInsuranceEstimate(settings);
   const tax = Math.max(0, gross * getTaxRate(settings));
   const trueRetained = gross - estimatedFuel - tax - insurance;
@@ -797,16 +960,19 @@ function buildSessionMetrics(day, pricePerLitre, settings = getSettings()) {
   };
 }
 
-function renderWeekSummary(days, pricePerLitre, settings = getSettings()) {
+function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargingTotals = null) {
   const container = el(ids.weekSummary);
   if (!container) return;
   container.className = "summary-grid day-finance-grid";
+  const energyLabel = vehicleEnergyLabel(settings);
+  const isEv = getFuelType(settings) === "ev";
 
   const totals = days.reduce((acc, day) => {
     const m = buildSessionMetrics(day, pricePerLitre, settings);
     acc.sessions += 1;
     acc.gross += m.gross;
     acc.miles += m.miles;
+    acc.hours += Number(day.hours_worked || 0);
     acc.estimatedFuel += m.estimatedFuel;
     acc.tax += m.tax;
     acc.trueRetained += m.trueRetained;
@@ -815,10 +981,16 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings()) {
     sessions: 0,
     gross: 0,
     miles: 0,
+    hours: 0,
     estimatedFuel: 0,
     tax: 0,
     trueRetained: 0
   });
+
+  if (isEv && chargingTotals) {
+    totals.estimatedFuel = chargingTotals.cost;
+    totals.trueRetained -= chargingTotals.cost;
+  }
 
   container.innerHTML = `
     <div class="summary-card day-finance-card day-finance-card--third">
@@ -830,7 +1002,15 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings()) {
       <div class="summary-value">${formatNumber(totals.miles, 1)}</div>
     </div>
     <div class="summary-card day-finance-card day-finance-card--third">
-      <div class="summary-label">Fuel Est.</div>
+      <div class="summary-label">Hours</div>
+      <div class="summary-value">${formatNumber(totals.hours, 1)}</div>
+    </div>
+    <div class="summary-card day-finance-card day-finance-card--third">
+      <div class="summary-label">Per Hour</div>
+      <div class="summary-value">${formatMoney(totals.hours > 0 ? totals.gross / totals.hours : 0)}</div>
+    </div>
+    <div class="summary-card day-finance-card day-finance-card--half">
+      <div class="summary-label">${energyLabel}</div>
       <div class="summary-value">${formatMoney(totals.estimatedFuel)}</div>
     </div>
     <div class="summary-card day-finance-card day-finance-card--half">
@@ -847,6 +1027,7 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings()) {
 function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
   const container = el(ids.list);
   if (!container) return;
+  const energyLabel = vehicleEnergyLabel(settings);
 
   if (!Array.isArray(days) || days.length === 0) {
     container.innerHTML = `<div class="history-empty">No worked sessions in this week.</div>`;
@@ -857,6 +1038,7 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
     <div class="history-grid">
       ${days.map((day) => {
         const m = buildSessionMetrics(day, pricePerLitre, settings);
+        const hours = Number(day.hours_worked || 0);
 
         return `
           <div class="history-card">
@@ -889,8 +1071,18 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
               </div>
 
               <div class="history-item history-item--third">
-                <span class="history-item__label">Fuel Est.</span>
-                <span class="history-item__value">${escapeHtml(formatMoney(m.estimatedFuel))}</span>
+                <span class="history-item__label">Hours</span>
+                <span class="history-item__value">${escapeHtml(formatNumber(hours, 1))}</span>
+              </div>
+
+              <div class="history-item history-item--third">
+                <span class="history-item__label">Per Hour</span>
+                <span class="history-item__value">${escapeHtml(formatMoney(hours > 0 ? m.gross / hours : 0))}</span>
+              </div>
+
+              <div class="history-item history-item--half">
+                <span class="history-item__label">${energyLabel}</span>
+                <span class="history-item__value">${getFuelType(settings) === "ev" ? "Weekly" : escapeHtml(formatMoney(m.estimatedFuel))}</span>
               </div>
 
               <div class="history-item history-item--half">
@@ -955,8 +1147,19 @@ async function fetchWeekDays() {
 
   const settings = getSettings();
   const historyStartIso = addDaysIso(startIso, -56);
+  const fuelPricePromise = getFuelType(settings) === "ev"
+    ? Promise.resolve(getFallbackFuelPrice(settings))
+    : getRollingFuelPricePerLitre(3, getFallbackFuelPrice(settings));
+  const chargingTotalsPromise = getFuelType(settings) === "ev"
+    ? getChargingTotalsForRange(startIso, endIso)
+    : Promise.resolve(null);
 
-  const [{ data: days, error }, { data: historicalDays, error: historicalError }, pricePerLitre] = await Promise.all([
+  const [
+    { data: days, error },
+    { data: historicalDays, error: historicalError },
+    pricePerLitre,
+    chargingTotals
+  ] = await Promise.all([
     supabaseClient
       .from("days")
       .select("*")
@@ -970,7 +1173,8 @@ async function fetchWeekDays() {
       .gte("date", historyStartIso)
       .lt("date", startIso)
       .order("date", { ascending: false }),
-    getRollingFuelPricePerLitre(3, getFallbackFuelPrice(settings))
+    fuelPricePromise,
+    chargingTotalsPromise
   ]);
 
   if (historicalError) {
@@ -983,7 +1187,7 @@ async function fetchWeekDays() {
     currentWeekDays = [];
     currentHistoricalDays = [];
     renderWeeklyTarget(currentWeekDays);
-    renderWeekSummary([], pricePerLitre, settings);
+    renderWeekSummary([], pricePerLitre, settings, chargingTotals);
     renderDayHistory([], pricePerLitre, settings);
     return [];
   }
@@ -992,7 +1196,7 @@ async function fetchWeekDays() {
   currentHistoricalDays = historicalDays || [];
   currentWeekDays = rows;
   renderWeeklyTarget(rows);
-  renderWeekSummary(rows, pricePerLitre, settings);
+  renderWeekSummary(rows, pricePerLitre, settings, chargingTotals);
   renderDayHistory(rows, pricePerLitre, settings);
   return rows;
 }

@@ -1,15 +1,16 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.2.24";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.6";
 import { showStatus } from "./status.js";
-import { getRollingFuelPricePerLitre } from "./fuel.js";
+import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
   SETTINGS_UPDATED_EVENT,
   getFallbackFuelPrice,
+  getFuelType,
   getMpg,
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.2.24";
+} from "./settings.js?v=2.3.6";
 
 const ids = {
   picker: "month_picker",
@@ -30,9 +31,9 @@ const ids = {
 
 const LITRES_PER_UK_GALLON = 4.546;
 const UBER_WEEKLY_STORAGE_KEY = "uberEngineUberWeeklyStatements";
-const SIMPLIFIED_CAR_MILE_RATE = 0.45;
+const SIMPLIFIED_CAR_MILE_RATE = 0.25;
 const SIMPLIFIED_CAR_MILE_RATE_AFTER_THRESHOLD = 0.25;
-const SIMPLIFIED_CAR_MILE_THRESHOLD = 10000;
+const SIMPLIFIED_CAR_MILE_THRESHOLD = 0;
 
 function el(id) {
   return document.getElementById(id);
@@ -148,6 +149,7 @@ function calculateMileageClaimForMonth(days, monthStart, monthEnd) {
     monthMiles,
     taxYearMilesBeforeMonth,
     taxYearMilesAfterMonth,
+    mileageRate: SIMPLIFIED_CAR_MILE_RATE,
     milesUntilLowerRate: Math.max(0, SIMPLIFIED_CAR_MILE_THRESHOLD - taxYearMilesAfterMonth)
   };
 }
@@ -342,6 +344,38 @@ function calculateFuelCost(miles, pricePerLitre, mpg) {
   return miles * litresPerMile * pricePerLitre;
 }
 
+function calculateVehicleEnergyCost(miles, pricePerLitre, settings = getSettings()) {
+  const safeMiles = Number(miles || 0);
+
+  if (getFuelType(settings) === "ev") {
+    return 0;
+  }
+
+  return calculateFuelCost(safeMiles, pricePerLitre, getMpg(settings));
+}
+
+function getVehicleEnergyLabels(settings = getSettings(), fuelPrice = null) {
+  if (getFuelType(settings) === "ev") {
+    return {
+      estimate: "Charging",
+      rate: "Avg p/kWh",
+      rateValue: "-",
+      perMile: "Charge / Mile"
+    };
+  }
+
+  const safeFuelPrice = Number.isFinite(Number(fuelPrice)) && Number(fuelPrice) > 0
+    ? Number(fuelPrice)
+    : getFallbackFuelPrice(settings);
+
+  return {
+    estimate: "Fuel Est.",
+    rate: "Fuel Price",
+    rateValue: `${formatMoney(safeFuelPrice)}/L`,
+    perMile: "Fuel / Mile"
+  };
+}
+
 export async function loadMonthSummary() {
   const monthValue = el(ids.picker)?.value || currentMonthValue();
   const container = el(ids.summary);
@@ -354,8 +388,14 @@ export async function loadMonthSummary() {
   const { start, end } = monthDateRange(monthValue);
   const settings = getSettings();
   const mileageClaimStart = taxYearStartForDate(start);
+  const fuelPricePromise = getFuelType(settings) === "ev"
+    ? Promise.resolve(getFallbackFuelPrice(settings))
+    : getRollingFuelPricePerLitre(3, getFallbackFuelPrice(settings));
+  const chargingTotalsPromise = getFuelType(settings) === "ev"
+    ? getChargingTotalsForRange(start, end)
+    : Promise.resolve(null);
 
-  const [daysRes, mileageDaysRes, expenseRes, fuelPrice] = await Promise.all([
+  const [daysRes, mileageDaysRes, expenseRes, fuelPrice, chargingTotals] = await Promise.all([
     supabaseClient
       .from("days")
       .select("*")
@@ -374,7 +414,8 @@ export async function loadMonthSummary() {
       .gte("date", start)
       .lte("date", end),
 
-    getRollingFuelPricePerLitre(3, getFallbackFuelPrice(settings))
+    fuelPricePromise,
+    chargingTotalsPromise
   ]);
 
   if (daysRes.error || mileageDaysRes.error || expenseRes.error) {
@@ -396,8 +437,13 @@ export async function loadMonthSummary() {
   const sessionsWorked = days.length;
   const distinctDatesWorked = new Set(days.map(d => d.date)).size;
 
-  // ✅ NEW: estimated fuel instead of fuel_logs
-  const totalFuel = calculateFuelCost(totalMiles, fuelPrice, getMpg(settings));
+  const totalFuel = getFuelType(settings) === "ev"
+    ? Number(chargingTotals?.cost || 0)
+    : calculateVehicleEnergyCost(totalMiles, fuelPrice, settings);
+  const vehicleEnergyLabels = getVehicleEnergyLabels(settings, fuelPrice);
+  if (getFuelType(settings) === "ev") {
+    vehicleEnergyLabels.rateValue = `${formatNumber(chargingTotals?.averagePencePerKwh || 0, 1)}p`;
+  }
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
   const totalTax = totalIncome * getTaxRate(settings);
@@ -424,11 +470,20 @@ export async function loadMonthSummary() {
     totalMiles,
     totalHours,
     totalFuel,
+    totalKwh: chargingTotals?.kwh || 0,
+    averagePencePerKwh: chargingTotals?.averagePencePerKwh || 0,
+    homeChargingCost: chargingTotals?.homeCost || 0,
+    publicChargingCost: chargingTotals?.publicCost || 0,
+    superchargerCost: chargingTotals?.superchargerCost || 0,
+    homeChargingPercent: chargingTotals?.homePercent || 0,
+    publicChargingPercent: chargingTotals?.publicPercent || 0,
+    superchargerPercent: chargingTotals?.superchargerPercent || 0,
     totalExpenses,
     totalCosts,
     totalTax,
     totalInsurance,
     mileageExpense: mileageClaim.mileageExpense,
+    mileageRate: mileageClaim.mileageRate,
     taxYearMilesBeforeMonth: mileageClaim.taxYearMilesBeforeMonth,
     taxYearMilesAfterMonth: mileageClaim.taxYearMilesAfterMonth,
     milesUntilLowerRate: mileageClaim.milesUntilLowerRate,
@@ -463,7 +518,7 @@ export async function loadMonthSummary() {
             <div class="summary-value">${formatMoney(summary.totalCosts)}</div>
           </div>
           <div class="summary-card">
-            <div class="summary-label">Fuel Est.</div>
+            <div class="summary-label">${vehicleEnergyLabels.estimate}</div>
             <div class="summary-value">${formatMoney(summary.totalFuel)}</div>
           </div>
           <div class="summary-card">
@@ -523,15 +578,23 @@ export async function loadMonthSummary() {
             <div class="summary-value">${formatInt(summary.sessionsWorked)}</div>
           </div>
           <div class="summary-card">
+            <div class="summary-label">Hours</div>
+            <div class="summary-value">${formatNumber(summary.totalHours, 1)}</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Per Hour</div>
+            <div class="summary-value">${formatMoney(summary.avgPerHour)}</div>
+          </div>
+          <div class="summary-card">
             <div class="summary-label">Miles</div>
             <div class="summary-value">${formatNumber(summary.totalMiles, 0)}</div>
           </div>
           <div class="summary-card">
-            <div class="summary-label">Fuel Price</div>
-            <div class="summary-value">${formatMoney(fuelPrice)}/L</div>
+            <div class="summary-label">${vehicleEnergyLabels.rate}</div>
+            <div class="summary-value">${vehicleEnergyLabels.rateValue}</div>
           </div>
           <div class="summary-card">
-            <div class="summary-label">Fuel / Mile</div>
+            <div class="summary-label">${vehicleEnergyLabels.perMile}</div>
             <div class="summary-value">${formatMoney(summary.totalMiles > 0 ? summary.totalFuel / summary.totalMiles : 0)}</div>
           </div>
           <div class="summary-card">
@@ -539,8 +602,8 @@ export async function loadMonthSummary() {
             <div class="summary-value">${formatMoney(summary.mileageExpense)}</div>
           </div>
           <div class="summary-card">
-            <div class="summary-label">Miles to 25p</div>
-            <div class="summary-value">${formatNumber(summary.milesUntilLowerRate, 0)}</div>
+            <div class="summary-label">Mileage Rate</div>
+            <div class="summary-value">${formatMoney(summary.mileageRate)}/mi</div>
           </div>
           <div class="summary-card">
             <div class="summary-label">Vehicle Method</div>
@@ -548,6 +611,36 @@ export async function loadMonthSummary() {
           </div>
         </div>
       </section>
+      ${getFuelType(settings) === "ev" ? `
+        <section class="month-section">
+          <div class="month-section__header">
+            <h4>Charging Sources</h4>
+            <span>${formatNumber(summary.totalKwh, 1)} kWh</span>
+          </div>
+
+          <div class="month-section-grid">
+            <div class="summary-card summary-card--primary">
+              <div class="summary-label">Total kWh</div>
+              <div class="summary-value">${formatNumber(summary.totalKwh, 1)}</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Home</div>
+              <div class="summary-value">${formatMoney(summary.homeChargingCost)}</div>
+              <div class="summary-sub">${formatNumber(summary.homeChargingPercent, 0)}%</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Public</div>
+              <div class="summary-value">${formatMoney(summary.publicChargingCost)}</div>
+              <div class="summary-sub">${formatNumber(summary.publicChargingPercent, 0)}%</div>
+            </div>
+            <div class="summary-card">
+              <div class="summary-label">Supercharger</div>
+              <div class="summary-value">${formatMoney(summary.superchargerCost)}</div>
+              <div class="summary-sub">${formatNumber(summary.superchargerPercent, 0)}%</div>
+            </div>
+          </div>
+        </section>
+      ` : ""}
     </div>
   `;
 

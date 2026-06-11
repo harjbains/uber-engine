@@ -13,7 +13,7 @@ export function calculateShiftMetrics(shift, fuelCost = 0) {
 
   const totalIncome = (shift.gross || 0) + (shift.tips || 0);
 
-  const mileageExpense = miles * 0.45;
+  const mileageExpense = miles * 0.25;
 
   const totalExpenses = mileageExpense + fuelCost;
 
