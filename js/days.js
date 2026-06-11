@@ -14,8 +14,10 @@ import {
   getSettings,
   getTaxRate,
   getWeeklyTargetDefault,
-  getWeeklyTargetMode
-} from "./settings.js?v=2.3.7";
+  getWeeklyTargetMode,
+  formatClockHours,
+  parseClockHoursInput
+} from "./settings.js?v=2.3.8";
 
 const ids = {
   date: "day_date",
@@ -285,7 +287,10 @@ function getCurrentTargetSettings(customFlags = {}) {
 
   return {
     target: targetInput?.dataset.manualTarget || targetInput?.value || "",
-    dailyHoursTarget: dailyHoursTargetInput?.dataset.manualTarget || dailyHoursTargetInput?.value || "",
+    dailyHoursTarget: parseClockHoursInput(
+      dailyHoursTargetInput?.dataset.manualTarget || dailyHoursTargetInput?.value,
+      getDailyHoursTargetDefault()
+    ),
     workDays: checkedDays
   };
 }
@@ -621,27 +626,27 @@ function getHourDayState(dateString, index, settings, hourTotals, today, dailyHo
   if (dateString >= today && hours <= 0) {
     return {
       className: "target-week-day target-week-day--future",
-      amount: isPlanned ? `~${formatNumber(futureHoursTarget, 1)}h` : "OFF"
+      amount: isPlanned ? `~${formatClockHours(futureHoursTarget)}h` : "OFF"
     };
   }
 
   if (hours >= dailyHoursTarget) {
     return {
       className: "target-week-day target-week-day--hit",
-      amount: `${formatNumber(hours, 1)}h`
+      amount: `${formatClockHours(hours)}h`
     };
   }
 
   if (hours >= dailyHoursTarget * 0.85) {
     return {
       className: "target-week-day target-week-day--under",
-      amount: `${formatNumber(hours, 1)}h`
+      amount: `${formatClockHours(hours)}h`
     };
   }
 
   return {
     className: "target-week-day target-week-day--missed",
-    amount: `${formatNumber(hours, 1)}h`
+    amount: `${formatClockHours(hours)}h`
   };
 }
 
@@ -722,7 +727,7 @@ function renderWeeklyTarget(days) {
     targetInput.value = targetInput.dataset.manualTarget || settings.target;
   }
 
-  dailyHoursTargetInput.value = dailyHoursTargetInput.dataset.manualTarget || settings.dailyHoursTarget;
+  dailyHoursTargetInput.value = dailyHoursTargetInput.dataset.manualTarget || formatClockHours(settings.dailyHoursTarget);
 
   if (isCompletedTargetWeek() && !shouldUseStoredTargetSnapshot(settings) && summary.target > 0) {
     updateTargetSettings(currentWeekRange.startIso, {
@@ -763,7 +768,7 @@ function renderWeeklyTarget(days) {
         <div class="target-progress-fill target-progress-fill--green" style="width: ${summary.hoursProgressPercent}%"></div>
       </div>
       <div class="target-progress-sub">
-        ${formatNumber(summary.hoursWorked, 1)} of ${formatNumber(summary.weeklyHoursTarget, 1)} hours target
+        ${formatClockHours(summary.hoursWorked)} of ${formatClockHours(summary.weeklyHoursTarget)} hours target
       </div>
     </div>
     <div class="target-summary-card target-summary-card--primary">
@@ -772,8 +777,8 @@ function renderWeeklyTarget(days) {
     </div>
     <div class="target-summary-card target-summary-card--primary">
       <div class="summary-label">Hours Remaining</div>
-      <div class="summary-value">${formatNumber(summary.todayHoursRemaining, 1)}</div>
-      <div class="summary-sub">${formatNumber(summary.todayHoursWorked, 1)} worked today</div>
+      <div class="summary-value">${formatClockHours(summary.todayHoursRemaining)}</div>
+      <div class="summary-sub">${formatClockHours(summary.todayHoursWorked)} worked today</div>
     </div>
     <div class="target-summary-card">
       <div class="summary-label">Earned</div>
@@ -785,7 +790,7 @@ function renderWeeklyTarget(days) {
     </div>
     <div class="target-summary-card">
       <div class="summary-label">Hours Left</div>
-      <div class="summary-value">${formatNumber(summary.remainingHours, 1)}</div>
+      <div class="summary-value">${formatClockHours(summary.remainingHours)}</div>
     </div>
     <div class="target-summary-card">
       <div class="summary-label">Work Days Left</div>
@@ -809,8 +814,8 @@ function initialiseWeeklyTarget(range) {
 
   targetInput.value = settings.target;
   targetInput.dataset.manualTarget = settings.target;
-  dailyHoursTargetInput.value = settings.dailyHoursTarget;
-  dailyHoursTargetInput.dataset.manualTarget = settings.dailyHoursTarget;
+  dailyHoursTargetInput.value = formatClockHours(settings.dailyHoursTarget);
+  dailyHoursTargetInput.dataset.manualTarget = formatClockHours(settings.dailyHoursTarget);
   renderTargetWorkdays(settings, weekDates);
 
   targetInput.oninput = () => {
@@ -893,7 +898,7 @@ function buildDayPayload() {
   return {
     date: el(ids.date)?.value?.trim() || "",
     end_time: null,
-    hours_worked: toNumber(el(ids.hours)?.value) ?? 0,
+    hours_worked: parseClockHoursInput(el(ids.hours)?.value, 0),
     gross: toNumber(el(ids.gross)?.value) ?? 0,
     trips: 0,
     business_miles: toNumber(el(ids.miles)?.value) ?? 0
@@ -1003,7 +1008,7 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
     </div>
     <div class="summary-card day-finance-card day-finance-card--third">
       <div class="summary-label">Hours</div>
-      <div class="summary-value">${formatNumber(totals.hours, 1)}</div>
+      <div class="summary-value">${formatClockHours(totals.hours)}</div>
     </div>
     <div class="summary-card day-finance-card day-finance-card--third">
       <div class="summary-label">Per Hour</div>
@@ -1072,7 +1077,7 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
 
               <div class="history-item history-item--third">
                 <span class="history-item__label">Hours</span>
-                <span class="history-item__value">${escapeHtml(formatNumber(hours, 1))}</span>
+                <span class="history-item__value">${escapeHtml(formatClockHours(hours))}</span>
               </div>
 
               <div class="history-item history-item--third">

@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.7">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.8">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -54,7 +54,7 @@
                 </div>
                 <div>
                   <label for="daily_hours_target">Daily Hours</label>
-                  <input id="daily_hours_target" type="number" min="0" step="0.25" inputmode="decimal" placeholder="7.0">
+                  <input id="daily_hours_target" type="number" min="0" step="0.1" inputmode="decimal" placeholder="7.0">
                 </div>
               </div>
               <button id="target_next_week" type="button" aria-label="Next week's target">&gt;&gt;</button>
@@ -123,7 +123,7 @@
 
         <div class="field">
           <label for="day_hours">Hours Worked</label>
-          <input id="day_hours" type="number" min="0" step="0.25" inputmode="decimal" placeholder="3.5">
+          <input id="day_hours" type="number" min="0" step="0.1" inputmode="decimal" placeholder="3.5">
         </div>
 
         <button id="save_day" type="button" class="btn-primary">Save Session</button>
@@ -377,7 +377,7 @@
 
           <div class="field">
             <label for="settings_daily_hours_target">Default Daily Hours Target</label>
-            <input id="settings_daily_hours_target" type="number" min="0" step="0.25" inputmode="decimal">
+            <input id="settings_daily_hours_target" type="number" min="0" step="0.1" inputmode="decimal">
           </div>
         </div>
 
@@ -468,7 +468,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.7"></script>
+  <script type="module" src="js/app.js?v=2.3.8"></script>
 </body>
 
 </html>

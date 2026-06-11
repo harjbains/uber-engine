@@ -50,6 +50,46 @@ function toNumber(value, fallback) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+export function parseClockHoursInput(value, fallback = 0) {
+  if (value === null || value === undefined || value === "") return fallback;
+
+  const text = String(value).trim();
+  if (!text) return fallback;
+
+  const sign = text.startsWith("-") ? -1 : 1;
+  const unsigned = sign < 0 ? text.slice(1) : text;
+  const [hourPart, minutePart = ""] = unsigned.split(".");
+  const hours = Number(hourPart || 0);
+
+  if (!Number.isFinite(hours)) return fallback;
+  if (!minutePart) return sign * hours;
+
+  const minutes = minutePart.length === 1
+    ? Number(minutePart) * 10
+    : Number(minutePart.slice(0, 2));
+
+  if (!Number.isFinite(minutes)) return fallback;
+
+  return sign * (hours + (minutes / 60));
+}
+
+export function formatClockHours(value) {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number)) return "-";
+
+  const sign = number < 0 ? "-" : "";
+  const abs = Math.abs(number);
+  let hours = Math.floor(abs);
+  let minutes = Math.round((abs - hours) * 60 / 10) * 10;
+
+  if (minutes >= 60) {
+    hours += 1;
+    minutes = 0;
+  }
+
+  return `${sign}${hours}.${Math.floor(minutes / 10)}`;
+}
+
 export function getSettings() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -159,7 +199,7 @@ function populateSettingsForm() {
   const settings = getSettings();
 
   if (el(ids.weeklyTarget)) el(ids.weeklyTarget).value = settings.weeklyTarget;
-  if (el(ids.dailyHoursTarget)) el(ids.dailyHoursTarget).value = settings.dailyHoursTarget;
+  if (el(ids.dailyHoursTarget)) el(ids.dailyHoursTarget).value = formatClockHours(settings.dailyHoursTarget);
   if (el(ids.weeklyTargetMode)) el(ids.weeklyTargetMode).value = getWeeklyTargetMode(settings);
   if (el(ids.dynamicUpliftPreset)) el(ids.dynamicUpliftPreset).value = settings.dynamicUpliftPreset ?? DEFAULT_SETTINGS.dynamicUpliftPreset;
   if (el(ids.dynamicUpliftCustom)) el(ids.dynamicUpliftCustom).value = settings.dynamicUpliftCustom ?? DEFAULT_SETTINGS.dynamicUpliftCustom;
@@ -181,7 +221,7 @@ function populateSettingsForm() {
 function readSettingsForm() {
   return {
     weeklyTarget: toNumber(el(ids.weeklyTarget)?.value, DEFAULT_SETTINGS.weeklyTarget),
-    dailyHoursTarget: toNumber(el(ids.dailyHoursTarget)?.value, DEFAULT_SETTINGS.dailyHoursTarget),
+    dailyHoursTarget: parseClockHoursInput(el(ids.dailyHoursTarget)?.value, DEFAULT_SETTINGS.dailyHoursTarget),
     weeklyTargetMode: el(ids.weeklyTargetMode)?.value === "dynamic" ? "dynamic" : "manual",
     dynamicUpliftPreset: el(ids.dynamicUpliftPreset)?.value || DEFAULT_SETTINGS.dynamicUpliftPreset,
     dynamicUpliftCustom: toNumber(el(ids.dynamicUpliftCustom)?.value, DEFAULT_SETTINGS.dynamicUpliftCustom),

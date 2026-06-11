@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.7";
+export const VERSION = "v2.3.8";
 
 export const RELEASE_NOTES = {
+  "2.3.8": "Hours now display and accept clock shorthand where 7.5 means 7h 50m",
   "2.3.7": "Weekday targets now have a static fallback while the app script loads",
   "2.3.6": "Target controls simplified with aligned week buttons and cleaner week strips",
   "2.3.5": "Target amount and daily hours inputs now stay adjacent on narrow screens",

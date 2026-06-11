@@ -1,16 +1,17 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.7";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.8";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
   SETTINGS_UPDATED_EVENT,
   getFallbackFuelPrice,
   getFuelType,
+  formatClockHours,
   getMpg,
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.7";
+} from "./settings.js?v=2.3.8";
 
 const ids = {
   picker: "month_picker",
@@ -579,7 +580,7 @@ export async function loadMonthSummary() {
           </div>
           <div class="summary-card">
             <div class="summary-label">Hours</div>
-            <div class="summary-value">${formatNumber(summary.totalHours, 1)}</div>
+            <div class="summary-value">${formatClockHours(summary.totalHours)}</div>
           </div>
           <div class="summary-card">
             <div class="summary-label">Per Hour</div>
