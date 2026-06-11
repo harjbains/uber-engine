@@ -17,7 +17,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.10";
+} from "./settings.js?v=2.3.11";
 
 const ids = {
   date: "day_date",
@@ -904,12 +904,27 @@ function readWorkedHoursInput() {
   return hours + (minutes / 60);
 }
 
+function getExistingGrossForDate(dateString) {
+  if (!dateString) return 0;
+
+  return currentWeekDays
+    .filter((day) => day.date === dateString)
+    .reduce((sum, day) => sum + Number(day.gross || 0), 0);
+}
+
 function buildDayPayload() {
+  const date = el(ids.date)?.value?.trim() || "";
+  const uberDayTotal = toNumber(el(ids.gross)?.value) ?? 0;
+  const existingGross = getExistingGrossForDate(date);
+  const sessionGross = Math.max(0, uberDayTotal - existingGross);
+
   return {
-    date: el(ids.date)?.value?.trim() || "",
+    date,
     end_time: null,
     hours_worked: readWorkedHoursInput(),
-    gross: toNumber(el(ids.gross)?.value) ?? 0,
+    gross: sessionGross,
+    uber_day_total: uberDayTotal,
+    existing_day_gross: existingGross,
     trips: 0,
     business_miles: toNumber(el(ids.miles)?.value) ?? 0
   };
@@ -918,7 +933,10 @@ function buildDayPayload() {
 function validateDay(payload) {
   if (!payload.date) return "Please select a work date.";
   if (payload.hours_worked < 0) return "Hours worked must be zero or greater.";
-  if (payload.gross < 0) return "Gross earnings must be zero or greater.";
+  if (payload.uber_day_total < 0) return "Uber day total must be zero or greater.";
+  if (payload.uber_day_total < payload.existing_day_gross) {
+    return `Uber day total is below saved sessions for this date (${formatMoney(payload.existing_day_gross)}).`;
+  }
   if (payload.business_miles < 0) return "Business miles must be zero or greater.";
   return null;
 }
@@ -1256,11 +1274,12 @@ export async function saveDay() {
       return;
     }
 
-    console.log("saving session payload:", payload);
+    const { uber_day_total, existing_day_gross, ...supabasePayload } = payload;
+    console.log("saving session payload:", supabasePayload);
 
     const { data, error } = await supabaseClient
       .from("days")
-      .insert([payload])
+      .insert([supabasePayload])
       .select()
       .single();
 

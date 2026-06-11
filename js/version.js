@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.10";
+export const VERSION = "v2.3.11";
 
 export const RELEASE_NOTES = {
+  "2.3.11": "Session gross now subtracts earlier same-day sessions and keeps time inputs side by side",
   "2.3.10": "Clock shorthand now rolls 60 minutes into the next hour and clamps future hour targets",
   "2.3.9": "Session logging now uses separate hours and minutes fields",
   "2.3.8": "Hours now display and accept clock shorthand where 7.5 means 7h 50m",
