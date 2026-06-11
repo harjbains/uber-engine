@@ -17,7 +17,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.11";
+} from "./settings.js?v=2.3.12";
 
 const ids = {
   date: "day_date",
@@ -47,6 +47,7 @@ const WORK_DATE_OPTIONS_DAYS = 7;
 const LITRES_PER_UK_GALLON = 4.546;
 const TARGET_STORAGE_PREFIX = "uberEngineWeeklyTarget";
 const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
+const HOURS_TARGET_DAYS_PER_WEEK = 7;
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAY_FORECAST_WEIGHTS = [0.9, 0.95, 1, 1, 1.2, 1.25, 0.75];
 
@@ -360,7 +361,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
   const dailyHoursTarget = Number(settings.dailyHoursTarget || 0);
-  const weeklyHoursTarget = dailyHoursTarget * plannedWorkDays;
+  const weeklyHoursTarget = dailyHoursTarget * HOURS_TARGET_DAYS_PER_WEEK;
   const remainingHours = Math.max(0, weeklyHoursTarget - hoursWorked);
   const today = todayIso();
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
@@ -376,6 +377,9 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   });
 
   const remainingWorkDays = remainingWorkDates.length;
+  const todayEarned = days
+    .filter((day) => day.date === today)
+    .reduce((sum, day) => sum + Number(day.gross || 0), 0);
   const remainingHourWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
     if (dateString < today) return false;
@@ -404,9 +408,11 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     .filter((day) => day.date === today)
     .reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
   const todayHoursRemaining = Math.max(0, futureHourTargets[todayIndex] || 0);
-  const todayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex)
+  const hasTodayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
+  const todayTargetBase = hasTodayTarget
     ? workedDates.has(today) ? completedForecasts[todayIndex] : futureForecasts[todayIndex]
     : 0;
+  const todayTarget = Math.max(0, todayTargetBase - todayEarned);
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
@@ -462,6 +468,8 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     remainingHours,
     todayHoursWorked,
     todayHoursRemaining,
+    todayEarned,
+    hasTodayTarget,
     futureHourTargets,
     requiredHoursPerRemainingDay,
     plannedWorkDays,
@@ -482,7 +490,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     liveTarget,
     dynamicUplift,
     dynamicTarget,
-    dailyTargetLabel: todayTarget > 0 ? "Today Target" : "Daily Target",
+    dailyTargetLabel: hasTodayTarget ? "Today Remaining" : "Daily Target",
     status,
     statusClass
   };
@@ -775,7 +783,8 @@ function renderWeeklyTarget(days) {
     </div>
     <div class="target-summary-card target-summary-card--primary">
       <div class="summary-label">${escapeHtml(summary.dailyTargetLabel)}</div>
-      <div class="summary-value">${formatMoney(summary.todayTarget || summary.requiredPerDay)}</div>
+      <div class="summary-value">${formatMoney(summary.hasTodayTarget ? summary.todayTarget : summary.requiredPerDay)}</div>
+      ${summary.hasTodayTarget ? `<div class="summary-sub">${formatMoney(summary.todayEarned)} earned today</div>` : ""}
     </div>
     <div class="target-summary-card target-summary-card--primary">
       <div class="summary-label">Hours Remaining</div>
@@ -912,11 +921,22 @@ function getExistingGrossForDate(dateString) {
     .reduce((sum, day) => sum + Number(day.gross || 0), 0);
 }
 
+function getExistingMilesForDate(dateString) {
+  if (!dateString) return 0;
+
+  return currentWeekDays
+    .filter((day) => day.date === dateString)
+    .reduce((sum, day) => sum + Number(day.business_miles || 0), 0);
+}
+
 function buildDayPayload() {
   const date = el(ids.date)?.value?.trim() || "";
   const uberDayTotal = toNumber(el(ids.gross)?.value) ?? 0;
   const existingGross = getExistingGrossForDate(date);
   const sessionGross = Math.max(0, uberDayTotal - existingGross);
+  const businessMilesDayTotal = toNumber(el(ids.miles)?.value) ?? 0;
+  const existingMiles = getExistingMilesForDate(date);
+  const sessionMiles = Math.max(0, businessMilesDayTotal - existingMiles);
 
   return {
     date,
@@ -925,8 +945,10 @@ function buildDayPayload() {
     gross: sessionGross,
     uber_day_total: uberDayTotal,
     existing_day_gross: existingGross,
+    business_miles_day_total: businessMilesDayTotal,
+    existing_day_miles: existingMiles,
     trips: 0,
-    business_miles: toNumber(el(ids.miles)?.value) ?? 0
+    business_miles: sessionMiles
   };
 }
 
@@ -936,6 +958,10 @@ function validateDay(payload) {
   if (payload.uber_day_total < 0) return "Uber day total must be zero or greater.";
   if (payload.uber_day_total < payload.existing_day_gross) {
     return `Uber day total is below saved sessions for this date (${formatMoney(payload.existing_day_gross)}).`;
+  }
+  if (payload.business_miles_day_total < 0) return "Business miles day total must be zero or greater.";
+  if (payload.business_miles_day_total < payload.existing_day_miles) {
+    return `Business miles day total is below saved sessions for this date (${formatNumber(payload.existing_day_miles, 1)}).`;
   }
   if (payload.business_miles < 0) return "Business miles must be zero or greater.";
   return null;
@@ -1274,7 +1300,13 @@ export async function saveDay() {
       return;
     }
 
-    const { uber_day_total, existing_day_gross, ...supabasePayload } = payload;
+    const {
+      uber_day_total,
+      existing_day_gross,
+      business_miles_day_total,
+      existing_day_miles,
+      ...supabasePayload
+    } = payload;
     console.log("saving session payload:", supabasePayload);
 
     const { data, error } = await supabaseClient
