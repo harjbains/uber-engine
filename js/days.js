@@ -17,7 +17,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.12";
+} from "./settings.js?v=2.3.14";
 
 const ids = {
   date: "day_date",
@@ -50,6 +50,7 @@ const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
 const HOURS_TARGET_DAYS_PER_WEEK = 7;
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAY_FORECAST_WEIGHTS = [0.9, 0.95, 1, 1, 1.2, 1.25, 0.75];
+const WEEKDAY_HOUR_WEIGHTS = [1, 1, 1, 1, 1.15, 1.25, 0.9];
 
 let weekOffset = 0;
 let currentWeekDays = [];
@@ -183,6 +184,23 @@ function addDaysIso(dateString, days) {
 function getWeekdayIndex(dateString) {
   const day = parseLocalDate(dateString).getDay();
   return day === 0 ? 6 : day - 1;
+}
+
+function getHourTargetWeight(dateString) {
+  return WEEKDAY_HOUR_WEIGHTS[getWeekdayIndex(dateString)] || 1;
+}
+
+function distributeHoursByWeight(amount, dateStrings) {
+  if (!dateStrings.length || amount <= 0) return new Map();
+
+  const weights = dateStrings.map((dateString) => Math.max(0, getHourTargetWeight(dateString)));
+  const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+  const fallback = amount / dateStrings.length;
+
+  return new Map(dateStrings.map((dateString, index) => [
+    dateString,
+    totalWeight > 0 ? (amount * weights[index]) / totalWeight : fallback
+  ]));
 }
 
 function targetStorageKey(startIso) {
@@ -367,7 +385,6 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
   const hoursProgressPercent = weeklyHoursTarget > 0 ? Math.min(100, (hoursWorked / weeklyHoursTarget) * 100) : 0;
   const workedDates = new Set(days.map((day) => day.date).filter(Boolean));
-  const hourTotals = buildDayHourTotals(days);
 
   const remainingWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
@@ -376,22 +393,42 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     return true;
   });
 
-  const remainingWorkDays = remainingWorkDates.length;
   const todayEarned = days
     .filter((day) => day.date === today)
     .reduce((sum, day) => sum + Number(day.gross || 0), 0);
+  const todayIndex = weekDates.indexOf(today);
+  const todayHoursWorked = days
+    .filter((day) => day.date === today)
+    .reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
+  const remainingWorkDays = remainingWorkDates.length;
   const remainingHourWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
     if (dateString < today) return false;
-    return (hourTotals[dateString] || 0) < dailyHoursTarget;
+    return true;
   });
-  const remainingHourWorkDayIndexes = remainingHourWorkDates.map((dateString) => weekDates.indexOf(dateString));
-  const requiredHoursPerRemainingDay = remainingHourWorkDates.length > 0
-    ? remainingHours / remainingHourWorkDates.length
+  const futureHourWorkDates = remainingHourWorkDates.filter((dateString) => dateString > today);
+  const hasTodayHourTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
+  const hourTargetsBeforeTodayWork = distributeHoursByWeight(
+    remainingHours + todayHoursWorked,
+    remainingHourWorkDates
+  );
+  const currentDayRequiredHours = hasTodayHourTarget
+    ? hourTargetsBeforeTodayWork.get(today) || 0
     : 0;
-  const futureHourTargets = weekDates.map((_, index) => (
-    remainingHourWorkDayIndexes.includes(index) ? requiredHoursPerRemainingDay : 0
+  const todayHoursRemaining = Math.max(0, currentDayRequiredHours - todayHoursWorked);
+  const futureHoursRemaining = Math.max(0, remainingHours - todayHoursRemaining);
+  const futureHourTargetMap = distributeHoursByWeight(futureHoursRemaining, futureHourWorkDates);
+  const futureRequiredHoursPerDay = futureHourWorkDates.length > 0
+    ? futureHoursRemaining / futureHourWorkDates.length
+    : 0;
+  const futureHourTargets = weekDates.map((dateString, index) => (
+    index === todayIndex && hasTodayHourTarget
+      ? todayHoursRemaining
+      : futureHourTargetMap.get(dateString) || 0
   ));
+  const requiredHoursPerRemainingDay = hasTodayHourTarget
+    ? currentDayRequiredHours
+    : futureRequiredHoursPerDay;
   const baseDailyTarget = plannedWorkDays > 0 ? target / plannedWorkDays : 0;
   const requiredPerDay = remainingWorkDays > 0 ? remaining / remainingWorkDays : 0;
   const dailyPressure = requiredPerDay - baseDailyTarget;
@@ -403,11 +440,6 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     weekDates,
     remainingWorkDayIndexes
   );
-  const todayIndex = weekDates.indexOf(today);
-  const todayHoursWorked = days
-    .filter((day) => day.date === today)
-    .reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
-  const todayHoursRemaining = Math.max(0, futureHourTargets[todayIndex] || 0);
   const hasTodayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
   const todayTargetBase = hasTodayTarget
     ? workedDates.has(today) ? completedForecasts[todayIndex] : futureForecasts[todayIndex]
@@ -574,6 +606,11 @@ function calculateWeekdayForecasts(historicalDays, amount, weekDates, workDays) 
     }
     return WEEKDAY_FORECAST_WEIGHTS[index];
   });
+
+  if (workDays.includes(4) && workDays.includes(5) && plannedWeights[5] <= plannedWeights[4]) {
+    plannedWeights[5] = plannedWeights[4] * (WEEKDAY_FORECAST_WEIGHTS[5] / WEEKDAY_FORECAST_WEIGHTS[4]);
+  }
+
   const plannedWeightTotal = plannedWeights.reduce((sum, value) => sum + value, 0);
 
   return weekDates.map((_, index) => {

@@ -1,6 +1,8 @@
-export const VERSION = "v2.3.12";
+export const VERSION = "v2.3.14";
 
 export const RELEASE_NOTES = {
+  "2.3.14": "Friday and Saturday now carry higher weighted hours and cash targets",
+  "2.3.13": "Hours remaining now subtracts hours already worked today before rebalancing future days",
   "2.3.12": "Day totals now calculate session earnings and miles, while weekly hours stay fixed and rebalance",
   "2.3.11": "Session gross now subtracts earlier same-day sessions and keeps time inputs side by side",
   "2.3.10": "Clock shorthand now rolls 60 minutes into the next hour and clamps future hour targets",
