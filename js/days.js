@@ -17,7 +17,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.9";
+} from "./settings.js?v=2.3.10";
 
 const ids = {
   date: "day_date",
@@ -616,6 +616,7 @@ function getWeekDayState(dateString, index, settings, dayTotals, today, complete
 function getHourDayState(dateString, index, settings, hourTotals, today, dailyHoursTarget, futureHoursTarget) {
   const isPlanned = settings.workDays.includes(index);
   const hours = hourTotals[dateString] || 0;
+  const safeFutureHoursTarget = Math.max(0, Number(futureHoursTarget || 0));
 
   if (!isPlanned && hours <= 0) {
     return {
@@ -627,7 +628,7 @@ function getHourDayState(dateString, index, settings, hourTotals, today, dailyHo
   if (dateString >= today && hours <= 0) {
     return {
       className: "target-week-day target-week-day--future",
-      amount: isPlanned ? `~${formatClockHours(futureHoursTarget)}h` : "OFF"
+      amount: isPlanned ? `~${formatClockHours(safeFutureHoursTarget)}h` : "OFF"
     };
   }
 

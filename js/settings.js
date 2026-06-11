@@ -80,14 +80,14 @@ export function formatClockHours(value) {
   const sign = number < 0 ? "-" : "";
   const abs = Math.abs(number);
   let hours = Math.floor(abs);
-  let minutes = Math.round((abs - hours) * 60 / 10) * 10;
+  let minuteTens = Math.round(((abs - hours) * 60) / 10);
 
-  if (minutes >= 60) {
+  if (minuteTens >= 6) {
     hours += 1;
-    minutes = 0;
+    minuteTens = 0;
   }
 
-  return `${sign}${hours}.${Math.floor(minutes / 10)}`;
+  return `${sign}${hours}.${minuteTens}`;
 }
 
 export function getSettings() {
