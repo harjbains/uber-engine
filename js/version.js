@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.25";
+export const VERSION = "v2.3.26";
 
 export const RELEASE_NOTES = {
+  "2.3.26": "Day dashboard now uses carousel slides with compact weekly target controls",
   "2.3.25": "Day sections reordered with today remaining separated from weekly progress",
   "2.3.24": "Target strip values now stay dark for better contrast",
   "2.3.23": "Previous week titles no longer truncate and session entry is more compact",

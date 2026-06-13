@@ -18,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.25";
+} from "./settings.js?v=2.3.26";
 
 const ids = {
   date: "day_date",

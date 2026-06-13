@@ -628,21 +628,65 @@ input[type="date"] {
 
 /* ================= WEEKLY TARGET ================= */
 
-.target-card h2 {
+.dashboard-carousel {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.dashboard-carousel__slides {
+  min-width: 0;
+}
+
+.dashboard-slide[hidden] {
+  display: none;
+}
+
+.dashboard-carousel .card {
+  margin-bottom: 0;
+}
+
+.dashboard-carousel__pager {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 7px;
+}
+
+.dashboard-carousel__dot {
+  width: 8px;
+  height: 8px;
+  border: 1px solid #94a3b8;
+  border-radius: 999px;
+  background: #e5e7eb;
+  cursor: pointer;
+  padding: 0;
+}
+
+.dashboard-carousel__dot.active {
+  width: 22px;
+  background: #111827;
+  border-color: #111827;
+}
+
+.dashboard-slide h2,
+.dashboard-slide h3 {
   margin: 0;
+  font-size: 19px;
+  line-height: 1.15;
 }
 
 .target-card__header {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .target-status {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   color: #4b5563;
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.35;
 }
 
@@ -663,8 +707,8 @@ input[type="date"] {
 
 .target-plan-grid {
   display: grid;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 9px;
+  margin-bottom: 9px;
 }
 
 .target-plan-grid .field {
@@ -674,15 +718,15 @@ input[type="date"] {
 .target-gross-nav {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 6px;
+  gap: 5px;
   align-items: end;
 }
 
 .icon-nav-button {
   display: inline-grid;
   place-items: center;
-  width: 30px;
-  height: 36px;
+  width: 26px;
+  height: 32px;
   border: 1px solid #d1d5db;
   border-radius: 999px;
   background: linear-gradient(180deg, #ffffff, #f3f6fa);
@@ -695,7 +739,7 @@ input[type="date"] {
 
 .icon-nav-button span {
   display: block;
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1;
   transform: translateY(-1px);
@@ -742,7 +786,7 @@ input[type="date"] {
 }
 
 .target-input-pair input {
-  margin-top: 3px;
+  margin-top: 2px;
 }
 
 .target-gross-nav input:disabled {
@@ -754,8 +798,8 @@ input[type="date"] {
 .target-workdays {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 5px;
-  margin-top: 4px;
+  gap: 4px;
+  margin-top: 3px;
 }
 
 .target-day-toggle {
@@ -774,7 +818,7 @@ input[type="date"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
+  min-height: 34px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   background: #f9fafb;
@@ -792,7 +836,7 @@ input[type="date"] {
 }
 
 .target-week-strip {
-  margin: -7px 0 10px;
+  margin: -4px 0 8px;
   display: grid;
   gap: 4px;
 }
@@ -951,7 +995,7 @@ input[type="date"] {
 
 .today-target-card h2 {
   margin-bottom: 9px;
-  font-size: 18px;
+  font-size: 19px;
 }
 
 .target-summary-card--primary {
@@ -1062,7 +1106,7 @@ input[type="date"] {
 
 .session-card h2 {
   margin-bottom: 7px;
-  font-size: 18px;
+  font-size: 19px;
 }
 
 .session-card .field {
@@ -1402,7 +1446,7 @@ input[type="date"] {
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 38px;
+  min-height: 34px;
   padding: 8px 9px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
