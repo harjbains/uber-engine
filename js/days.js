@@ -18,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.18";
+} from "./settings.js?v=2.3.19";
 
 const ids = {
   date: "day_date",
@@ -906,14 +906,9 @@ function updateWeekTitle(startIso, endIso) {
   })}`;
 }
 
-function getWeekTitleText(startIso, endIso, days = []) {
-  if (weekOffset === 0) return "Week to Date";
-
+function getWeekTitleParts(startIso, endIso, days = []) {
   const start = parseLocalDate(startIso);
   const end = parseLocalDate(endIso);
-  const settings = readTargetSettings(startIso);
-  const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
-  const target = Number(settings.targetSnapshot || settings.target || 0);
   const rangeText = `${start.toLocaleDateString("en-GB", {
     day: "2-digit",
     month: "short"
@@ -922,20 +917,62 @@ function getWeekTitleText(startIso, endIso, days = []) {
     month: "short"
   })}`;
 
-  if (target <= 0) return `${rangeText}: No target set`;
+  if (weekOffset === 0) {
+    return {
+      date: "Week to Date",
+      outcome: "",
+      status: "current"
+    };
+  }
+
+  const settings = readTargetSettings(startIso);
+  const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
+  const target = Number(settings.targetSnapshot || settings.target || 0);
+
+  if (target <= 0) {
+    return {
+      date: rangeText,
+      outcome: "No target set",
+      status: "neutral"
+    };
+  }
 
   const difference = earned - target;
   const tolerance = Math.max(10, target * 0.03);
 
   if (difference >= tolerance) {
-    return `${rangeText}: ${formatMoney(difference)} over target`;
+    return {
+      date: rangeText,
+      outcome: `${formatMoney(difference)} over target`,
+      status: "over"
+    };
   }
 
   if (Math.abs(difference) < tolerance) {
-    return `${rangeText}: Target met`;
+    return {
+      date: rangeText,
+      outcome: "Target met",
+      status: "met"
+    };
   }
 
-  return `${rangeText}: ${formatMoney(Math.abs(difference))} short`;
+  return {
+    date: rangeText,
+    outcome: `${formatMoney(Math.abs(difference))} short`,
+    status: "short"
+  };
+}
+
+function renderWeekTitle(startIso, endIso, days = []) {
+  const node = el(ids.weekTitle);
+  if (!node) return;
+
+  const title = getWeekTitleParts(startIso, endIso, days);
+  node.className = `week-title week-title--${title.status}`;
+  node.innerHTML = `
+    <span class="week-title__date">${escapeHtml(title.date)}</span>
+    ${title.outcome ? `<span class="week-title__outcome">${escapeHtml(title.outcome)}</span>` : ""}
+  `;
 }
 
 function populateWorkDateOptions() {
@@ -1446,8 +1483,7 @@ async function fetchWeekDays() {
   const rows = days || [];
   currentHistoricalDays = historicalDays || [];
   currentWeekDays = rows;
-  const titleNode = el(ids.weekTitle);
-  if (titleNode) titleNode.textContent = getWeekTitleText(startIso, endIso, rows);
+  renderWeekTitle(startIso, endIso, rows);
   renderWeeklyTarget(rows);
   renderWeekSummary(rows, pricePerLitre, settings, chargingTotals, expenses || []);
   renderDayHistory(rows, pricePerLitre, settings);

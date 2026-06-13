@@ -1084,6 +1084,42 @@ input[type="date"] {
   flex-wrap: wrap;
 }
 
+.week-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  color: #111827;
+}
+
+.week-title__date {
+  color: #111827;
+}
+
+.week-title__outcome {
+  padding-left: 8px;
+  border-left: 1px solid #d1d5db;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.week-title--short .week-title__outcome {
+  color: #dc2626;
+}
+
+.week-title--over .week-title__outcome {
+  color: #2563eb;
+}
+
+.week-title--met .week-title__outcome {
+  color: #059669;
+}
+
+.week-title--neutral .week-title__outcome,
+.week-title--current .week-title__outcome {
+  color: #111827;
+}
+
 .summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

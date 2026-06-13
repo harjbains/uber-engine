@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.18";
+export const VERSION = "v2.3.19";
 
 export const RELEASE_NOTES = {
+  "2.3.19": "Past week target outcomes are colour coded with separated date and status text",
   "2.3.18": "Current week is labelled Week to Date and past weeks show target-relative outcomes",
   "2.3.17": "Profitability summary now gives gross more emphasis and trims efficiency text",
   "2.3.16": "Weekly summary now shows a profitability bar with net hourly and cost metrics",
