@@ -827,10 +827,6 @@ input[type="date"] {
   white-space: nowrap;
 }
 
-.target-week-days--hours .target-week-day strong {
-  color: #0f766e;
-}
-
 .target-week-days--hours .target-week-day--rest strong {
   color: #f9fafb;
 }
