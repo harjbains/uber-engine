@@ -18,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.19";
+} from "./settings.js?v=2.3.20";
 
 const ids = {
   date: "day_date",
@@ -975,6 +975,18 @@ function renderWeekTitle(startIso, endIso, days = []) {
   `;
 }
 
+function updateWeekNavState() {
+  const atCurrentWeek = weekOffset >= 0;
+  const onCurrentWeek = weekOffset === 0;
+
+  [el(ids.nextWeek), el(ids.targetNextWeek)].forEach((button) => {
+    if (button) button.disabled = atCurrentWeek;
+  });
+
+  const thisWeekButton = el(ids.thisWeek);
+  if (thisWeekButton) thisWeekButton.disabled = onCurrentWeek;
+}
+
 function populateWorkDateOptions() {
   const select = el(ids.date);
   if (!select) return;
@@ -1420,6 +1432,7 @@ async function fetchWeekDays() {
   const range = getSelectedWeekRange();
   const { startIso, endIso } = range;
   currentWeekRange = range;
+  updateWeekNavState();
   initialiseWeeklyTarget(range);
 
   const settings = getSettings();

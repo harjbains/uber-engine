@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.19">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.20">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -46,7 +46,9 @@
         <div class="target-plan-grid">
           <div class="field">
             <div class="target-gross-nav">
-              <button id="target_prev_week" type="button" aria-label="Previous week's target">&lt;&lt;</button>
+              <button id="target_prev_week" class="icon-nav-button" type="button" aria-label="Previous week's target">
+                <span aria-hidden="true">&lsaquo;</span>
+              </button>
               <div class="target-input-pair">
                 <div>
                   <label for="weekly_target">Target (&pound;)</label>
@@ -57,7 +59,9 @@
                   <input id="daily_hours_target" type="number" min="0" step="0.1" inputmode="decimal" placeholder="7.0">
                 </div>
               </div>
-              <button id="target_next_week" type="button" aria-label="Next week's target">&gt;&gt;</button>
+              <button id="target_next_week" class="icon-nav-button" type="button" aria-label="Next week's target">
+                <span aria-hidden="true">&rsaquo;</span>
+              </button>
             </div>
           </div>
 
@@ -147,9 +151,13 @@
         <div class="week-header">
           <h3 id="week_title">Week to Date</h3>
           <div class="week-nav">
-            <button id="prev_week" type="button">Prev Week</button>
-            <button id="this_week" type="button">This Week</button>
-            <button id="next_week" type="button">Next Week</button>
+            <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
+              <span aria-hidden="true">&lsaquo;</span>
+            </button>
+            <button id="this_week" class="week-nav__button" type="button">Today</button>
+            <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
+              <span aria-hidden="true">&rsaquo;</span>
+            </button>
           </div>
         </div>
 
@@ -517,7 +525,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.19"></script>
+  <script type="module" src="js/app.js?v=2.3.20"></script>
 </body>
 
 </html>
