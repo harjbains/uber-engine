@@ -8,6 +8,7 @@ import {
   getDailyInsuranceEstimate,
   getDailyHoursTargetDefault,
   getDynamicUpliftPercent,
+  getEvEfficiencyMilesPerKwh,
   getFallbackFuelPrice,
   getFuelType,
   getMpg,
@@ -17,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.15";
+} from "./settings.js?v=2.3.16";
 
 const ids = {
   date: "day_date",
@@ -1048,6 +1049,18 @@ function vehicleEnergyLabel(settings = getSettings()) {
   return getFuelType(settings) === "ev" ? "Charging" : "Fuel Est.";
 }
 
+function formatPercent(value, dp = 0) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "-";
+  return `${n.toFixed(dp)}%`;
+}
+
+function getProfitSegmentPercent(value, denominator) {
+  const safeDenominator = Number(denominator || 0);
+  if (safeDenominator <= 0) return 0;
+  return Math.max(0, (Number(value || 0) / safeDenominator) * 100);
+}
+
 function buildSessionMetrics(day, pricePerLitre, settings = getSettings()) {
   const gross = Number(day.gross || 0);
   const miles = Number(day.business_miles || 0);
@@ -1068,10 +1081,33 @@ function buildSessionMetrics(day, pricePerLitre, settings = getSettings()) {
   };
 }
 
-function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargingTotals = null) {
+function getEfficiencyLabel(totals, pricePerLitre, settings, chargingTotals) {
+  const fuelType = getFuelType(settings);
+  const miles = Number(totals.miles || 0);
+
+  if (fuelType === "ev") {
+    const kwh = Number(chargingTotals?.kwh || 0);
+    if (miles > 0 && kwh > 0) {
+      return `${formatNumber(miles / kwh, 1)} mi/kWh`;
+    }
+    return `${formatNumber(getEvEfficiencyMilesPerKwh(settings), 1)} mi/kWh`;
+  }
+
+  const safePrice = Number(pricePerLitre || 0);
+  const fuelCost = Number(totals.estimatedFuel || 0);
+  if (miles > 0 && fuelCost > 0 && safePrice > 0) {
+    const litres = fuelCost / safePrice;
+    const mpg = litres > 0 ? miles / (litres / LITRES_PER_UK_GALLON) : getMpg(settings);
+    return `${formatNumber(mpg, 1)} mpg est.`;
+  }
+
+  return `${formatNumber(getMpg(settings), 1)} mpg`;
+}
+
+function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargingTotals = null, expenses = []) {
   const container = el(ids.weekSummary);
   if (!container) return;
-  container.className = "summary-grid day-finance-grid";
+  container.className = "profit-summary";
   const energyLabel = vehicleEnergyLabel(settings);
   const isEv = getFuelType(settings) === "ev";
 
@@ -1082,6 +1118,7 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
     acc.miles += m.miles;
     acc.hours += Number(day.hours_worked || 0);
     acc.estimatedFuel += m.estimatedFuel;
+    acc.insurance += m.insurance;
     acc.tax += m.tax;
     acc.trueRetained += m.trueRetained;
     return acc;
@@ -1091,6 +1128,7 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
     miles: 0,
     hours: 0,
     estimatedFuel: 0,
+    insurance: 0,
     tax: 0,
     trueRetained: 0
   });
@@ -1100,34 +1138,96 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
     totals.trueRetained -= chargingTotals.cost;
   }
 
+  totals.expenses = (expenses || []).reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+  totals.trueRetained -= totals.expenses;
+
+  const deductions = [
+    { label: energyLabel, value: totals.estimatedFuel, className: "profit-bar__segment--fuel" },
+    { label: "Insurance", value: totals.insurance, className: "profit-bar__segment--insurance" },
+    { label: "Expenses", value: totals.expenses, className: "profit-bar__segment--expenses" },
+    { label: "Tax", value: totals.tax, className: "profit-bar__segment--tax" }
+  ];
+  const retained = Math.max(0, totals.trueRetained);
+  const deductionTotal = deductions.reduce((sum, item) => sum + Math.max(0, item.value), 0);
+  const barTotal = Math.max(totals.gross, deductionTotal + retained, 1);
+  const grossHourly = totals.hours > 0 ? totals.gross / totals.hours : 0;
+  const netHourly = totals.hours > 0 ? totals.trueRetained / totals.hours : 0;
+  const costPerMile = totals.miles > 0 ? deductionTotal / totals.miles : 0;
+  const grossPerMile = totals.miles > 0 ? totals.gross / totals.miles : 0;
+  const retainedPercent = totals.gross > 0 ? (totals.trueRetained / totals.gross) * 100 : 0;
+  const efficiencyLabel = getEfficiencyLabel(totals, pricePerLitre, settings, chargingTotals);
+  const netHourlyClass = netHourly >= 0 ? "" : " profit-metric--warning";
+
   container.innerHTML = `
-    <div class="summary-card day-finance-card day-finance-card--third">
-      <div class="summary-label">Gross</div>
-      <div class="summary-value">${formatMoney(totals.gross)}</div>
+    <div class="profit-summary__header">
+      <div>
+        <div class="profit-summary__label">Net Profit</div>
+        <div class="profit-summary__value">${formatMoney(totals.trueRetained)}</div>
+      </div>
+      <div class="profit-summary__meta">
+        ${formatPercent(retainedPercent, 0)} retained<br>${formatMoney(totals.gross)} gross
+      </div>
     </div>
-    <div class="summary-card day-finance-card day-finance-card--third">
-      <div class="summary-label">Miles</div>
-      <div class="summary-value">${formatNumber(totals.miles, 1)}</div>
+
+    <div class="profit-bar" aria-label="Weekly gross breakdown">
+      ${deductions.map((item) => `
+        <div
+          class="profit-bar__segment ${item.className}"
+          style="width: ${getProfitSegmentPercent(item.value, barTotal)}%"
+          title="${escapeHtml(item.label)}: ${escapeHtml(formatMoney(item.value))}"
+        ></div>
+      `).join("")}
+      <div
+        class="profit-bar__segment profit-bar__segment--retained"
+        style="width: ${getProfitSegmentPercent(retained, barTotal)}%"
+        title="True retained: ${escapeHtml(formatMoney(totals.trueRetained))}"
+      ></div>
     </div>
-    <div class="summary-card day-finance-card day-finance-card--third">
-      <div class="summary-label">Hours</div>
-      <div class="summary-value">${formatClockHours(totals.hours)}</div>
+
+    <div class="profit-legend">
+      ${deductions.map((item) => `
+        <div class="profit-legend__item">
+          <span class="profit-legend__swatch ${item.className}"></span>
+          <span>${escapeHtml(item.label)}</span>
+          <strong>${formatMoney(item.value)}</strong>
+        </div>
+      `).join("")}
+      <div class="profit-legend__item">
+        <span class="profit-legend__swatch profit-bar__segment--retained"></span>
+        <span>Net</span>
+        <strong>${formatMoney(totals.trueRetained)}</strong>
+      </div>
     </div>
-    <div class="summary-card day-finance-card day-finance-card--third">
-      <div class="summary-label">Per Hour</div>
-      <div class="summary-value">${formatMoney(totals.hours > 0 ? totals.gross / totals.hours : 0)}</div>
-    </div>
-    <div class="summary-card day-finance-card day-finance-card--half">
-      <div class="summary-label">${energyLabel}</div>
-      <div class="summary-value">${formatMoney(totals.estimatedFuel)}</div>
-    </div>
-    <div class="summary-card day-finance-card day-finance-card--half">
-      <div class="summary-label">Tax</div>
-      <div class="summary-value">${formatMoney(totals.tax)}</div>
-    </div>
-    <div class="summary-card day-finance-card day-finance-card--half">
-      <div class="summary-label">True Retained</div>
-      <div class="summary-value">${formatMoney(totals.trueRetained)}</div>
+
+    <div class="profit-metrics">
+      <div class="profit-metric${netHourlyClass}">
+        <span>Net/hr</span>
+        <strong>${formatMoney(netHourly)}</strong>
+      </div>
+      <div class="profit-metric">
+        <span>Gross/hr</span>
+        <strong>${formatMoney(grossHourly)}</strong>
+      </div>
+      <div class="profit-metric">
+        <span>Hours</span>
+        <strong>${formatClockHours(totals.hours)}</strong>
+      </div>
+      <div class="profit-metric">
+        <span>Miles</span>
+        <strong>${formatNumber(totals.miles, 1)}</strong>
+      </div>
+      <div class="profit-metric">
+        <span>Gross/mi</span>
+        <strong>${formatMoney(grossPerMile)}</strong>
+      </div>
+      <div class="profit-metric">
+        <span>Cost/mi</span>
+        <strong>${formatMoney(costPerMile)}</strong>
+      </div>
+      <div class="profit-metric">
+        <span>Efficiency</span>
+        <strong>${escapeHtml(efficiencyLabel)}</strong>
+      </div>
     </div>
   `;
 }
@@ -1265,6 +1365,7 @@ async function fetchWeekDays() {
   const [
     { data: days, error },
     { data: historicalDays, error: historicalError },
+    { data: expenses, error: expensesError },
     pricePerLitre,
     chargingTotals
   ] = await Promise.all([
@@ -1281,6 +1382,11 @@ async function fetchWeekDays() {
       .gte("date", historyStartIso)
       .lt("date", startIso)
       .order("date", { ascending: false }),
+    supabaseClient
+      .from("expenses")
+      .select("amount")
+      .gte("date", startIso)
+      .lte("date", endIso),
     fuelPricePromise,
     chargingTotalsPromise
   ]);
@@ -1289,13 +1395,17 @@ async function fetchWeekDays() {
     console.warn("Unable to load historical weekday forecast data:", historicalError);
   }
 
+  if (expensesError) {
+    console.warn("Unable to load weekly expenses for profitability summary:", expensesError);
+  }
+
   if (error) {
     console.error("Error loading week sessions:", error);
     showStatus("Unable to load worked sessions.", "error", false);
     currentWeekDays = [];
     currentHistoricalDays = [];
     renderWeeklyTarget(currentWeekDays);
-    renderWeekSummary([], pricePerLitre, settings, chargingTotals);
+    renderWeekSummary([], pricePerLitre, settings, chargingTotals, []);
     renderDayHistory([], pricePerLitre, settings);
     return [];
   }
@@ -1304,7 +1414,7 @@ async function fetchWeekDays() {
   currentHistoricalDays = historicalDays || [];
   currentWeekDays = rows;
   renderWeeklyTarget(rows);
-  renderWeekSummary(rows, pricePerLitre, settings, chargingTotals);
+  renderWeekSummary(rows, pricePerLitre, settings, chargingTotals, expenses || []);
   renderDayHistory(rows, pricePerLitre, settings);
   return rows;
 }

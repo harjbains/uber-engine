@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.15";
+export const VERSION = "v2.3.16";
 
 export const RELEASE_NOTES = {
+  "2.3.16": "Weekly summary now shows a profitability bar with net hourly and cost metrics",
   "2.3.15": "Petrol fuel logging is restored and same-day miles are checked before saving",
   "2.3.14": "Friday and Saturday now carry higher weighted hours and cash targets",
   "2.3.13": "Hours remaining now subtracts hours already worked today before rebalancing future days",

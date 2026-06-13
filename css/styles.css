@@ -1109,6 +1109,157 @@ input[type="date"] {
   grid-column: span 3;
 }
 
+.profit-summary {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.profit-summary__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.profit-summary__label {
+  margin-bottom: 2px;
+  color: #53657d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.profit-summary__value {
+  font-size: 23px;
+  font-weight: 800;
+  line-height: 1.05;
+}
+
+.profit-summary__meta {
+  color: #53657d;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.profit-bar {
+  display: flex;
+  width: 100%;
+  height: 22px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #e5e7eb;
+}
+
+.profit-bar__segment {
+  min-width: 0;
+  height: 100%;
+}
+
+.profit-bar__segment--fuel {
+  background: #2563eb;
+}
+
+.profit-bar__segment--insurance {
+  background: #7c3aed;
+}
+
+.profit-bar__segment--expenses {
+  background: #f59e0b;
+}
+
+.profit-bar__segment--tax {
+  background: #dc2626;
+}
+
+.profit-bar__segment--retained {
+  background: #059669;
+}
+
+.profit-legend {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 10px;
+}
+
+.profit-legend__item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+  color: #53657d;
+  font-size: 11px;
+  line-height: 1.15;
+}
+
+.profit-legend__item span:not(.profit-legend__swatch) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profit-legend__item strong {
+  color: #111827;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.profit-legend__swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.profit-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.profit-metric {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 38px;
+  padding: 8px 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.profit-metric span {
+  display: block;
+  color: #53657d;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.profit-metric strong {
+  display: block;
+  flex: 0 0 auto;
+  font-size: 14px;
+  line-height: 1.1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.profit-metric--warning {
+  border-color: #fecaca;
+  background: #fff1f2;
+}
+
 .summary-label {
   font-size: 12px;
   color: #6b7280;
@@ -1138,6 +1289,19 @@ input[type="date"] {
   .history-item--third,
   .history-item--half {
     grid-column: 1 / -1;
+  }
+
+  .profit-summary__header {
+    display: grid;
+  }
+
+  .profit-summary__meta {
+    text-align: left;
+  }
+
+  .profit-legend,
+  .profit-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .target-week-days {
