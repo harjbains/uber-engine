@@ -17,7 +17,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.14";
+} from "./settings.js?v=2.3.15";
 
 const ids = {
   date: "day_date",
@@ -950,29 +950,41 @@ function readWorkedHoursInput() {
   return hours + (minutes / 60);
 }
 
-function getExistingGrossForDate(dateString) {
-  if (!dateString) return 0;
+async function getSavedDayTotalsForDate(dateString) {
+  if (!dateString) {
+    return {
+      gross: 0,
+      businessMiles: 0
+    };
+  }
 
-  return currentWeekDays
-    .filter((day) => day.date === dateString)
-    .reduce((sum, day) => sum + Number(day.gross || 0), 0);
+  const { data, error } = await supabaseClient
+    .from("days")
+    .select("gross,business_miles")
+    .eq("date", dateString);
+
+  if (error) {
+    console.error("Error loading saved session totals:", error);
+    throw new Error("Unable to check existing sessions for this date.");
+  }
+
+  return (data || []).reduce((totals, day) => ({
+    gross: totals.gross + Number(day.gross || 0),
+    businessMiles: totals.businessMiles + Number(day.business_miles || 0)
+  }), {
+    gross: 0,
+    businessMiles: 0
+  });
 }
 
-function getExistingMilesForDate(dateString) {
-  if (!dateString) return 0;
-
-  return currentWeekDays
-    .filter((day) => day.date === dateString)
-    .reduce((sum, day) => sum + Number(day.business_miles || 0), 0);
-}
-
-function buildDayPayload() {
+async function buildDayPayload() {
   const date = el(ids.date)?.value?.trim() || "";
   const uberDayTotal = toNumber(el(ids.gross)?.value) ?? 0;
-  const existingGross = getExistingGrossForDate(date);
+  const savedTotals = await getSavedDayTotalsForDate(date);
+  const existingGross = savedTotals.gross;
   const sessionGross = Math.max(0, uberDayTotal - existingGross);
   const businessMilesDayTotal = toNumber(el(ids.miles)?.value) ?? 0;
-  const existingMiles = getExistingMilesForDate(date);
+  const existingMiles = savedTotals.businessMiles;
   const sessionMiles = Math.max(0, businessMilesDayTotal - existingMiles);
 
   return {
@@ -1329,7 +1341,7 @@ export async function saveDay() {
 
     showStatus("Saving session...", "info", false);
 
-    const payload = buildDayPayload();
+    const payload = await buildDayPayload();
     const validationError = validateDay(payload);
 
     if (validationError) {

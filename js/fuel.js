@@ -1,10 +1,26 @@
 import { supabaseClient } from "./supabase.js";
+import { sendToGoogleSheets, buildFuelSheetPayload } from "./googleSheets.js";
 import { showStatus } from "./status.js";
+import { getFuelType, getSettings, SETTINGS_UPDATED_EVENT } from "./settings.js";
 
 const CHARGING_TABLE = "charging_sessions";
 const WEEKLY_CHARGER_NAME = "Ohme Weekly Summary";
+const DEFAULT_STATION = "Total Energies Dudley Road";
 
-const ids = {
+const fuelIds = {
+  panel: "petrol_fuel_panel",
+  toggle: "vehicle_cost_toggle",
+  date: "fuel_date",
+  litres: "fuel_litres",
+  cost: "fuel_cost",
+  miles: "fuel_miles",
+  saveBtn: "save_fuel",
+  list: "fuel_history"
+};
+
+const chargingIds = {
+  panel: "ev_charging_panel",
+  toggle: "vehicle_cost_toggle",
   weekStart: "charging_week_start",
   totalKwh: "charging_total_kwh",
   totalCost: "charging_total_cost",
@@ -17,6 +33,9 @@ const ids = {
   list: "charging_history"
 };
 
+const ids = chargingIds;
+
+let currentFuelLogs = [];
 let currentChargingWeeks = [];
 
 function el(id) {
@@ -101,6 +120,107 @@ function formatWeekLabel(weekStart) {
 function setDefaultWeekStart() {
   const input = el(ids.weekStart);
   if (input && !input.value) input.value = dateToIso(startOfWeek());
+}
+
+function todayIso() {
+  return dateToIso(new Date());
+}
+
+function setDefaultFuelDate() {
+  const date = el(fuelIds.date);
+  if (date && !date.value) date.value = todayIso();
+}
+
+function getPricePerLitre(item) {
+  const litres = Number(item?.litres || 0);
+  const cost = Number(item?.cost || 0);
+
+  if (!Number.isFinite(litres) || litres <= 0) return null;
+  if (!Number.isFinite(cost) || cost <= 0) return null;
+
+  return cost / litres;
+}
+
+function buildFuelPayload() {
+  return {
+    date: el(fuelIds.date)?.value?.trim() || "",
+    station: DEFAULT_STATION,
+    litres: toNumber(el(fuelIds.litres)?.value),
+    cost: toNumber(el(fuelIds.cost)?.value),
+    miles: toNumber(el(fuelIds.miles)?.value)
+  };
+}
+
+function validateFuel(payload) {
+  if (!payload.date) return "Please enter a fuel date.";
+  if (payload.litres === null) return "Please enter litres.";
+  if (payload.cost === null) return "Please enter fuel cost.";
+  return null;
+}
+
+function clearFuelForm() {
+  [fuelIds.litres, fuelIds.cost, fuelIds.miles].forEach((id) => {
+    const node = el(id);
+    if (node) node.value = "";
+  });
+
+  setDefaultFuelDate();
+}
+
+function renderFuelHistory(items) {
+  const container = el(fuelIds.list);
+  if (!container) return;
+
+  if (!Array.isArray(items) || items.length === 0) {
+    container.innerHTML = `<div class="history-empty">No fuel logs saved yet.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="history-grid">
+      ${items.map((item) => {
+        const pricePerLitre = getPricePerLitre(item);
+
+        return `
+          <div class="history-card">
+            <div class="history-card__header">
+              <div class="history-card__title">${escapeHtml(formatDateLabel(item.date))}</div>
+              <div class="history-card__actions">
+                <div class="history-card__pill">Fuel</div>
+                <button
+                  type="button"
+                  class="history-card__delete"
+                  data-delete-fuel="${escapeHtml(item.id)}"
+                  aria-label="Delete fuel log for ${escapeHtml(formatDateLabel(item.date))}"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+
+            <div class="history-card__grid history-card__grid--3x2">
+              <div class="history-item">
+                <span class="history-item__label">Litres</span>
+                <span class="history-item__value">${escapeHtml(item.litres ?? "-")}</span>
+              </div>
+              <div class="history-item">
+                <span class="history-item__label">Cost</span>
+                <span class="history-item__value history-item__value--strong">${escapeHtml(formatMoney(item.cost))}</span>
+              </div>
+              <div class="history-item">
+                <span class="history-item__label">Miles</span>
+                <span class="history-item__value">${escapeHtml(item.miles ?? "-")}</span>
+              </div>
+              <div class="history-item">
+                <span class="history-item__label">Price / L</span>
+                <span class="history-item__value">${pricePerLitre ? escapeHtml(formatMoney(pricePerLitre)) : "-"}</span>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
 }
 
 function buildWeeklyChargingPayload() {
@@ -377,6 +497,39 @@ export async function getChargingTotalsForRange(startIso, endIso) {
   return buildChargingTotals(rows);
 }
 
+async function deleteFuelLog(logId, button) {
+  const item = currentFuelLogs.find((log) => String(log.id) === String(logId));
+  const label = item ? `${formatDateLabel(item.date)} (${formatMoney(item.cost)})` : "this fuel log";
+
+  if (!window.confirm(`Delete ${label}?`)) return;
+
+  try {
+    if (button) button.disabled = true;
+    showStatus("Deleting fuel log...", "info", false);
+
+    const { error } = await supabaseClient
+      .from("fuel_logs")
+      .delete()
+      .eq("id", logId);
+
+    if (error) {
+      console.error("Error deleting fuel log:", error);
+      showStatus(`Failed to delete fuel log: ${error.message}`, "error", false);
+      return;
+    }
+
+    showStatus("Fuel log deleted.", "success");
+    await loadFuelLogs();
+    const { loadMonthSummary } = await import("./monthly.js");
+    await loadMonthSummary();
+  } catch (err) {
+    console.error("Unexpected fuel delete error:", err);
+    showStatus("Unexpected error while deleting fuel log.", "error", false);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
 export async function getRecentFuelLogs(limit = 3) {
   const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : 3;
 
@@ -418,6 +571,73 @@ export async function getRollingFuelPricePerLitre(limit = 3, fallback = 1.70) {
   if (totals.totalLitres <= 0) return fallback;
 
   return totals.totalCost / totals.totalLitres;
+}
+
+export async function loadFuelLogs() {
+  const { data, error } = await supabaseClient
+    .from("fuel_logs")
+    .select("*")
+    .order("date", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error loading fuel logs:", error);
+    showStatus("Unable to load fuel logs.", "error", false);
+    return [];
+  }
+
+  currentFuelLogs = data || [];
+  renderFuelHistory(currentFuelLogs);
+  return currentFuelLogs;
+}
+
+export async function saveFuel() {
+  const saveBtn = el(fuelIds.saveBtn);
+
+  try {
+    if (saveBtn) saveBtn.disabled = true;
+    showStatus("Saving fuel log...", "info", false);
+
+    const payload = buildFuelPayload();
+    const validationError = validateFuel(payload);
+    if (validationError) {
+      showStatus(validationError, "error");
+      return;
+    }
+
+    const { data, error } = await supabaseClient
+      .from("fuel_logs")
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error saving fuel log:", error);
+      showStatus(`Failed to save fuel log: ${error.message}`, "error", false);
+      return;
+    }
+
+    try {
+      const sheetPayload = buildFuelSheetPayload(data);
+      await sendToGoogleSheets("fuel", sheetPayload);
+      showStatus("Fuel log saved and synced successfully.", "success");
+    } catch (syncError) {
+      console.error("Google Sheets fuel sync failed:", syncError);
+      showStatus("Fuel log saved, but Google Sheets sync failed.", "error", false);
+    }
+
+    clearFuelForm();
+    await loadFuelLogs();
+    const { loadWeekDays } = await import("./days.js");
+    const { loadMonthSummary } = await import("./monthly.js");
+    await loadWeekDays();
+    await loadMonthSummary();
+  } catch (err) {
+    console.error("Unexpected fuel save error:", err);
+    showStatus("Unexpected error while saving fuel log.", "error", false);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
 }
 
 export async function loadChargingSummaries() {
@@ -528,10 +748,42 @@ function bindChargingEvents() {
   });
 }
 
+function bindFuelEvents() {
+  el(fuelIds.saveBtn)?.addEventListener("click", saveFuel);
+  el(fuelIds.list)?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-delete-fuel]");
+    if (!button) return;
+
+    await deleteFuelLog(button.dataset.deleteFuel, button);
+  });
+}
+
+function updateVehicleCostPanel() {
+  const isEv = getFuelType(getSettings()) === "ev";
+  const fuelPanel = el(fuelIds.panel);
+  const chargingPanel = el(chargingIds.panel);
+  const toggle = el(fuelIds.toggle);
+
+  fuelPanel?.toggleAttribute("hidden", isEv);
+  chargingPanel?.toggleAttribute("hidden", !isEv);
+  if (toggle) toggle.textContent = isEv ? "Charging" : "Fuel";
+
+  if (isEv) {
+    setDefaultWeekStart();
+    loadChargingSummaries();
+  } else {
+    setDefaultFuelDate();
+    loadFuelLogs();
+  }
+}
+
 export function initFuel() {
+  setDefaultFuelDate();
   setDefaultWeekStart();
+  bindFuelEvents();
   bindChargingEvents();
-  loadChargingSummaries();
+  updateVehicleCostPanel();
+  window.addEventListener(SETTINGS_UPDATED_EVENT, updateVehicleCostPanel);
 }
 
 export const initCharging = initFuel;
