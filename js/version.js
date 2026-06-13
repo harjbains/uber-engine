@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.27";
+export const VERSION = "v2.3.28";
 
 export const RELEASE_NOTES = {
+  "2.3.28": "Day dashboard carousel now glides between slides",
   "2.3.27": "Day dashboard carousel now supports swipe navigation on mobile",
   "2.3.26": "Day dashboard now uses carousel slides with compact weekly target controls",
   "2.3.25": "Day sections reordered with today remaining separated from weekly progress",

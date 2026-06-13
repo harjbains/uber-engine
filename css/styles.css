@@ -635,16 +635,33 @@ input[type="date"] {
   touch-action: pan-y;
 }
 
-.dashboard-carousel__slides {
+.dashboard-carousel__viewport {
   min-width: 0;
+  overflow: hidden;
+  border-radius: 10px;
 }
 
-.dashboard-slide[hidden] {
-  display: none;
+.dashboard-carousel__slides {
+  display: flex;
+  min-width: 0;
+  transition: transform 280ms ease;
+  will-change: transform;
+}
+
+.dashboard-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  padding: 1px 2px 4px;
 }
 
 .dashboard-carousel .card {
   margin-bottom: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-carousel__slides {
+    transition: none;
+  }
 }
 
 .dashboard-carousel__pager {

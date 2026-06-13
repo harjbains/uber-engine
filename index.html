@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.27">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.28">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -36,104 +36,107 @@
     <div id="day_tab" class="tab-content active">
 
       <section class="dashboard-carousel" aria-label="Day dashboard">
-        <div class="dashboard-carousel__slides">
-          <div class="dashboard-slide active" data-dashboard-slide="0">
-            <div class="card">
-              <div class="week-header">
-                <h3 id="week_title">Week to Date</h3>
-                <div class="week-nav">
-                  <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
-                    <span aria-hidden="true">&lsaquo;</span>
-                  </button>
-                  <button id="this_week" class="week-nav__button" type="button">Today</button>
-                  <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
-                    <span aria-hidden="true">&rsaquo;</span>
-                  </button>
-                </div>
-              </div>
-
-              <div id="week_summary" class="summary-grid"></div>
-            </div>
-          </div>
-
-          <div class="dashboard-slide" data-dashboard-slide="1" hidden>
-            <div class="card target-card">
-              <div class="target-card__header">
-                <div>
-                  <h2>Weekly Target</h2>
-                  <p id="target_status" class="target-status">Set a target to track this week.</p>
-                </div>
-              </div>
-
-              <div class="target-plan-grid">
-                <div class="field">
-                  <div class="target-gross-nav">
-                    <button id="target_prev_week" class="icon-nav-button" type="button" aria-label="Previous week's target">
+        <div class="dashboard-carousel__viewport">
+          <div class="dashboard-carousel__slides">
+            <div class="dashboard-slide active" data-dashboard-slide="0" aria-hidden="false">
+              <div class="card">
+                <div class="week-header">
+                  <h3 id="week_title">Week to Date</h3>
+                  <div class="week-nav">
+                    <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
                       <span aria-hidden="true">&lsaquo;</span>
                     </button>
-                    <div class="target-input-pair">
-                      <div>
-                        <label for="weekly_target">Target (&pound;)</label>
-                        <input id="weekly_target" type="number" min="0" step="0.01" inputmode="decimal" placeholder="910">
-                      </div>
-                      <div>
-                        <label for="daily_hours_target">Daily Hours</label>
-                        <input id="daily_hours_target" type="number" min="0" step="0.1" inputmode="decimal" placeholder="7.0">
-                      </div>
-                    </div>
-                    <button id="target_next_week" class="icon-nav-button" type="button" aria-label="Next week's target">
+                    <button id="this_week" class="week-nav__button" type="button">Today</button>
+                    <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
                       <span aria-hidden="true">&rsaquo;</span>
                     </button>
                   </div>
                 </div>
 
-                <div class="field">
-                  <label>Planned Work Days</label>
-                  <div id="target_workdays" class="target-workdays" aria-label="Planned work days">
-                    <label class="target-day-toggle">
-                      <input type="checkbox" checked disabled>
-                      <span>Mon</span>
-                    </label>
-                    <label class="target-day-toggle">
-                      <input type="checkbox" checked disabled>
-                      <span>Tue</span>
-                    </label>
-                    <label class="target-day-toggle">
-                      <input type="checkbox" checked disabled>
-                      <span>Wed</span>
-                    </label>
-                    <label class="target-day-toggle">
-                      <input type="checkbox" checked disabled>
-                      <span>Thu</span>
-                    </label>
-                    <label class="target-day-toggle">
-                      <input type="checkbox" checked disabled>
-                      <span>Fri</span>
-                    </label>
-                    <label class="target-day-toggle">
-                      <input type="checkbox" checked disabled>
-                      <span>Sat</span>
-                    </label>
-                    <label class="target-day-toggle">
-                      <input type="checkbox" disabled>
-                      <span>Sun</span>
-                    </label>
+                <div id="week_summary" class="summary-grid"></div>
+              </div>
+            </div>
+
+            <div class="dashboard-slide" data-dashboard-slide="1" aria-hidden="true">
+              <div class="card target-card">
+                <div class="target-card__header">
+                  <div>
+                    <h2>Weekly Target</h2>
+                    <p id="target_status" class="target-status">Set a target to track this week.</p>
                   </div>
                 </div>
+
+                <div class="target-plan-grid">
+                  <div class="field">
+                    <div class="target-gross-nav">
+                      <button id="target_prev_week" class="icon-nav-button" type="button" aria-label="Previous week's target">
+                        <span aria-hidden="true">&lsaquo;</span>
+                      </button>
+                      <div class="target-input-pair">
+                        <div>
+                          <label for="weekly_target">Target (&pound;)</label>
+                          <input id="weekly_target" type="number" min="0" step="0.01" inputmode="decimal" placeholder="910">
+                        </div>
+                        <div>
+                          <label for="daily_hours_target">Daily Hours</label>
+                          <input id="daily_hours_target" type="number" min="0" step="0.1" inputmode="decimal" placeholder="7.0">
+                        </div>
+                      </div>
+                      <button id="target_next_week" class="icon-nav-button" type="button" aria-label="Next week's target">
+                        <span aria-hidden="true">&rsaquo;</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div class="field">
+                    <label>Planned Work Days</label>
+                    <div id="target_workdays" class="target-workdays" aria-label="Planned work days">
+                      <label class="target-day-toggle">
+                        <input type="checkbox" checked disabled>
+                        <span>Mon</span>
+                      </label>
+                      <label class="target-day-toggle">
+                        <input type="checkbox" checked disabled>
+                        <span>Tue</span>
+                      </label>
+                      <label class="target-day-toggle">
+                        <input type="checkbox" checked disabled>
+                        <span>Wed</span>
+                      </label>
+                      <label class="target-day-toggle">
+                        <input type="checkbox" checked disabled>
+                        <span>Thu</span>
+                      </label>
+                      <label class="target-day-toggle">
+                        <input type="checkbox" checked disabled>
+                        <span>Fri</span>
+                      </label>
+                      <label class="target-day-toggle">
+                        <input type="checkbox" checked disabled>
+                        <span>Sat</span>
+                      </label>
+                      <label class="target-day-toggle">
+                        <input type="checkbox" disabled>
+                        <span>Sun</span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="target_week_strip" class="target-week-strip" aria-label="Week so far"></div>
+
+                <div id="target_progress_summary" class="target-progress-grid"></div>
               </div>
+            </div>
 
-              <div id="target_week_strip" class="target-week-strip" aria-label="Week so far"></div>
-
-              <div id="target_progress_summary" class="target-progress-grid"></div>
+            <div class="dashboard-slide" data-dashboard-slide="2" aria-hidden="true">
+              <div class="card today-target-card">
+                <h2>Total Remaining</h2>
+                <div id="target_summary" class="target-summary-grid"></div>
+              </div>
             </div>
           </div>
-
-          <div class="dashboard-slide" data-dashboard-slide="2" hidden>
-            <div class="card today-target-card">
-              <h2>Total Remaining</h2>
-              <div id="target_summary" class="target-summary-grid"></div>
-            </div>
-          </div>
+        </div>
         </div>
 
         <div class="dashboard-carousel__pager" role="tablist" aria-label="Dashboard slides">
@@ -546,7 +549,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.27"></script>
+  <script type="module" src="js/app.js?v=2.3.28"></script>
 </body>
 
 </html>

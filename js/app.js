@@ -1,9 +1,9 @@
-import { initDays } from "./days.js?v=2.3.27";
-import { initMonthly } from "./monthly.js?v=2.3.27";
-import { initFuel } from "./fuel.js?v=2.3.27";
-import { initExpenses } from "./expenses.js?v=2.3.27";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.3.27";
-import { initSettings } from "./settings.js?v=2.3.27";
+import { initDays } from "./days.js?v=2.3.28";
+import { initMonthly } from "./monthly.js?v=2.3.28";
+import { initFuel } from "./fuel.js?v=2.3.28";
+import { initExpenses } from "./expenses.js?v=2.3.28";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.3.28";
+import { initSettings } from "./settings.js?v=2.3.28";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
@@ -41,9 +41,10 @@ function initCostToggle() {
 
 function initDashboardCarousel() {
   const carousel = document.querySelector(".dashboard-carousel");
+  const slideTrack = document.querySelector(".dashboard-carousel__slides");
   const slides = Array.from(document.querySelectorAll("[data-dashboard-slide]"));
   const dots = Array.from(document.querySelectorAll("[data-dashboard-dot]"));
-  if (!slides.length || !dots.length) return;
+  if (!slideTrack || !slides.length || !dots.length) return;
 
   let activeIndex = Math.max(0, slides.findIndex((slide) => slide.classList.contains("active")));
   let touchStartX = 0;
@@ -55,8 +56,11 @@ function initDashboardCarousel() {
     slides.forEach((slide, slideIndex) => {
       const active = slideIndex === activeIndex;
       slide.classList.toggle("active", active);
-      slide.toggleAttribute("hidden", !active);
+      slide.setAttribute("aria-hidden", String(!active));
+      if ("inert" in slide) slide.inert = !active;
     });
+
+    slideTrack.style.transform = `translateX(-${activeIndex * 100}%)`;
 
     dots.forEach((dot, dotIndex) => {
       const active = dotIndex === activeIndex;
@@ -74,6 +78,8 @@ function initDashboardCarousel() {
       showSlide(Number(dot.dataset.dashboardDot || 0));
     });
   });
+
+  showSlide(activeIndex);
 
   carousel?.addEventListener("touchstart", (event) => {
     const touch = event.changedTouches[0];
