@@ -18,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.17";
+} from "./settings.js?v=2.3.18";
 
 const ids = {
   date: "day_date",
@@ -906,6 +906,38 @@ function updateWeekTitle(startIso, endIso) {
   })}`;
 }
 
+function getWeekTitleText(startIso, endIso, days = []) {
+  if (weekOffset === 0) return "Week to Date";
+
+  const start = parseLocalDate(startIso);
+  const end = parseLocalDate(endIso);
+  const settings = readTargetSettings(startIso);
+  const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
+  const target = Number(settings.targetSnapshot || settings.target || 0);
+  const rangeText = `${start.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short"
+  })} - ${end.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short"
+  })}`;
+
+  if (target <= 0) return `${rangeText}: No target set`;
+
+  const difference = earned - target;
+  const tolerance = Math.max(10, target * 0.03);
+
+  if (difference >= tolerance) {
+    return `${rangeText}: ${formatMoney(difference)} over target`;
+  }
+
+  if (Math.abs(difference) < tolerance) {
+    return `${rangeText}: Target met`;
+  }
+
+  return `${rangeText}: ${formatMoney(Math.abs(difference))} short`;
+}
+
 function populateWorkDateOptions() {
   const select = el(ids.date);
   if (!select) return;
@@ -1351,7 +1383,6 @@ async function fetchWeekDays() {
   const range = getSelectedWeekRange();
   const { startIso, endIso } = range;
   currentWeekRange = range;
-  updateWeekTitle(startIso, endIso);
   initialiseWeeklyTarget(range);
 
   const settings = getSettings();
@@ -1405,6 +1436,7 @@ async function fetchWeekDays() {
     showStatus("Unable to load worked sessions.", "error", false);
     currentWeekDays = [];
     currentHistoricalDays = [];
+    updateWeekTitle(startIso, endIso);
     renderWeeklyTarget(currentWeekDays);
     renderWeekSummary([], pricePerLitre, settings, chargingTotals, []);
     renderDayHistory([], pricePerLitre, settings);
@@ -1414,6 +1446,8 @@ async function fetchWeekDays() {
   const rows = days || [];
   currentHistoricalDays = historicalDays || [];
   currentWeekDays = rows;
+  const titleNode = el(ids.weekTitle);
+  if (titleNode) titleNode.textContent = getWeekTitleText(startIso, endIso, rows);
   renderWeeklyTarget(rows);
   renderWeekSummary(rows, pricePerLitre, settings, chargingTotals, expenses || []);
   renderDayHistory(rows, pricePerLitre, settings);
