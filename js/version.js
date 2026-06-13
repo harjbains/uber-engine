@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.20";
+export const VERSION = "v2.3.21";
 
 export const RELEASE_NOTES = {
+  "2.3.21": "Weekly targets can sync to Supabase and the Day view is more compact",
   "2.3.20": "Week navigation controls are now compact graphic buttons",
   "2.3.19": "Past week target outcomes are colour coded with separated date and status text",
   "2.3.18": "Current week is labelled Week to Date and past weeks show target-relative outcomes",

@@ -18,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.20";
+} from "./settings.js?v=2.3.21";
 
 const ids = {
   date: "day_date",
@@ -46,6 +46,7 @@ const ids = {
 const WORK_DATE_OPTIONS_DAYS = 7;
 
 const LITRES_PER_UK_GALLON = 4.546;
+const WEEKLY_TARGETS_TABLE = "weekly_targets";
 const TARGET_STORAGE_PREFIX = "uberEngineWeeklyTarget";
 const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
 const HOURS_TARGET_DAYS_PER_WEEK = 7;
@@ -57,6 +58,7 @@ let weekOffset = 0;
 let currentWeekDays = [];
 let currentHistoricalDays = [];
 let currentWeekRange = null;
+let weeklyTargetsTableAvailable = true;
 
 function el(id) {
   return document.getElementById(id);
@@ -208,6 +210,47 @@ function targetStorageKey(startIso) {
   return `${TARGET_STORAGE_PREFIX}:${startIso}`;
 }
 
+function normaliseWorkDays(workDays, fallback = DEFAULT_TARGET_WORKDAYS) {
+  const values = Array.isArray(workDays)
+    ? workDays
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
+    : fallback;
+
+  return values.length ? [...new Set(values)] : [...fallback];
+}
+
+function targetSettingsFromDbRow(row) {
+  return {
+    target: row.target ?? getWeeklyTargetDefault(),
+    dailyHoursTarget: row.daily_hours_target ?? getDailyHoursTargetDefault(),
+    targetSnapshot: row.target_snapshot ?? null,
+    targetSnapshotMode: row.target_snapshot_mode || "",
+    targetIsCustom: row.target_is_custom === true,
+    hoursTargetIsCustom: row.hours_target_is_custom === true,
+    workDays: normaliseWorkDays(row.work_days)
+  };
+}
+
+function targetSettingsToDbRow(startIso, settings = {}) {
+  return {
+    week_start: startIso,
+    target: Number(settings.target || 0),
+    daily_hours_target: Number(settings.dailyHoursTarget || 0),
+    target_snapshot: toNumber(settings.targetSnapshot),
+    target_snapshot_mode: settings.targetSnapshotMode || null,
+    target_is_custom: settings.targetIsCustom === true,
+    hours_target_is_custom: settings.hoursTargetIsCustom === true,
+    work_days: normaliseWorkDays(settings.workDays),
+    updated_at: new Date().toISOString()
+  };
+}
+
+function isMissingWeeklyTargetsTable(error) {
+  const message = String(error?.message || error?.details || "");
+  return error?.code === "42P01" || message.includes(WEEKLY_TARGETS_TABLE);
+}
+
 function readTargetSettings(startIso) {
   const fallback = {
     target: getWeeklyTargetDefault(),
@@ -222,11 +265,7 @@ function readTargetSettings(startIso) {
     if (!raw) return fallback;
 
     const parsed = JSON.parse(raw);
-    const workDays = Array.isArray(parsed.workDays)
-      ? parsed.workDays
-          .map((value) => Number(value))
-          .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
-      : fallback.workDays;
+    const workDays = normaliseWorkDays(parsed.workDays, fallback.workDays);
 
     const storedTarget = parsed.target ?? fallback.target;
     const storedHoursTarget = parsed.dailyHoursTarget ?? fallback.dailyHoursTarget;
@@ -239,7 +278,7 @@ function readTargetSettings(startIso) {
       targetSnapshotMode: parsed.targetSnapshotMode || "",
       targetIsCustom: parsed.targetIsCustom === true,
       hoursTargetIsCustom: parsed.hoursTargetIsCustom === true,
-      workDays: workDays.length ? [...new Set(workDays)] : fallback.workDays
+      workDays
     };
   } catch (error) {
     console.warn("Unable to read weekly target settings:", error);
@@ -247,8 +286,65 @@ function readTargetSettings(startIso) {
   }
 }
 
-function saveTargetSettings(startIso, settings) {
+function writeTargetSettingsCache(startIso, settings) {
   localStorage.setItem(targetStorageKey(startIso), JSON.stringify(settings));
+}
+
+async function syncTargetSettingsToDb(startIso, settings) {
+  if (!weeklyTargetsTableAvailable || !startIso) return;
+
+  const { error } = await supabaseClient
+    .from(WEEKLY_TARGETS_TABLE)
+    .upsert(targetSettingsToDbRow(startIso, settings), { onConflict: "week_start" });
+
+  if (error) {
+    if (isMissingWeeklyTargetsTable(error)) {
+      weeklyTargetsTableAvailable = false;
+      console.warn("weekly_targets table is not available yet; target settings are cached locally.");
+      return;
+    }
+
+    console.error("Unable to save weekly target settings:", error);
+  }
+}
+
+function saveTargetSettings(startIso, settings) {
+  writeTargetSettingsCache(startIso, settings);
+  syncTargetSettingsToDb(startIso, settings);
+}
+
+async function loadTargetSettingsFromDb(startIso) {
+  if (!weeklyTargetsTableAvailable || !startIso) return readTargetSettings(startIso);
+
+  const { data, error } = await supabaseClient
+    .from(WEEKLY_TARGETS_TABLE)
+    .select("*")
+    .eq("week_start", startIso)
+    .maybeSingle();
+
+  if (error) {
+    if (isMissingWeeklyTargetsTable(error)) {
+      weeklyTargetsTableAvailable = false;
+      console.warn("weekly_targets table is not available yet; using local target cache.");
+      return readTargetSettings(startIso);
+    }
+
+    console.error("Unable to load weekly target settings:", error);
+    return readTargetSettings(startIso);
+  }
+
+  if (!data) {
+    const settings = readTargetSettings(startIso);
+    syncTargetSettingsToDb(startIso, {
+      ...readRawTargetSettings(startIso),
+      ...settings
+    });
+    return settings;
+  }
+
+  const settings = targetSettingsFromDbRow(data);
+  writeTargetSettingsCache(startIso, settings);
+  return readTargetSettings(startIso);
 }
 
 function updateTargetSettings(startIso, updates) {
@@ -273,8 +369,7 @@ function syncStoredTargetWithDefault(startIso, previousDefault, nextDefault) {
   if (!startIso) return;
 
   try {
-    const key = targetStorageKey(startIso);
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(targetStorageKey(startIso));
     if (!raw) return;
 
     const parsed = JSON.parse(raw);
@@ -289,7 +384,7 @@ function syncStoredTargetWithDefault(startIso, previousDefault, nextDefault) {
       target: nextDefault,
       targetIsCustom: false
     };
-    localStorage.setItem(key, JSON.stringify(nextSettings));
+    saveTargetSettings(startIso, nextSettings);
   } catch (error) {
     console.warn("Unable to sync weekly target default:", error);
   }
@@ -1433,6 +1528,7 @@ async function fetchWeekDays() {
   const { startIso, endIso } = range;
   currentWeekRange = range;
   updateWeekNavState();
+  await loadTargetSettingsFromDb(startIso);
   initialiseWeeklyTarget(range);
 
   const settings = getSettings();
