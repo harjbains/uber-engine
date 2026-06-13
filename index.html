@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.24">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.25">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -34,6 +34,23 @@
     <!-- ================= DAY TAB ================= -->
 
     <div id="day_tab" class="tab-content active">
+
+      <div class="card">
+        <div class="week-header">
+          <h3 id="week_title">Week to Date</h3>
+          <div class="week-nav">
+            <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
+              <span aria-hidden="true">&lsaquo;</span>
+            </button>
+            <button id="this_week" class="week-nav__button" type="button">Today</button>
+            <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
+              <span aria-hidden="true">&rsaquo;</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="week_summary" class="summary-grid"></div>
+      </div>
 
       <div class="card target-card">
         <div class="target-card__header">
@@ -102,6 +119,11 @@
 
         <div id="target_week_strip" class="target-week-strip" aria-label="Week so far"></div>
 
+        <div id="target_progress_summary" class="target-progress-grid"></div>
+      </div>
+
+      <div class="card today-target-card">
+        <h2>Today Remaining</h2>
         <div id="target_summary" class="target-summary-grid"></div>
       </div>
 
@@ -145,23 +167,6 @@
         </div>
 
         <button id="save_day" type="button" class="btn-primary">Save Session</button>
-      </div>
-
-      <div class="card">
-        <div class="week-header">
-          <h3 id="week_title">Week to Date</h3>
-          <div class="week-nav">
-            <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
-              <span aria-hidden="true">&lsaquo;</span>
-            </button>
-            <button id="this_week" class="week-nav__button" type="button">Today</button>
-            <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
-              <span aria-hidden="true">&rsaquo;</span>
-            </button>
-          </div>
-        </div>
-
-        <div id="week_summary" class="summary-grid"></div>
       </div>
 
       <details class="card history-accordion">
@@ -525,7 +530,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.24"></script>
+  <script type="module" src="js/app.js?v=2.3.25"></script>
 </body>
 
 </html>

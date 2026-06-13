@@ -18,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.24";
+} from "./settings.js?v=2.3.25";
 
 const ids = {
   date: "day_date",
@@ -34,6 +34,7 @@ const ids = {
   dailyHoursTarget: "daily_hours_target",
   targetWorkdays: "target_workdays",
   targetWeekStrip: "target_week_strip",
+  targetProgressSummary: "target_progress_summary",
   targetSummary: "target_summary",
   targetStatus: "target_status",
   targetPrevWeek: "target_prev_week",
@@ -851,10 +852,11 @@ function renderWeeklyTarget(days) {
   if (!currentWeekRange) return;
 
   const summaryNode = el(ids.targetSummary);
+  const progressNode = el(ids.targetProgressSummary);
   const statusNode = el(ids.targetStatus);
   const targetInput = el(ids.weeklyTarget);
   const dailyHoursTargetInput = el(ids.dailyHoursTarget);
-  if (!summaryNode || !statusNode || !targetInput || !dailyHoursTargetInput) return;
+  if (!summaryNode || !progressNode || !statusNode || !targetInput || !dailyHoursTargetInput) return;
 
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
@@ -889,7 +891,7 @@ function renderWeeklyTarget(days) {
   statusNode.textContent = summary.status;
   statusNode.className = summary.statusClass;
 
-  summaryNode.innerHTML = `
+  progressNode.innerHTML = `
     <div class="target-progress-panel">
       <div class="target-progress-meta">
         <span>${escapeHtml(summary.paceLabel)}</span>
@@ -914,6 +916,9 @@ function renderWeeklyTarget(days) {
         ${formatClockHours(summary.hoursWorked)} of ${formatClockHours(summary.weeklyHoursTarget)} hours target
       </div>
     </div>
+  `;
+
+  summaryNode.innerHTML = `
     <div class="target-summary-card target-summary-card--primary">
       <div class="summary-label">${escapeHtml(summary.dailyTargetLabel)}</div>
       <div class="summary-value">${formatMoney(summary.hasTodayTarget ? summary.todayTarget : summary.requiredPerDay)}</div>

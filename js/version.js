@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.24";
+export const VERSION = "v2.3.25";
 
 export const RELEASE_NOTES = {
+  "2.3.25": "Day sections reordered with today remaining separated from weekly progress",
   "2.3.24": "Target strip values now stay dark for better contrast",
   "2.3.23": "Previous week titles no longer truncate and session entry is more compact",
   "2.3.22": "Day view spacing tightened with stronger target borders and steadier week headings",

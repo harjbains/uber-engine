@@ -860,6 +860,7 @@ input[type="date"] {
   border-color: #cbd5e1;
 }
 
+.target-progress-grid,
 .target-summary-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -942,6 +943,15 @@ input[type="date"] {
   border-radius: 9px;
   padding: 7px 9px;
   background: #ffffff;
+}
+
+.today-target-card {
+  padding-top: 12px;
+}
+
+.today-target-card h2 {
+  margin-bottom: 9px;
+  font-size: 18px;
 }
 
 .target-summary-card--primary {
