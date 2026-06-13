@@ -18,7 +18,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.16";
+} from "./settings.js?v=2.3.17";
 
 const ids = {
   date: "day_date",
@@ -1098,7 +1098,7 @@ function getEfficiencyLabel(totals, pricePerLitre, settings, chargingTotals) {
   if (miles > 0 && fuelCost > 0 && safePrice > 0) {
     const litres = fuelCost / safePrice;
     const mpg = litres > 0 ? miles / (litres / LITRES_PER_UK_GALLON) : getMpg(settings);
-    return `${formatNumber(mpg, 1)} mpg est.`;
+    return `${formatNumber(mpg, 1)} mpg`;
   }
 
   return `${formatNumber(getMpg(settings), 1)} mpg`;
@@ -1165,7 +1165,8 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
         <div class="profit-summary__value">${formatMoney(totals.trueRetained)}</div>
       </div>
       <div class="profit-summary__meta">
-        ${formatPercent(retainedPercent, 0)} retained<br>${formatMoney(totals.gross)} gross
+        <span>${formatPercent(retainedPercent, 0)} retained</span>
+        <strong>${formatMoney(totals.gross)} gross</strong>
       </div>
     </div>
 
