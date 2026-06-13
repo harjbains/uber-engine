@@ -1,9 +1,9 @@
-import { initDays } from "./days.js?v=2.3.26";
-import { initMonthly } from "./monthly.js?v=2.3.26";
-import { initFuel } from "./fuel.js?v=2.3.26";
-import { initExpenses } from "./expenses.js?v=2.3.26";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.3.26";
-import { initSettings } from "./settings.js?v=2.3.26";
+import { initDays } from "./days.js?v=2.3.27";
+import { initMonthly } from "./monthly.js?v=2.3.27";
+import { initFuel } from "./fuel.js?v=2.3.27";
+import { initExpenses } from "./expenses.js?v=2.3.27";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.3.27";
+import { initSettings } from "./settings.js?v=2.3.27";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
@@ -40,19 +40,26 @@ function initCostToggle() {
 }
 
 function initDashboardCarousel() {
+  const carousel = document.querySelector(".dashboard-carousel");
   const slides = Array.from(document.querySelectorAll("[data-dashboard-slide]"));
   const dots = Array.from(document.querySelectorAll("[data-dashboard-dot]"));
   if (!slides.length || !dots.length) return;
 
+  let activeIndex = Math.max(0, slides.findIndex((slide) => slide.classList.contains("active")));
+  let touchStartX = 0;
+  let touchStartY = 0;
+
   function showSlide(index) {
+    activeIndex = Math.max(0, Math.min(slides.length - 1, index));
+
     slides.forEach((slide, slideIndex) => {
-      const active = slideIndex === index;
+      const active = slideIndex === activeIndex;
       slide.classList.toggle("active", active);
       slide.toggleAttribute("hidden", !active);
     });
 
     dots.forEach((dot, dotIndex) => {
-      const active = dotIndex === index;
+      const active = dotIndex === activeIndex;
       dot.classList.toggle("active", active);
       if (active) {
         dot.setAttribute("aria-current", "true");
@@ -67,6 +74,22 @@ function initDashboardCarousel() {
       showSlide(Number(dot.dataset.dashboardDot || 0));
     });
   });
+
+  carousel?.addEventListener("touchstart", (event) => {
+    const touch = event.changedTouches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+  }, { passive: true });
+
+  carousel?.addEventListener("touchend", (event) => {
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
+
+    if (Math.abs(deltaX) < 45 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) return;
+
+    showSlide(activeIndex + (deltaX < 0 ? 1 : -1));
+  }, { passive: true });
 }
 
 function initVersion() {
