@@ -1051,34 +1051,40 @@ input[type="date"] {
 }
 
 .session-card {
-  padding: 12px 14px 13px;
+  padding: 11px 13px 12px;
 }
 
 .session-card h2 {
-  margin-bottom: 8px;
-  font-size: 19px;
+  margin-bottom: 7px;
+  font-size: 18px;
 }
 
 .session-card .field {
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 
 .session-card .form-row-2 {
   gap: 8px;
-  margin-bottom: 7px;
+  margin-bottom: 6px;
 }
 
 .session-card label {
-  margin-bottom: 4px;
+  margin-bottom: 3px;
   color: #374151;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
   line-height: 1.15;
 }
 
 .session-card input,
 .session-card select {
-  min-height: 36px;
+  min-height: 34px;
+}
+
+.session-card .btn-primary {
+  min-height: 34px;
+  padding: 8px 12px;
+  font-size: 13px;
 }
 
 .time-grid {
@@ -1196,27 +1202,23 @@ input[type="date"] {
 }
 
 .week-title {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
+  display: grid;
+  gap: 2px;
   min-width: 0;
-  overflow: hidden;
   color: #111827;
   line-height: 1.1;
-  white-space: nowrap;
 }
 
 .week-title__date {
   color: #111827;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
 }
 
 .week-title__outcome {
+  width: fit-content;
   padding-left: 7px;
   border-left: 1px solid #d1d5db;
-  flex: 0 0 auto;
   font-size: 13px;
   font-weight: 700;
 }
