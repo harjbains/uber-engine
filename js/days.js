@@ -7,6 +7,7 @@ import {
   SETTINGS_UPDATED_EVENT,
   getDailyInsuranceEstimate,
   getDailyHoursTargetDefault,
+  getDesiredHourlyRate,
   getDynamicUpliftPercent,
   getEvEfficiencyMilesPerKwh,
   getFallbackFuelPrice,
@@ -18,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.28";
+} from "./settings.js?v=2.3.29";
 
 const ids = {
   date: "day_date",
@@ -476,8 +477,12 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
   const dailyHoursTarget = Number(settings.dailyHoursTarget || 0);
-  const weeklyHoursTarget = dailyHoursTarget * HOURS_TARGET_DAYS_PER_WEEK;
-  const remainingHours = Math.max(0, weeklyHoursTarget - hoursWorked);
+  const baselineWeeklyHoursTarget = dailyHoursTarget * HOURS_TARGET_DAYS_PER_WEEK;
+  const hourlyPlan = getPlanningHourlyRate(appSettings, days, currentHistoricalDays);
+  const incomeHoursTarget = target > 0 ? target / hourlyPlan.planningRate : 0;
+  const weeklyHoursTarget = Math.max(baselineWeeklyHoursTarget, incomeHoursTarget);
+  const remainingIncomeHours = remaining > 0 ? remaining / hourlyPlan.planningRate : 0;
+  const remainingHours = Math.max(0, weeklyHoursTarget - hoursWorked, remainingIncomeHours);
   const today = todayIso();
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
   const hoursProgressPercent = weeklyHoursTarget > 0 ? Math.min(100, (hoursWorked / weeklyHoursTarget) * 100) : 0;
@@ -568,8 +573,16 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     const targetPhrase = todayTarget > 0
       ? `${formatMoney(todayTarget)} keeps today moving.`
       : `${formatMoney(requiredPerDay)} average per remaining work day keeps it reachable.`;
+    const hoursPerDayPressure = remainingHourWorkDates.length > 0
+      ? remainingHours / remainingHourWorkDates.length
+      : 0;
 
-    if (dailyPressure > paceTolerance) {
+    if (hoursPerDayPressure > 10) {
+      status = `${formatClockHours(hoursPerDayPressure)}h/day needed at ${formatMoney(hourlyPlan.planningRate)}/hr. Review the target or add work days.`;
+      statusClass = "target-status target-status--warning";
+      progressClass = "target-progress-fill target-progress-fill--red";
+      paceLabel = "Ambitious week";
+    } else if (dailyPressure > paceTolerance) {
       status = targetPhrase;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
@@ -593,8 +606,14 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     hoursWorked,
     remaining,
     dailyHoursTarget,
+    baselineWeeklyHoursTarget,
+    incomeHoursTarget,
     weeklyHoursTarget,
     remainingHours,
+    planningHourlyRate: hourlyPlan.planningRate,
+    desiredHourlyRate: hourlyPlan.desiredRate,
+    observedHourlyRate: hourlyPlan.observedRate,
+    hourlyRateSource: hourlyPlan.source,
     todayHoursWorked,
     todayHoursRemaining,
     todayEarned,
@@ -643,6 +662,33 @@ function buildDayHourTotals(days) {
     totals[date] = (totals[date] || 0) + Number(day.hours_worked || 0);
     return totals;
   }, {});
+}
+
+function calculateGrossHourlyRate(days) {
+  const totals = days.reduce((acc, day) => ({
+    gross: acc.gross + Number(day.gross || 0),
+    hours: acc.hours + Number(day.hours_worked || 0)
+  }), {
+    gross: 0,
+    hours: 0
+  });
+
+  return totals.hours > 0 ? totals.gross / totals.hours : 0;
+}
+
+function getPlanningHourlyRate(appSettings, currentDays, historicalDays) {
+  const desiredRate = getDesiredHourlyRate(appSettings);
+  const currentRate = calculateGrossHourlyRate(currentDays);
+  const historicalRate = calculateGrossHourlyRate(historicalDays);
+  const observedRate = currentRate > 0 ? currentRate : historicalRate;
+  const planningRate = observedRate > 0 ? Math.min(desiredRate, observedRate) : desiredRate;
+
+  return {
+    desiredRate,
+    observedRate,
+    planningRate: Math.max(1, planningRate),
+    source: observedRate > 0 && observedRate < desiredRate ? "actual" : "desired"
+  };
 }
 
 function calculateDynamicWeeklyTarget(days, startIso, upliftPercent, fallbackTarget = 0) {
@@ -949,6 +995,11 @@ function renderWeeklyTarget(days) {
       <div class="summary-label">Weekly Target</div>
       <div class="summary-value">${formatMoney(summary.target)}</div>
       <div class="summary-sub">${summary.targetMode === "dynamic" ? "Dynamic" : "Manual"}</div>
+    </div>
+    <div class="target-summary-card">
+      <div class="summary-label">Planning Rate</div>
+      <div class="summary-value">${formatMoney(summary.planningHourlyRate)}</div>
+      <div class="summary-sub">${summary.hourlyRateSource === "actual" ? "From actuals" : "Desired hourly"}</div>
     </div>
   `;
 }

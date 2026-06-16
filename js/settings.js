@@ -5,6 +5,7 @@ const STORAGE_KEY = "uberEngineSettings";
 const DEFAULT_SETTINGS = {
   weeklyTarget: 750,
   dailyHoursTarget: 7,
+  desiredHourlyRate: 20,
   weeklyTargetMode: "manual",
   dynamicUpliftPreset: "5",
   dynamicUpliftCustom: 5,
@@ -23,6 +24,7 @@ const DEFAULT_SETTINGS = {
 const ids = {
   weeklyTarget: "settings_weekly_target",
   dailyHoursTarget: "settings_daily_hours_target",
+  desiredHourlyRate: "settings_desired_hourly_rate",
   weeklyTargetMode: "settings_weekly_target_mode",
   dynamicUpliftPreset: "settings_dynamic_uplift",
   dynamicUpliftCustom: "settings_dynamic_uplift_custom",
@@ -161,6 +163,10 @@ export function getDailyHoursTargetDefault(settings = getSettings()) {
   return toNumber(settings.dailyHoursTarget, DEFAULT_SETTINGS.dailyHoursTarget);
 }
 
+export function getDesiredHourlyRate(settings = getSettings()) {
+  return Math.max(1, toNumber(settings.desiredHourlyRate, DEFAULT_SETTINGS.desiredHourlyRate));
+}
+
 export function getWeeklyTargetMode(settings = getSettings()) {
   return settings.weeklyTargetMode === "dynamic" ? "dynamic" : "manual";
 }
@@ -200,6 +206,7 @@ function populateSettingsForm() {
 
   if (el(ids.weeklyTarget)) el(ids.weeklyTarget).value = settings.weeklyTarget;
   if (el(ids.dailyHoursTarget)) el(ids.dailyHoursTarget).value = formatClockHours(settings.dailyHoursTarget);
+  if (el(ids.desiredHourlyRate)) el(ids.desiredHourlyRate).value = getDesiredHourlyRate(settings);
   if (el(ids.weeklyTargetMode)) el(ids.weeklyTargetMode).value = getWeeklyTargetMode(settings);
   if (el(ids.dynamicUpliftPreset)) el(ids.dynamicUpliftPreset).value = settings.dynamicUpliftPreset ?? DEFAULT_SETTINGS.dynamicUpliftPreset;
   if (el(ids.dynamicUpliftCustom)) el(ids.dynamicUpliftCustom).value = settings.dynamicUpliftCustom ?? DEFAULT_SETTINGS.dynamicUpliftCustom;
@@ -222,6 +229,9 @@ function readSettingsForm() {
   return {
     weeklyTarget: toNumber(el(ids.weeklyTarget)?.value, DEFAULT_SETTINGS.weeklyTarget),
     dailyHoursTarget: parseClockHoursInput(el(ids.dailyHoursTarget)?.value, DEFAULT_SETTINGS.dailyHoursTarget),
+    desiredHourlyRate: getDesiredHourlyRate({
+      desiredHourlyRate: el(ids.desiredHourlyRate)?.value
+    }),
     weeklyTargetMode: el(ids.weeklyTargetMode)?.value === "dynamic" ? "dynamic" : "manual",
     dynamicUpliftPreset: el(ids.dynamicUpliftPreset)?.value || DEFAULT_SETTINGS.dynamicUpliftPreset,
     dynamicUpliftCustom: toNumber(el(ids.dynamicUpliftCustom)?.value, DEFAULT_SETTINGS.dynamicUpliftCustom),

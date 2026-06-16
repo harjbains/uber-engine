@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.28">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.29">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -136,7 +136,6 @@
               </div>
             </div>
           </div>
-        </div>
         </div>
 
         <div class="dashboard-carousel__pager" role="tablist" aria-label="Dashboard slides">
@@ -460,6 +459,11 @@
             <label for="settings_daily_hours_target">Default Daily Hours Target</label>
             <input id="settings_daily_hours_target" type="number" min="0" step="0.1" inputmode="decimal">
           </div>
+
+          <div class="field">
+            <label for="settings_desired_hourly_rate">Desired Hourly Rate (&pound;)</label>
+            <input id="settings_desired_hourly_rate" type="number" min="1" step="0.50" inputmode="decimal">
+          </div>
         </div>
 
         <div class="settings-section">
@@ -549,7 +553,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.28"></script>
+  <script type="module" src="js/app.js?v=2.3.29"></script>
 </body>
 
 </html>
