@@ -19,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.32";
+} from "./settings.js?v=2.3.33";
 
 const ids = {
   date: "day_date",
@@ -663,13 +663,13 @@ function getPlanningHourlyRate(appSettings, currentDays, historicalDays) {
   const currentRate = calculateGrossHourlyRate(currentDays);
   const historicalRate = calculateGrossHourlyRate(historicalDays);
   const observedRate = currentRate > 0 ? currentRate : historicalRate;
-  const planningRate = observedRate > 0 ? Math.min(desiredRate, observedRate) : desiredRate;
+  const planningRate = observedRate > desiredRate ? observedRate : desiredRate;
 
   return {
     desiredRate,
     observedRate,
     planningRate: Math.max(1, planningRate),
-    source: observedRate > 0 && observedRate < desiredRate ? "actual" : "desired"
+    source: observedRate > desiredRate ? "actual" : "settings"
   };
 }
 
@@ -952,7 +952,7 @@ function renderWeeklyTarget(days) {
     <div class="target-summary-card">
       <div class="summary-label">Planning Rate</div>
       <div class="summary-value">${formatMoney(summary.planningHourlyRate)}</div>
-      <div class="summary-sub">${summary.hourlyRateSource === "actual" ? "From actuals" : "Desired hourly"}</div>
+      <div class="summary-sub">${summary.hourlyRateSource === "actual" ? "From actuals" : "Settings rate"}</div>
     </div>
   `;
 }
