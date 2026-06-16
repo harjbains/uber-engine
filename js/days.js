@@ -19,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.30";
+} from "./settings.js?v=2.3.31";
 
 const ids = {
   date: "day_date",
@@ -777,7 +777,7 @@ function getWeekDayState(dateString, index, settings, dayTotals, today, complete
   if (dateString >= today && total <= 0) {
     return {
       className: "target-week-day target-week-day--future",
-      amount: isPlanned ? `~${formatCompactMoney(futureForecast)}` : "OFF"
+      amount: isPlanned ? formatCompactMoney(futureForecast) : "OFF"
     };
   }
 
@@ -816,7 +816,7 @@ function getHourDayState(dateString, index, settings, hourTotals, today, dailyHo
   if (dateString >= today && hours <= 0) {
     return {
       className: "target-week-day target-week-day--future",
-      amount: isPlanned ? `~${formatClockHours(safeFutureHoursTarget)}h` : "OFF"
+      amount: isPlanned ? `${formatClockHours(safeFutureHoursTarget)}h` : "OFF"
     };
   }
 
@@ -870,12 +870,12 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
           summary.futureHourTargets[index]
         );
         const stateModifier = moneyState.className.split(" ").find((className) => className.startsWith("target-week-day--")) || "";
+        const hoursAmount = moneyState.amount === "OFF" && state.amount === "OFF" ? "" : state.amount;
 
         return `
           <div class="target-week-card ${stateModifier}">
-            <span class="target-week-card__day">${WEEKDAY_LABELS[index]}</span>
             <strong class="target-week-card__amount">${moneyState.amount}</strong>
-            <span class="target-week-card__hours">${state.amount}</span>
+            <span class="target-week-card__hours">${hoursAmount}</span>
           </div>
         `;
       }).join("")}
