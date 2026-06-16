@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.37";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.38";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.37";
+} from "./settings.js?v=2.3.38";
 
 const ids = {
   picker: "month_picker",
@@ -738,6 +738,10 @@ function clearUberWeeklyForm() {
     const node = el(id);
     if (node) node.value = "";
   });
+
+  const importText = el(ids.importText);
+  if (importText) importText.value = "";
+  setImportStatus("");
 }
 
 function readUberWeeklyForm() {
@@ -1166,6 +1170,7 @@ async function handleSaveUberWeekly() {
       : `An Uber statement ending ${statement.weekEnd} is already saved. Replace it with this one?`;
 
     if (!window.confirm(message)) {
+      clearUberWeeklyForm();
       showStatus("Duplicate Uber statement was not saved.", "error");
       return;
     }
