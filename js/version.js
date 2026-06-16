@@ -1,6 +1,8 @@
-export const VERSION = "v2.3.33";
+export const VERSION = "v2.3.35";
 
 export const RELEASE_NOTES = {
+  "2.3.35": "Uber breakdown import reads dates more reliably and avoids misplaced OCR amounts",
+  "2.3.34": "Month tab can import Uber weekly breakdowns from pasted text or screenshots",
   "2.3.33": "Planning rate now stays anchored to Settings unless actuals are stronger",
   "2.3.32": "Weekly planning now derives required hours from the remaining revenue target",
   "2.3.31": "Weekly target strip keeps seven columns with wider usable spacing",

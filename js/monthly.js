@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.33";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.35";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.33";
+} from "./settings.js?v=2.3.35";
 
 const ids = {
   picker: "month_picker",
@@ -26,11 +26,15 @@ const ids = {
   serviceFee: "uber_service_fee",
   earnings: "uber_earnings",
   totalEarnings: "uber_total_earnings",
+  importText: "uber_statement_import_text",
+  importStatus: "uber_statement_import_status",
+  parseImportBtn: "parse_uber_statement",
   saveUberWeeklyBtn: "save_uber_weekly",
   weeklyHistory: "uber_weekly_history"
 };
 
 const LITRES_PER_UK_GALLON = 4.546;
+const TESSERACT_CDN = "https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
 const UBER_WEEKLY_STORAGE_KEY = "uberEngineUberWeeklyStatements";
 const SIMPLIFIED_CAR_MILE_RATE = 0.25;
 const SIMPLIFIED_CAR_MILE_RATE_AFTER_THRESHOLD = 0.25;
@@ -76,6 +80,14 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function setImportStatus(message, type = "info") {
+  const node = el(ids.importStatus);
+  if (!node) return;
+
+  node.textContent = message;
+  node.className = `uber-import__status uber-import__status--${type}`;
+}
+
 function currentMonthValue() {
   const now = new Date();
   const yyyy = now.getFullYear();
@@ -89,6 +101,387 @@ function monthDateRange(monthValue) {
   const endDate = new Date(year, month, 0);
   const end = `${year}-${String(month).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
   return { start, end };
+}
+
+function dateToIso(year, month, day) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function monthNameToNumber(value) {
+  const lookup = {
+    jan: 1,
+    january: 1,
+    feb: 2,
+    february: 2,
+    mar: 3,
+    march: 3,
+    apr: 4,
+    april: 4,
+    may: 5,
+    jun: 6,
+    june: 6,
+    jul: 7,
+    july: 7,
+    aug: 8,
+    august: 8,
+    sep: 9,
+    sept: 9,
+    september: 9,
+    oct: 10,
+    october: 10,
+    nov: 11,
+    november: 11,
+    dec: 12,
+    december: 12
+  };
+
+  return lookup[String(value || "").trim().toLowerCase()];
+}
+
+function selectedStatementYear(startMonth, endMonth) {
+  const selected = el(ids.picker)?.value || currentMonthValue();
+  const [selectedYear, selectedMonth] = selected.split("-").map(Number);
+  if (Number.isFinite(selectedYear) && (selectedMonth === startMonth || selectedMonth === endMonth)) {
+    return selectedYear;
+  }
+
+  return new Date().getFullYear();
+}
+
+function parseUberDateRangeLegacyUnused(text) {
+  const match = String(text || "").match(
+    /\b([A-Za-z]{3,9})\s+(\d{1,2})\s*[-–]\s*(?:([A-Za-z]{3,9})\s*)?(\d{1,2})\b/
+  );
+  if (!match) return null;
+
+  const startMonth = monthNameToNumber(match[1]);
+  const startDay = Number(match[2]);
+  const endMonth = monthNameToNumber(match[3] || match[1]);
+  const endDay = Number(match[4]);
+
+  if (!startMonth || !endMonth || !Number.isFinite(startDay) || !Number.isFinite(endDay)) {
+    return null;
+  }
+
+  const startYear = selectedStatementYear(startMonth, endMonth);
+  const endYear = endMonth < startMonth ? startYear + 1 : startYear;
+
+  return {
+    weekStart: dateToIso(startYear, startMonth, startDay),
+    weekEnd: dateToIso(endYear, endMonth, endDay)
+  };
+}
+
+function normaliseImportTextLegacyUnused(text) {
+  return String(text || "")
+    .replaceAll("−", "-")
+    .replaceAll("£", "GBP")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseMoneyAfterLabelLegacyUnused(text, labels) {
+  const source = normaliseImportText(text);
+  const lower = source.toLowerCase();
+
+  for (const label of labels) {
+    const index = lower.indexOf(label.toLowerCase());
+    if (index < 0) continue;
+
+    const slice = source.slice(index, index + 190);
+    const match = slice.match(/[+-]?\s*(?:GBP)?\s*([0-9][0-9,]*\.\d{2})/i);
+    if (!match) continue;
+
+    const sign = /^\s*-/.test(match[0]) ? -1 : 1;
+    const value = Number(match[1].replaceAll(",", ""));
+    if (Number.isFinite(value)) return sign * value;
+  }
+
+  return null;
+}
+
+function setInputValue(id, value) {
+  const node = el(id);
+  if (!node || value === null || value === undefined || value === "") return false;
+
+  node.value = typeof value === "number" ? Math.abs(value).toFixed(2) : value;
+  return true;
+}
+
+function clearImportedStatementInputs() {
+  [
+    ids.weekStart,
+    ids.weekEnd,
+    ids.customerPayments,
+    ids.taxesThirdPartyFees,
+    ids.serviceFee,
+    ids.earnings,
+    ids.tips,
+    ids.totalEarnings
+  ].forEach((id) => {
+    const node = el(id);
+    if (node) node.value = "";
+  });
+}
+
+function normaliseImportText(text) {
+  return String(text || "")
+    .replace(/[–—−]/g, "-")
+    .replaceAll("£", "GBP")
+    .replaceAll("Â£", "GBP")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normaliseImportLine(text) {
+  return String(text || "")
+    .replace(/[–—−]/g, "-")
+    .replaceAll("£", "GBP")
+    .replaceAll("Â£", "GBP")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function normaliseLabel(text) {
+  return String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function importLines(text) {
+  return String(text || "")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map(normaliseImportLine)
+    .filter(Boolean);
+}
+
+const UBER_BREAKDOWN_LABELS = [
+  "Customer payments",
+  "Government taxes and third-party fees",
+  "Government taxes and third party fees",
+  "Amount Uber kept",
+  "Uber kept",
+  "Earnings from fares",
+  "Tips",
+  "Your total earnings",
+  "Total earnings"
+];
+
+function hasAnyUberLabel(line) {
+  const value = normaliseLabel(line);
+  return UBER_BREAKDOWN_LABELS.some((label) => value.includes(normaliseLabel(label)));
+}
+
+function parseMoneyFromFragment(fragment) {
+  const match = normaliseImportLine(fragment).match(/[+-]?\s*(?:GBP)?\s*([0-9][0-9,]*\.\d{2})/i);
+  if (!match) return null;
+
+  const sign = /^\s*-/.test(match[0]) ? -1 : 1;
+  const value = Number(match[1].replaceAll(",", ""));
+  return Number.isFinite(value) ? sign * value : null;
+}
+
+function parseUberDateRange(text) {
+  const source = String(text || "")
+    .replace(/[–—−]/g, "-")
+    .replace(/\s+/g, " ");
+  const match = source.match(
+    /\b([A-Za-z]{3,9})\.?\s*(\d{1,2})\s*(?:-|to)\s*(?:([A-Za-z]{3,9})\.?\s*)?(\d{1,2})\b/i
+  );
+  if (!match) return null;
+
+  const startMonth = monthNameToNumber(match[1]);
+  const startDay = Number(match[2]);
+  const endMonth = monthNameToNumber(match[3] || match[1]);
+  const endDay = Number(match[4]);
+
+  if (!startMonth || !endMonth || !Number.isFinite(startDay) || !Number.isFinite(endDay)) {
+    return null;
+  }
+
+  const startYear = selectedStatementYear(startMonth, endMonth);
+  const endYear = endMonth < startMonth ? startYear + 1 : startYear;
+
+  return {
+    weekStart: dateToIso(startYear, startMonth, startDay),
+    weekEnd: dateToIso(endYear, endMonth, endDay)
+  };
+}
+
+function parseMoneyAfterLabel(text, labels) {
+  const lines = importLines(text);
+  const wantedLabels = labels.map(normaliseLabel);
+  const allLabels = UBER_BREAKDOWN_LABELS.map(normaliseLabel);
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i];
+    const normalisedLine = normaliseLabel(line);
+    const matchedLabel = wantedLabels.find((label) => normalisedLine.includes(label));
+    if (!matchedLabel) continue;
+
+    const labelsOnLine = allLabels.filter((label) => normalisedLine.includes(label)).length;
+    if (labelsOnLine <= 1) {
+      const sameLineValue = parseMoneyFromFragment(line);
+      if (sameLineValue !== null) return sameLineValue;
+    }
+
+    for (let j = i + 1; j < Math.min(lines.length, i + 4); j += 1) {
+      if (hasAnyUberLabel(lines[j])) break;
+
+      const nextLineValue = parseMoneyFromFragment(lines[j]);
+      if (nextLineValue !== null) return nextLineValue;
+    }
+  }
+
+  const source = normaliseImportText(text);
+  const lower = source.toLowerCase();
+
+  for (const label of labels) {
+    const index = lower.indexOf(label.toLowerCase());
+    if (index < 0) continue;
+
+    const nextLabelIndex = UBER_BREAKDOWN_LABELS
+      .map((nextLabel) => lower.indexOf(nextLabel.toLowerCase(), index + label.length))
+      .filter((nextIndex) => nextIndex > index)
+      .sort((a, b) => a - b)[0];
+    const slice = source.slice(index, nextLabelIndex || index + 90);
+    const match = slice.match(/[+-]?\s*(?:GBP)?\s*([0-9][0-9,]*\.\d{2})/i);
+    if (!match) continue;
+
+    const sign = /^\s*-/.test(match[0]) ? -1 : 1;
+    const value = Number(match[1].replaceAll(",", ""));
+    if (Number.isFinite(value)) return sign * value;
+  }
+
+  return null;
+}
+
+function parseUberBreakdownText(text) {
+  const customerPayments = parseMoneyAfterLabel(text, ["Customer payments"]);
+  const taxesThirdPartyFees = parseMoneyAfterLabel(text, [
+    "Government taxes and third-party fees",
+    "Government taxes and third party fees"
+  ]);
+  const rawServiceFee = parseMoneyAfterLabel(text, ["Amount Uber kept", "Uber kept"]);
+  const earnings = parseMoneyAfterLabel(text, ["Earnings from fares"]);
+  const tips = parseMoneyAfterLabel(text, ["Tips"]);
+  const totalEarnings = parseMoneyAfterLabel(text, ["Your total earnings", "Total earnings"]);
+  const range = parseUberDateRange(text);
+  const serviceFeeLooksLikeEarnings = rawServiceFee !== null
+    && earnings !== null
+    && Math.abs(Math.abs(rawServiceFee) - earnings) < 0.01;
+  const serviceFeeExceedsGross = rawServiceFee !== null
+    && customerPayments !== null
+    && Math.abs(rawServiceFee) > Math.abs(customerPayments);
+  const serviceFee = serviceFeeLooksLikeEarnings || serviceFeeExceedsGross ? null : rawServiceFee;
+
+  const derivedTaxes = taxesThirdPartyFees ?? (
+    customerPayments !== null && earnings !== null && serviceFee !== null
+      ? Math.max(0, customerPayments - Math.abs(serviceFee) - earnings)
+      : null
+  );
+  const derivedServiceFee = serviceFee ?? (
+    customerPayments !== null && earnings !== null
+      ? Math.max(0, customerPayments - Math.abs(derivedTaxes || 0) - earnings)
+      : null
+  );
+  const derivedEarnings = earnings ?? (
+    customerPayments !== null
+      ? customerPayments - Math.abs(derivedTaxes || 0) - Math.abs(derivedServiceFee || 0)
+      : null
+  );
+  const derivedTotal = totalEarnings ?? (
+    derivedEarnings !== null ? derivedEarnings + Math.abs(tips || 0) : null
+  );
+
+  return {
+    weekStart: range?.weekStart || "",
+    weekEnd: range?.weekEnd || "",
+    customerPayments,
+    taxesThirdPartyFees: derivedTaxes,
+    serviceFee: derivedServiceFee,
+    earnings: derivedEarnings,
+    tips,
+    totalEarnings: derivedTotal
+  };
+}
+
+function applyUberBreakdownImport(parsed) {
+  let applied = 0;
+  clearImportedStatementInputs();
+
+  if (setInputValue(ids.weekStart, parsed.weekStart)) applied += 1;
+  if (setInputValue(ids.weekEnd, parsed.weekEnd)) applied += 1;
+  if (setInputValue(ids.customerPayments, parsed.customerPayments)) applied += 1;
+  if (setInputValue(ids.taxesThirdPartyFees, parsed.taxesThirdPartyFees)) applied += 1;
+  if (setInputValue(ids.serviceFee, parsed.serviceFee)) applied += 1;
+  if (setInputValue(ids.earnings, parsed.earnings)) applied += 1;
+  if (setInputValue(ids.tips, parsed.tips)) applied += 1;
+  if (setInputValue(ids.totalEarnings, parsed.totalEarnings)) applied += 1;
+
+  return applied;
+}
+
+function parseUberImportText(text) {
+  const parsed = parseUberBreakdownText(text);
+  const applied = applyUberBreakdownImport(parsed);
+
+  if (applied === 0) {
+    setImportStatus("No Uber breakdown values found.", "error");
+    return;
+  }
+
+  setImportStatus(`Imported ${applied} fields. Review then save.`, "success");
+}
+
+async function loadTesseract() {
+  if (window.Tesseract) return window.Tesseract;
+
+  await new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = TESSERACT_CDN;
+    script.async = true;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Unable to load OCR."));
+    document.head.appendChild(script);
+  });
+
+  return window.Tesseract;
+}
+
+async function readImageWithOcr(file) {
+  setImportStatus("Reading screenshot...", "info");
+  const tesseract = await loadTesseract();
+  const result = await tesseract.recognize(file, "eng");
+  return result?.data?.text || "";
+}
+
+async function handleUberImportPaste(event) {
+  const text = event.clipboardData?.getData("text/plain");
+  if (text?.trim()) {
+    window.setTimeout(() => parseUberImportText(text), 0);
+    return;
+  }
+
+  const imageItem = Array.from(event.clipboardData?.items || [])
+    .find((item) => item.type.startsWith("image/"));
+  if (!imageItem) return;
+
+  event.preventDefault();
+  const file = imageItem.getAsFile();
+  if (!file) return;
+
+  try {
+    const importedText = await readImageWithOcr(file);
+    const textNode = el(ids.importText);
+    if (textNode) textNode.value = importedText;
+    parseUberImportText(importedText);
+  } catch (error) {
+    console.error("Uber statement OCR failed:", error);
+    setImportStatus("Screenshot OCR failed. Paste copied text instead.", "error");
+  }
 }
 
 function taxYearStartForDate(dateIso) {
@@ -730,6 +1123,8 @@ export function initMonthly() {
   const exportBtn = el(ids.exportBtn);
   const exportMtdBtn = el(ids.exportMtdBtn);
   const saveUberWeeklyBtn = el(ids.saveUberWeeklyBtn);
+  const parseImportBtn = el(ids.parseImportBtn);
+  const importText = el(ids.importText);
 
   if (picker && !picker.value) {
     picker.value = currentMonthValue();
@@ -739,6 +1134,8 @@ export function initMonthly() {
   exportBtn?.addEventListener("click", handleExportMonth);
   exportMtdBtn?.addEventListener("click", handleExportMtd);
   saveUberWeeklyBtn?.addEventListener("click", handleSaveUberWeekly);
+  parseImportBtn?.addEventListener("click", () => parseUberImportText(importText?.value || ""));
+  importText?.addEventListener("paste", handleUberImportPaste);
   el(ids.weeklyHistory)?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-uber-week]");
     if (!button) return;

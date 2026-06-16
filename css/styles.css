@@ -639,6 +639,7 @@ input[type="date"] {
   min-width: 0;
   overflow: hidden;
   border-radius: 10px;
+  transition: height 280ms ease;
 }
 
 .dashboard-carousel__slides {
@@ -659,6 +660,7 @@ input[type="date"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .dashboard-carousel__viewport,
   .dashboard-carousel__slides {
     transition: none;
   }
@@ -1119,6 +1121,49 @@ input[type="date"] {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.uber-import {
+  margin: 4px 0 14px;
+  padding: 10px;
+  border: 1px solid #d8dee7;
+  border-radius: 9px;
+  background: #f8fafc;
+}
+
+.uber-import label {
+  margin-top: 0;
+  margin-bottom: 6px;
+  color: #374151;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.uber-import textarea {
+  min-height: 74px;
+  resize: vertical;
+}
+
+.uber-import__actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 8px;
+}
+
+.uber-import__status {
+  color: #6b7280;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.uber-import__status--success {
+  color: #047857;
+}
+
+.uber-import__status--error {
+  color: #b91c1c;
 }
 
 .session-card {

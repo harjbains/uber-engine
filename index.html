@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.33">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.35">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -205,6 +205,15 @@
 
       <div class="card">
         <h3>Uber Weekly Statement</h3>
+
+        <div class="uber-import">
+          <label for="uber_statement_import_text">Import Uber Breakdown</label>
+          <textarea id="uber_statement_import_text" rows="4" placeholder="Paste screenshot or copied breakdown text"></textarea>
+          <div class="uber-import__actions">
+            <button id="parse_uber_statement" type="button" class="btn-secondary">Parse Import</button>
+            <span id="uber_statement_import_status" class="uber-import__status" aria-live="polite"></span>
+          </div>
+        </div>
 
         <div class="form-row-2">
           <div class="field">
@@ -544,7 +553,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.33"></script>
+  <script type="module" src="js/app.js?v=2.3.35"></script>
 </body>
 
 </html>

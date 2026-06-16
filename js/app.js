@@ -1,25 +1,30 @@
-import { initDays } from "./days.js?v=2.3.33";
-import { initMonthly } from "./monthly.js?v=2.3.33";
-import { initFuel } from "./fuel.js?v=2.3.33";
-import { initExpenses } from "./expenses.js?v=2.3.33";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.3.33";
-import { initSettings } from "./settings.js?v=2.3.33";
+import { initDays } from "./days.js?v=2.3.35";
+import { initMonthly } from "./monthly.js?v=2.3.35";
+import { initFuel } from "./fuel.js?v=2.3.35";
+import { initExpenses } from "./expenses.js?v=2.3.35";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.3.35";
+import { initSettings } from "./settings.js?v=2.3.35";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
   const tabs = document.querySelectorAll(".tab-content");
 
+  function showTab(targetId) {
+    buttons.forEach((btn) => btn.classList.toggle("active", btn.dataset.tab === targetId));
+    tabs.forEach((tab) => {
+      const active = tab.id === targetId;
+      tab.classList.toggle("active", active);
+      tab.hidden = !active;
+    });
+  }
+
   buttons.forEach((button) => {
     button.addEventListener("click", () => {
-      const targetId = button.dataset.tab;
-
-      buttons.forEach((btn) => btn.classList.remove("active"));
-      tabs.forEach((tab) => tab.classList.remove("active"));
-
-      button.classList.add("active");
-      document.getElementById(targetId)?.classList.add("active");
+      showTab(button.dataset.tab);
     });
   });
+
+  showTab(document.querySelector(".tab-button.active")?.dataset.tab || buttons[0]?.dataset.tab);
 }
 
 function initCostToggle() {
@@ -41,6 +46,7 @@ function initCostToggle() {
 
 function initDashboardCarousel() {
   const carousel = document.querySelector(".dashboard-carousel");
+  const viewport = document.querySelector(".dashboard-carousel__viewport");
   const slideTrack = document.querySelector(".dashboard-carousel__slides");
   const slides = Array.from(document.querySelectorAll("[data-dashboard-slide]"));
   const dots = Array.from(document.querySelectorAll("[data-dashboard-dot]"));
@@ -49,6 +55,14 @@ function initDashboardCarousel() {
   let activeIndex = Math.max(0, slides.findIndex((slide) => slide.classList.contains("active")));
   let touchStartX = 0;
   let touchStartY = 0;
+
+  function syncHeight() {
+    if (!viewport) return;
+    const activeSlide = slides[activeIndex];
+    if (!activeSlide) return;
+
+    viewport.style.height = `${activeSlide.offsetHeight}px`;
+  }
 
   function showSlide(index) {
     activeIndex = Math.max(0, Math.min(slides.length - 1, index));
@@ -61,6 +75,7 @@ function initDashboardCarousel() {
     });
 
     slideTrack.style.transform = `translateX(-${activeIndex * 100}%)`;
+    window.requestAnimationFrame(syncHeight);
 
     dots.forEach((dot, dotIndex) => {
       const active = dotIndex === activeIndex;
@@ -80,6 +95,13 @@ function initDashboardCarousel() {
   });
 
   showSlide(activeIndex);
+
+  if ("ResizeObserver" in window) {
+    const resizeObserver = new ResizeObserver(syncHeight);
+    slides.forEach((slide) => resizeObserver.observe(slide));
+  }
+
+  window.addEventListener("resize", syncHeight);
 
   carousel?.addEventListener("touchstart", (event) => {
     const touch = event.changedTouches[0];
