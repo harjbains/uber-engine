@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.38";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.39";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.38";
+} from "./settings.js?v=2.3.39";
 
 const ids = {
   picker: "month_picker",
@@ -27,6 +27,7 @@ const ids = {
   earnings: "uber_earnings",
   totalEarnings: "uber_total_earnings",
   importText: "uber_statement_import_text",
+  importImage: "uber_statement_import_image",
   importStatus: "uber_statement_import_status",
   parseImportBtn: "parse_uber_statement",
   saveUberWeeklyBtn: "save_uber_weekly",
@@ -551,6 +552,20 @@ async function readImageWithOcr(file) {
   return [...texts, fullText].join("\n");
 }
 
+async function importUberStatementImage(file) {
+  if (!file) return;
+
+  try {
+    const importedText = await readImageWithOcr(file);
+    const textNode = el(ids.importText);
+    if (textNode) textNode.value = importedText;
+    parseUberImportText(importedText);
+  } catch (error) {
+    console.error("Uber statement OCR failed:", error);
+    setImportStatus("Screenshot OCR failed. Paste copied text instead.", "error");
+  }
+}
+
 async function handleUberImportPaste(event) {
   const text = event.clipboardData?.getData("text/plain");
   if (text?.trim()) {
@@ -564,17 +579,13 @@ async function handleUberImportPaste(event) {
 
   event.preventDefault();
   const file = imageItem.getAsFile();
-  if (!file) return;
+  await importUberStatementImage(file);
+}
 
-  try {
-    const importedText = await readImageWithOcr(file);
-    const textNode = el(ids.importText);
-    if (textNode) textNode.value = importedText;
-    parseUberImportText(importedText);
-  } catch (error) {
-    console.error("Uber statement OCR failed:", error);
-    setImportStatus("Screenshot OCR failed. Paste copied text instead.", "error");
-  }
+async function handleUberImportFile(event) {
+  const file = event.target.files?.[0];
+  await importUberStatementImage(file);
+  event.target.value = "";
 }
 
 function taxYearStartForDate(dateIso) {
@@ -741,6 +752,8 @@ function clearUberWeeklyForm() {
 
   const importText = el(ids.importText);
   if (importText) importText.value = "";
+  const importImage = el(ids.importImage);
+  if (importImage) importImage.value = "";
   setImportStatus("");
 }
 
@@ -1247,6 +1260,7 @@ export function initMonthly() {
   const saveUberWeeklyBtn = el(ids.saveUberWeeklyBtn);
   const parseImportBtn = el(ids.parseImportBtn);
   const importText = el(ids.importText);
+  const importImage = el(ids.importImage);
 
   if (picker && !picker.value) {
     picker.value = currentMonthValue();
@@ -1258,6 +1272,7 @@ export function initMonthly() {
   saveUberWeeklyBtn?.addEventListener("click", handleSaveUberWeekly);
   parseImportBtn?.addEventListener("click", () => parseUberImportText(importText?.value || ""));
   importText?.addEventListener("paste", handleUberImportPaste);
+  importImage?.addEventListener("change", handleUberImportFile);
   el(ids.weeklyHistory)?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-uber-week]");
     if (!button) return;

@@ -1147,11 +1147,24 @@ input[type="date"] {
 .uber-import__actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 9px;
   margin-top: 8px;
 }
 
+.uber-import__file-input {
+  display: none;
+}
+
+.uber-import__file-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  margin: 0;
+}
+
 .uber-import__status {
+  flex: 1 1 120px;
   color: #6b7280;
   font-size: 11px;
   font-weight: 700;

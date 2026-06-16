@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.38";
+export const VERSION = "v2.3.39";
 
 export const RELEASE_NOTES = {
+  "2.3.39": "Uber statement import now supports choosing a screenshot from the photo library",
   "2.3.38": "Saving an Uber weekly statement now clears the import box",
   "2.3.37": "Uber weekly statements now warn before replacing a duplicate week",
   "2.3.36": "Screenshot import now OCR-reads the Uber breakdown area before falling back to the full screen",
