@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.31";
+export const VERSION = "v2.3.32";
 
 export const RELEASE_NOTES = {
+  "2.3.32": "Weekly planning now derives required hours from the remaining revenue target",
   "2.3.31": "Weekly target strip keeps seven columns with wider usable spacing",
   "2.3.30": "Weekly target day values now use larger readable day cards",
   "2.3.29": "Target hours now respond to desired hourly rate and tab content stays contained",

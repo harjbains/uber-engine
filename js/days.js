@@ -19,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.31";
+} from "./settings.js?v=2.3.32";
 
 const ids = {
   date: "day_date",
@@ -51,7 +51,6 @@ const LITRES_PER_UK_GALLON = 4.546;
 const WEEKLY_TARGETS_TABLE = "weekly_targets";
 const TARGET_STORAGE_PREFIX = "uberEngineWeeklyTarget";
 const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
-const HOURS_TARGET_DAYS_PER_WEEK = 7;
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAY_FORECAST_WEIGHTS = [0.9, 0.95, 1, 1, 1.2, 1.25, 0.75];
 const WEEKDAY_HOUR_WEIGHTS = [1, 1, 1, 1, 1.15, 1.25, 0.9];
@@ -476,22 +475,17 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const hoursWorked = days.reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
-  const dailyHoursTarget = Number(settings.dailyHoursTarget || 0);
-  const baselineWeeklyHoursTarget = dailyHoursTarget * HOURS_TARGET_DAYS_PER_WEEK;
   const hourlyPlan = getPlanningHourlyRate(appSettings, days, currentHistoricalDays);
-  const incomeHoursTarget = target > 0 ? target / hourlyPlan.planningRate : 0;
-  const weeklyHoursTarget = Math.max(baselineWeeklyHoursTarget, incomeHoursTarget);
-  const remainingIncomeHours = remaining > 0 ? remaining / hourlyPlan.planningRate : 0;
-  const remainingHours = Math.max(0, weeklyHoursTarget - hoursWorked, remainingIncomeHours);
+  const initialHoursEstimate = target > 0 ? target / hourlyPlan.planningRate : 0;
+  const remainingHours = remaining > 0 ? remaining / hourlyPlan.planningRate : 0;
+  const forecastTotalHours = hoursWorked + remainingHours;
   const today = todayIso();
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
-  const hoursProgressPercent = weeklyHoursTarget > 0 ? Math.min(100, (hoursWorked / weeklyHoursTarget) * 100) : 0;
-  const workedDates = new Set(days.map((day) => day.date).filter(Boolean));
+  const hoursProgressPercent = forecastTotalHours > 0 ? Math.min(100, (hoursWorked / forecastTotalHours) * 100) : 0;
 
   const remainingWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
     if (dateString < today) return false;
-    if (workedDates.has(dateString)) return false;
     return true;
   });
 
@@ -503,21 +497,14 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     .filter((day) => day.date === today)
     .reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
   const remainingWorkDays = remainingWorkDates.length;
-  const remainingHourWorkDates = weekDates.filter((dateString, index) => {
-    if (!settings.workDays.includes(index)) return false;
-    if (dateString < today) return false;
-    return true;
-  });
+  const remainingHourWorkDates = remainingWorkDates;
   const futureHourWorkDates = remainingHourWorkDates.filter((dateString) => dateString > today);
   const hasTodayHourTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
-  const hourTargetsBeforeTodayWork = distributeHoursByWeight(
-    remainingHours + todayHoursWorked,
-    remainingHourWorkDates
-  );
+  const hourTargetsBeforeTodayWork = distributeHoursByWeight(remainingHours, remainingHourWorkDates);
   const currentDayRequiredHours = hasTodayHourTarget
     ? hourTargetsBeforeTodayWork.get(today) || 0
     : 0;
-  const todayHoursRemaining = Math.max(0, currentDayRequiredHours - todayHoursWorked);
+  const todayHoursRemaining = currentDayRequiredHours;
   const futureHoursRemaining = Math.max(0, remainingHours - todayHoursRemaining);
   const futureHourTargetMap = distributeHoursByWeight(futureHoursRemaining, futureHourWorkDates);
   const futureRequiredHoursPerDay = futureHourWorkDates.length > 0
@@ -543,10 +530,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     remainingWorkDayIndexes
   );
   const hasTodayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
-  const todayTargetBase = hasTodayTarget
-    ? workedDates.has(today) ? completedForecasts[todayIndex] : futureForecasts[todayIndex]
-    : 0;
-  const todayTarget = Math.max(0, todayTargetBase - todayEarned);
+  const todayTarget = hasTodayTarget ? futureForecasts[todayIndex] || 0 : 0;
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
@@ -571,8 +555,8 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   } else if (target > 0) {
     const paceTolerance = Math.max(10, baseDailyTarget * 0.08);
     const targetPhrase = todayTarget > 0
-      ? `${formatMoney(todayTarget)} keeps today moving.`
-      : `${formatMoney(requiredPerDay)} average per remaining work day keeps it reachable.`;
+      ? `${formatMoney(todayTarget)} and ${formatClockHours(todayHoursRemaining)}h from here keeps today moving.`
+      : `${formatMoney(requiredPerDay)} and ${formatClockHours(requiredHoursPerRemainingDay)}h per remaining work day keeps it reachable.`;
     const hoursPerDayPressure = remainingHourWorkDates.length > 0
       ? remainingHours / remainingHourWorkDates.length
       : 0;
@@ -605,10 +589,8 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     earned,
     hoursWorked,
     remaining,
-    dailyHoursTarget,
-    baselineWeeklyHoursTarget,
-    incomeHoursTarget,
-    weeklyHoursTarget,
+    initialHoursEstimate,
+    weeklyHoursTarget: forecastTotalHours,
     remainingHours,
     planningHourlyRate: hourlyPlan.planningRate,
     desiredHourlyRate: hourlyPlan.desiredRate,
@@ -638,7 +620,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     liveTarget,
     dynamicUplift,
     dynamicTarget,
-    dailyTargetLabel: hasTodayTarget ? "Today Remaining" : "Daily Target",
+    dailyTargetLabel: hasTodayTarget ? "Today Required" : "Daily Required",
     status,
     statusClass
   };
@@ -801,7 +783,7 @@ function getWeekDayState(dateString, index, settings, dayTotals, today, complete
   };
 }
 
-function getHourDayState(dateString, index, settings, hourTotals, today, dailyHoursTarget, futureHoursTarget) {
+function getHourDayState(dateString, index, settings, hourTotals, today, futureHoursTarget) {
   const isPlanned = settings.workDays.includes(index);
   const hours = hourTotals[dateString] || 0;
   const safeFutureHoursTarget = Math.max(0, Number(futureHoursTarget || 0));
@@ -820,22 +802,8 @@ function getHourDayState(dateString, index, settings, hourTotals, today, dailyHo
     };
   }
 
-  if (hours >= dailyHoursTarget) {
-    return {
-      className: "target-week-day target-week-day--hit",
-      amount: `${formatClockHours(hours)}h`
-    };
-  }
-
-  if (hours >= dailyHoursTarget * 0.85) {
-    return {
-      className: "target-week-day target-week-day--under",
-      amount: `${formatClockHours(hours)}h`
-    };
-  }
-
   return {
-    className: "target-week-day target-week-day--missed",
+    className: "target-week-day target-week-day--hit",
     amount: `${formatClockHours(hours)}h`
   };
 }
@@ -866,7 +834,6 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
           settings,
           hourTotals,
           today,
-          summary.dailyHoursTarget,
           summary.futureHourTargets[index]
         );
         const stateModifier = moneyState.className.split(" ").find((className) => className.startsWith("target-week-day--")) || "";
@@ -890,8 +857,7 @@ function renderWeeklyTarget(days) {
   const progressNode = el(ids.targetProgressSummary);
   const statusNode = el(ids.targetStatus);
   const targetInput = el(ids.weeklyTarget);
-  const dailyHoursTargetInput = el(ids.dailyHoursTarget);
-  if (!summaryNode || !progressNode || !statusNode || !targetInput || !dailyHoursTargetInput) return;
+  if (!summaryNode || !progressNode || !statusNode || !targetInput) return;
 
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
@@ -906,8 +872,6 @@ function renderWeeklyTarget(days) {
     targetInput.disabled = false;
     targetInput.value = targetInput.dataset.manualTarget || settings.target;
   }
-
-  dailyHoursTargetInput.value = dailyHoursTargetInput.dataset.manualTarget || formatClockHours(settings.dailyHoursTarget);
 
   if (isCompletedTargetWeek() && !shouldUseStoredTargetSnapshot(settings) && summary.target > 0) {
     updateTargetSettings(currentWeekRange.startIso, {
@@ -948,7 +912,7 @@ function renderWeeklyTarget(days) {
         <div class="target-progress-fill target-progress-fill--green" style="width: ${summary.hoursProgressPercent}%"></div>
       </div>
       <div class="target-progress-sub">
-        ${formatClockHours(summary.hoursWorked)} of ${formatClockHours(summary.weeklyHoursTarget)} hours target
+        ${formatClockHours(summary.hoursWorked)} worked, ${formatClockHours(summary.remainingHours)} still needed
       </div>
     </div>
   `;
@@ -960,7 +924,7 @@ function renderWeeklyTarget(days) {
       ${summary.hasTodayTarget ? `<div class="summary-sub">${formatMoney(summary.todayEarned)} earned today</div>` : ""}
     </div>
     <div class="target-summary-card target-summary-card--primary">
-      <div class="summary-label">Hours Remaining</div>
+      <div class="summary-label">Today Hours</div>
       <div class="summary-value">${formatClockHours(summary.todayHoursRemaining)}</div>
       <div class="summary-sub">${formatClockHours(summary.todayHoursWorked)} worked today</div>
     </div>
@@ -995,27 +959,18 @@ function renderWeeklyTarget(days) {
 
 function initialiseWeeklyTarget(range) {
   const targetInput = el(ids.weeklyTarget);
-  const dailyHoursTargetInput = el(ids.dailyHoursTarget);
-  if (!targetInput || !dailyHoursTargetInput) return;
+  if (!targetInput) return;
 
   const weekDates = getWeekDates(range.startIso);
   const settings = readTargetSettings(range.startIso);
 
   targetInput.value = settings.target;
   targetInput.dataset.manualTarget = settings.target;
-  dailyHoursTargetInput.value = formatClockHours(settings.dailyHoursTarget);
-  dailyHoursTargetInput.dataset.manualTarget = formatClockHours(settings.dailyHoursTarget);
   renderTargetWorkdays(settings, weekDates);
 
   targetInput.oninput = () => {
     targetInput.dataset.manualTarget = targetInput.value;
     persistCurrentTargetSettings({ targetIsCustom: true });
-    renderWeeklyTarget(currentWeekDays);
-  };
-
-  dailyHoursTargetInput.oninput = () => {
-    dailyHoursTargetInput.dataset.manualTarget = dailyHoursTargetInput.value;
-    persistCurrentTargetSettings({ hoursTargetIsCustom: true });
     renderWeeklyTarget(currentWeekDays);
   };
 
