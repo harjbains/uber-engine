@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.36";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.37";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.36";
+} from "./settings.js?v=2.3.37";
 
 const ids = {
   picker: "month_picker",
@@ -762,6 +762,14 @@ function validateUberWeeklyStatement(statement) {
   return null;
 }
 
+function findDuplicateUberStatementIndex(statements, statement) {
+  return statements.findIndex((item) =>
+    item.weekStart === statement.weekStart &&
+    item.weekEnd === statement.weekEnd &&
+    item.id !== statement.id
+  );
+}
+
 function renderUberWeeklyHistory(statements) {
   const container = el(ids.weeklyHistory);
   if (!container) return;
@@ -1144,13 +1152,29 @@ async function handleSaveUberWeekly() {
   }
 
   const statements = readUberWeeklyStatements();
-  const existingIndex = statements.findIndex((item) => item.id === statement.id);
+  const duplicateIndex = findDuplicateUberStatementIndex(statements, statement);
+  const existingIndex = duplicateIndex >= 0
+    ? duplicateIndex
+    : statements.findIndex((item) => item.id === statement.id);
 
   if (existingIndex >= 0) {
+    const existing = statements[existingIndex];
+    const isSameDateRange = existing.weekStart === statement.weekStart && existing.weekEnd === statement.weekEnd;
+    const label = `${statement.weekStart} - ${statement.weekEnd}`;
+    const message = isSameDateRange
+      ? `An Uber statement for ${label} is already saved. Replace it with this one?`
+      : `An Uber statement ending ${statement.weekEnd} is already saved. Replace it with this one?`;
+
+    if (!window.confirm(message)) {
+      showStatus("Duplicate Uber statement was not saved.", "error");
+      return;
+    }
+
     statements[existingIndex] = {
-      ...statements[existingIndex],
+      ...existing,
       ...statement,
-      createdAt: statements[existingIndex].createdAt,
+      id: existing.id,
+      createdAt: existing.createdAt,
       updatedAt: new Date().toISOString()
     };
   } else {

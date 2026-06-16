@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.36";
+export const VERSION = "v2.3.37";
 
 export const RELEASE_NOTES = {
+  "2.3.37": "Uber weekly statements now warn before replacing a duplicate week",
   "2.3.36": "Screenshot import now OCR-reads the Uber breakdown area before falling back to the full screen",
   "2.3.35": "Uber breakdown import reads dates more reliably and avoids misplaced OCR amounts",
   "2.3.34": "Month tab can import Uber weekly breakdowns from pasted text or screenshots",
