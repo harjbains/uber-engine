@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.35";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.36";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.35";
+} from "./settings.js?v=2.3.36";
 
 const ids = {
   picker: "month_picker",
@@ -283,19 +283,30 @@ function parseMoneyFromFragment(fragment) {
   return Number.isFinite(value) ? sign * value : null;
 }
 
+function parseOcrDayToken(value) {
+  const cleaned = String(value || "")
+    .replace(/[il|]/gi, "1")
+    .replace(/o/gi, "0")
+    .replace(/s/gi, "5")
+    .replace(/[^0-9]/g, "");
+  const day = Number(cleaned);
+  return Number.isFinite(day) && day >= 1 && day <= 31 ? day : NaN;
+}
+
 function parseUberDateRange(text) {
   const source = String(text || "")
     .replace(/[–—−]/g, "-")
+    .replace(/\b(Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December)([0-9il|os])/gi, "$1 $2")
     .replace(/\s+/g, " ");
   const match = source.match(
-    /\b([A-Za-z]{3,9})\.?\s*(\d{1,2})\s*(?:-|to)\s*(?:([A-Za-z]{3,9})\.?\s*)?(\d{1,2})\b/i
+    /\b([A-Za-z]{3,9})\.?\s*([0-9A-Za-z|]{1,4})\s*(?:-|to)\s*(?:([A-Za-z]{3,9})\.?\s*)?([0-9A-Za-z|]{1,4})\b/i
   );
   if (!match) return null;
 
   const startMonth = monthNameToNumber(match[1]);
-  const startDay = Number(match[2]);
+  const startDay = parseOcrDayToken(match[2]);
   const endMonth = monthNameToNumber(match[3] || match[1]);
-  const endDay = Number(match[4]);
+  const endDay = parseOcrDayToken(match[4]);
 
   if (!startMonth || !endMonth || !Number.isFinite(startDay) || !Number.isFinite(endDay)) {
     return null;
@@ -408,6 +419,19 @@ function parseUberBreakdownText(text) {
   };
 }
 
+function importCompleteness(parsed) {
+  return [
+    parsed.weekStart,
+    parsed.weekEnd,
+    parsed.customerPayments,
+    parsed.taxesThirdPartyFees,
+    parsed.serviceFee,
+    parsed.earnings,
+    parsed.tips,
+    parsed.totalEarnings
+  ].filter((value) => value !== null && value !== undefined && value !== "").length;
+}
+
 function applyUberBreakdownImport(parsed) {
   let applied = 0;
   clearImportedStatementInputs();
@@ -433,7 +457,13 @@ function parseUberImportText(text) {
     return;
   }
 
-  setImportStatus(`Imported ${applied} fields. Review then save.`, "success");
+  const isPartial = applied < 7;
+  setImportStatus(
+    isPartial
+      ? `Imported ${applied} fields. OCR missed some values.`
+      : `Imported ${applied} fields. Review then save.`,
+    isPartial ? "error" : "success"
+  );
 }
 
 async function loadTesseract() {
@@ -451,11 +481,74 @@ async function loadTesseract() {
   return window.Tesseract;
 }
 
-async function readImageWithOcr(file) {
-  setImportStatus("Reading screenshot...", "info");
-  const tesseract = await loadTesseract();
-  const result = await tesseract.recognize(file, "eng");
+async function imageFileToBitmap(file) {
+  if (window.createImageBitmap) {
+    return window.createImageBitmap(file);
+  }
+
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = URL.createObjectURL(file);
+  });
+}
+
+function canvasToBlob(canvas) {
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/png");
+  });
+}
+
+async function cropScreenshotForOcr(file, region) {
+  const image = await imageFileToBitmap(file);
+  const sourceWidth = image.width;
+  const sourceHeight = image.height;
+  const sx = Math.max(0, Math.round(sourceWidth * region.x));
+  const sy = Math.max(0, Math.round(sourceHeight * region.y));
+  const sw = Math.min(sourceWidth - sx, Math.round(sourceWidth * region.width));
+  const sh = Math.min(sourceHeight - sy, Math.round(sourceHeight * region.height));
+  const scale = region.scale || 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, sw * scale);
+  canvas.height = Math.max(1, sh * scale);
+
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.imageSmoothingEnabled = true;
+  if ("filter" in ctx) ctx.filter = "grayscale(1) contrast(1.35)";
+  ctx.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+
+  return canvasToBlob(canvas);
+}
+
+async function recogniseImage(tesseract, imageLike) {
+  const result = await tesseract.recognize(imageLike, "eng");
   return result?.data?.text || "";
+}
+
+async function readImageWithOcr(file) {
+  setImportStatus("Reading screenshot centre...", "info");
+  const tesseract = await loadTesseract();
+  const regions = [
+    { x: 0.31, y: 0.10, width: 0.38, height: 0.72, scale: 2.4 },
+    { x: 0.37, y: 0.15, width: 0.28, height: 0.62, scale: 2.6 }
+  ];
+  const texts = [];
+
+  for (let index = 0; index < regions.length; index += 1) {
+    const crop = await cropScreenshotForOcr(file, regions[index]);
+    const text = await recogniseImage(tesseract, crop || file);
+    texts.push(text);
+
+    const parsed = parseUberBreakdownText(texts.join("\n"));
+    if (importCompleteness(parsed) >= 7) return texts.join("\n");
+    setImportStatus("Reading another screenshot area...", "info");
+  }
+
+  const fullText = await recogniseImage(tesseract, file);
+  return [...texts, fullText].join("\n");
 }
 
 async function handleUberImportPaste(event) {
