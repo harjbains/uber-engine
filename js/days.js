@@ -19,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.29";
+} from "./settings.js?v=2.3.30";
 
 const ids = {
   date: "day_date",
@@ -849,30 +849,17 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
   const hourTotals = buildDayHourTotals(days);
 
   container.innerHTML = `
-    <div class="target-week-strip-row">
-      <div class="target-week-days">
-        ${weekDates.map((dateString, index) => {
-          const state = getWeekDayState(
-            dateString,
-            index,
-            settings,
-            dayTotals,
-            today,
-            summary.completedForecasts[index],
-            summary.futureForecasts[index]
-          );
-
-          return `
-            <div class="${state.className}">
-              <strong>${state.amount}</strong>
-            </div>
-          `;
-        }).join("")}
-      </div>
-    </div>
-    <div class="target-week-strip-row target-week-strip-row--hours">
-      <div class="target-week-days target-week-days--hours">
+    <div class="target-week-days">
       ${weekDates.map((dateString, index) => {
+        const moneyState = getWeekDayState(
+          dateString,
+          index,
+          settings,
+          dayTotals,
+          today,
+          summary.completedForecasts[index],
+          summary.futureForecasts[index]
+        );
         const state = getHourDayState(
           dateString,
           index,
@@ -882,14 +869,16 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
           summary.dailyHoursTarget,
           summary.futureHourTargets[index]
         );
+        const stateModifier = moneyState.className.split(" ").find((className) => className.startsWith("target-week-day--")) || "";
 
         return `
-          <div class="${state.className}">
-            <strong>${state.amount}</strong>
+          <div class="target-week-card ${stateModifier}">
+            <span class="target-week-card__day">${WEEKDAY_LABELS[index]}</span>
+            <strong class="target-week-card__amount">${moneyState.amount}</strong>
+            <span class="target-week-card__hours">${state.amount}</span>
           </div>
         `;
       }).join("")}
-      </div>
     </div>
   `;
 }

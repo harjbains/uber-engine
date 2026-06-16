@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.29";
+export const VERSION = "v2.3.30";
 
 export const RELEASE_NOTES = {
+  "2.3.30": "Weekly target day values now use larger readable day cards",
   "2.3.29": "Target hours now respond to desired hourly rate and tab content stays contained",
   "2.3.28": "Day dashboard carousel now glides between slides",
   "2.3.27": "Day dashboard carousel now supports swipe navigation on mobile",
