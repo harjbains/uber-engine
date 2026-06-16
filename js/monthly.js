@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.39";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.40";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.39";
+} from "./settings.js?v=2.3.40";
 
 const ids = {
   picker: "month_picker",
@@ -294,6 +294,25 @@ function parseOcrDayToken(value) {
   return Number.isFinite(day) && day >= 1 && day <= 31 ? day : NaN;
 }
 
+function buildUberDateRange(startMonthText, startDayText, endMonthText, endDayText) {
+  const startMonth = monthNameToNumber(startMonthText);
+  const startDay = parseOcrDayToken(startDayText);
+  const endMonth = monthNameToNumber(endMonthText || startMonthText);
+  const endDay = parseOcrDayToken(endDayText);
+
+  if (!startMonth || !endMonth || !Number.isFinite(startDay) || !Number.isFinite(endDay)) {
+    return null;
+  }
+
+  const startYear = selectedStatementYear(startMonth, endMonth);
+  const endYear = endMonth < startMonth ? startYear + 1 : startYear;
+
+  return {
+    weekStart: dateToIso(startYear, startMonth, startDay),
+    weekEnd: dateToIso(endYear, endMonth, endDay)
+  };
+}
+
 function parseUberDateRange(text) {
   const source = String(text || "")
     .replace(/[–—−]/g, "-")
@@ -320,6 +339,31 @@ function parseUberDateRange(text) {
     weekStart: dateToIso(startYear, startMonth, startDay),
     weekEnd: dateToIso(endYear, endMonth, endDay)
   };
+}
+
+function parseUberDateRangeFromOcrText(text) {
+  const monthNames = "Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|Sept|September|Oct|October|Nov|November|Dec|December";
+  const source = String(text || "")
+    .replace(/[–—−]/g, "-")
+    .replace(new RegExp(`\\b(${monthNames})([0-9il|os])`, "gi"), "$1 $2")
+    .replace(/\s+/g, " ");
+
+  const monthFirst = source.match(
+    new RegExp(`\\b(${monthNames})\\.?\\s*([0-9A-Za-z|]{1,4})\\s*(?:-|to)?\\s*(?:(${monthNames})\\.?\\s*)?([0-9A-Za-z|]{1,4})\\b`, "i")
+  );
+  if (monthFirst) {
+    const range = buildUberDateRange(monthFirst[1], monthFirst[2], monthFirst[3], monthFirst[4]);
+    if (range) return range;
+  }
+
+  const dayFirst = source.match(
+    new RegExp(`\\b([0-9A-Za-z|]{1,4})\\s*(${monthNames})\\.?\\s*(?:-|to)?\\s*([0-9A-Za-z|]{1,4})\\s*(?:(${monthNames})\\.?)?\\b`, "i")
+  );
+  if (dayFirst) {
+    return buildUberDateRange(dayFirst[2], dayFirst[1], dayFirst[4] || dayFirst[2], dayFirst[3]);
+  }
+
+  return null;
 }
 
 function parseMoneyAfterLabel(text, labels) {
@@ -380,7 +424,7 @@ function parseUberBreakdownText(text) {
   const earnings = parseMoneyAfterLabel(text, ["Earnings from fares"]);
   const tips = parseMoneyAfterLabel(text, ["Tips"]);
   const totalEarnings = parseMoneyAfterLabel(text, ["Your total earnings", "Total earnings"]);
-  const range = parseUberDateRange(text);
+  const range = parseUberDateRangeFromOcrText(text) || parseUberDateRange(text);
   const serviceFeeLooksLikeEarnings = rawServiceFee !== null
     && earnings !== null
     && Math.abs(Math.abs(rawServiceFee) - earnings) < 0.01;
@@ -533,6 +577,8 @@ async function readImageWithOcr(file) {
   setImportStatus("Reading screenshot centre...", "info");
   const tesseract = await loadTesseract();
   const regions = [
+    { x: 0.00, y: 0.00, width: 1.00, height: 0.24, scale: 3.0 },
+    { x: 0.18, y: 0.04, width: 0.64, height: 0.22, scale: 3.0 },
     { x: 0.31, y: 0.10, width: 0.38, height: 0.72, scale: 2.4 },
     { x: 0.37, y: 0.15, width: 0.28, height: 0.62, scale: 2.6 }
   ];
