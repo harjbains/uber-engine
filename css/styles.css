@@ -1897,17 +1897,26 @@ input[type="date"] {
 .efficiency-score {
   min-width: 0;
   padding: 9px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #bfdbfe;
   border-radius: 10px;
-  background: #f8fafc;
+  background: #eff6ff;
+}
+
+.efficiency-score:nth-child(2) {
+  border-color: #bbf7d0;
+  background: #ecfdf5;
 }
 
 .efficiency-score strong {
   display: block;
   margin-top: 3px;
-  color: #020617;
-  font-size: 20px;
+  color: #1d4ed8;
+  font-size: 18px;
   line-height: 1;
+}
+
+.efficiency-score:nth-child(2) strong {
+  color: #047857;
 }
 
 .efficiency-score em,
@@ -1951,7 +1960,15 @@ input[type="date"] {
   height: 100%;
   min-width: 3px;
   border-radius: inherit;
-  background: #0f172a;
+  background: #2563eb;
+}
+
+.visual-progress-row:nth-of-type(3) .visual-progress-track span {
+  background: #f59e0b;
+}
+
+.visual-progress-row:nth-of-type(4) .visual-progress-track span {
+  background: #059669;
 }
 
 .month-export-actions {
