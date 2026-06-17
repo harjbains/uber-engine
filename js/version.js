@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.45";
+export const VERSION = "v2.3.46";
 
 export const RELEASE_NOTES = {
+  "2.3.46": "Weekly statement entry is more compact and month picker has arrow navigation",
   "2.3.45": "Month Summary now uses one consistent gross figure for tax and hourly rate",
   "2.3.44": "Month tab now uses swipe slides with larger clickable controls",
   "2.3.43": "Work Efficiency cards now use softer numbers and colour accents",

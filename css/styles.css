@@ -1123,9 +1123,20 @@ input[type="date"] {
   margin-bottom: 12px;
 }
 
+.month-picker-nav {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: end;
+  gap: 8px;
+}
+
+.month-picker-nav input {
+  margin-top: 0;
+}
+
 .uber-import {
-  margin: 4px 0 14px;
-  padding: 10px;
+  margin: 2px 0 10px;
+  padding: 8px;
   border: 1px solid #d8dee7;
   border-radius: 9px;
   background: #f8fafc;
@@ -1140,7 +1151,7 @@ input[type="date"] {
 }
 
 .uber-import textarea {
-  min-height: 74px;
+  min-height: 48px;
   resize: vertical;
 }
 
@@ -1177,6 +1188,35 @@ input[type="date"] {
 
 .uber-import__status--error {
   color: #b91c1c;
+}
+
+.statement-card {
+  padding: 10px 12px 12px;
+}
+
+.statement-card h3 {
+  margin-bottom: 8px;
+}
+
+.statement-card .form-row-2 {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.statement-card .field {
+  margin-bottom: 6px;
+}
+
+.statement-card label {
+  margin-top: 0;
+  margin-bottom: 3px;
+  font-size: 12px;
+}
+
+.statement-card input {
+  padding: 7px 8px;
+  font-size: 14px;
+  border-radius: 9px;
 }
 
 .session-card {
@@ -1835,7 +1875,7 @@ input[type="date"] {
   display: block;
   margin-top: 2px;
   color: #020617;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1;
 }
 
@@ -1844,7 +1884,7 @@ input[type="date"] {
 }
 
 .visual-panel__headline--compact strong {
-  font-size: 18px;
+  font-size: 17px;
 }
 
 .visual-bar {

@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.45";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.46";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,10 +11,12 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.45";
+} from "./settings.js?v=2.3.46";
 
 const ids = {
   picker: "month_picker",
+  monthPrev: "month_prev",
+  monthNext: "month_next",
   summary: "month_summary",
   exportBtn: "export-month",
   exportMtdBtn: "export-mtd",
@@ -103,6 +105,12 @@ function monthDateRange(monthValue) {
   const endDate = new Date(year, month, 0);
   const end = `${year}-${String(month).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
   return { start, end };
+}
+
+function addMonthsToMonthValue(monthValue, delta) {
+  const [year, month] = (monthValue || currentMonthValue()).split("-").map(Number);
+  const date = new Date(year, month - 1 + delta, 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
 }
 
 function dateToIso(year, month, day) {
@@ -1362,6 +1370,8 @@ async function handleExportMtd() {
 
 export function initMonthly() {
   const picker = el(ids.picker);
+  const monthPrev = el(ids.monthPrev);
+  const monthNext = el(ids.monthNext);
   const exportBtn = el(ids.exportBtn);
   const exportMtdBtn = el(ids.exportMtdBtn);
   const saveUberWeeklyBtn = el(ids.saveUberWeeklyBtn);
@@ -1375,6 +1385,16 @@ export function initMonthly() {
   }
 
   picker?.addEventListener("change", loadMonthSummary);
+  monthPrev?.addEventListener("click", () => {
+    if (!picker) return;
+    picker.value = addMonthsToMonthValue(picker.value, -1);
+    loadMonthSummary();
+  });
+  monthNext?.addEventListener("click", () => {
+    if (!picker) return;
+    picker.value = addMonthsToMonthValue(picker.value, 1);
+    loadMonthSummary();
+  });
   exportBtn?.addEventListener("click", handleExportMonth);
   exportMtdBtn?.addEventListener("click", handleExportMtd);
   saveUberWeeklyBtn?.addEventListener("click", handleSaveUberWeekly);

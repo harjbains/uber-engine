@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.45">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.46">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -200,7 +200,15 @@
       <div class="card">
         <h3>Month</h3>
         <label for="month_picker">Select Month</label>
-        <input type="month" id="month_picker">
+        <div class="month-picker-nav">
+          <button id="month_prev" class="icon-nav-button" type="button" aria-label="Previous month">
+            <span aria-hidden="true">&lsaquo;</span>
+          </button>
+          <input type="month" id="month_picker">
+          <button id="month_next" class="icon-nav-button" type="button" aria-label="Next month">
+            <span aria-hidden="true">&rsaquo;</span>
+          </button>
+        </div>
       </div>
 
       <section class="month-carousel" aria-label="Month dashboard">
@@ -224,12 +232,13 @@
             </div>
 
             <div class="dashboard-slide" data-month-slide="1" aria-hidden="true">
-              <div class="card">
+              <div class="card statement-card">
                 <h3>Uber Weekly Statement</h3>
 
                 <div class="uber-import">
                   <label for="uber_statement_import_text">Import Uber Breakdown</label>
-                  <textarea id="uber_statement_import_text" rows="4" placeholder="Paste screenshot or copied breakdown text"></textarea>
+                  <textarea id="uber_statement_import_text" rows="2" placeholder="Paste copied breakdown text"></textarea>
+                  <!--
                   <div class="uber-import__actions">
                     <label for="uber_statement_import_image" class="btn-secondary uber-import__file-button">Choose Screenshot</label>
                     <input id="uber_statement_import_image" class="uber-import__file-input" type="file" accept="image/*">
@@ -237,6 +246,7 @@
                     <button id="parse_uber_statement" type="button" class="btn-secondary">Parse Import</button>
                     <span id="uber_statement_import_status" class="uber-import__status" aria-live="polite"></span>
                   </div>
+                  -->
                 </div>
 
                 <div class="form-row-2">
@@ -574,7 +584,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.45"></script>
+  <script type="module" src="js/app.js?v=2.3.46"></script>
 </body>
 
 </html>
