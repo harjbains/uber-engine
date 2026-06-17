@@ -1,9 +1,9 @@
-import { initDays } from "./days.js?v=2.3.43";
-import { initMonthly } from "./monthly.js?v=2.3.43";
-import { initFuel } from "./fuel.js?v=2.3.43";
-import { initExpenses } from "./expenses.js?v=2.3.43";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.3.43";
-import { initSettings } from "./settings.js?v=2.3.43";
+import { initDays } from "./days.js?v=2.3.44";
+import { initMonthly } from "./monthly.js?v=2.3.44";
+import { initFuel } from "./fuel.js?v=2.3.44";
+import { initExpenses } from "./expenses.js?v=2.3.44";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.3.44";
+import { initSettings } from "./settings.js?v=2.3.44";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
@@ -16,6 +16,7 @@ function initTabs() {
       tab.classList.toggle("active", active);
       tab.hidden = !active;
     });
+    window.dispatchEvent(new CustomEvent("uber-tab-shown", { detail: { targetId } }));
   }
 
   buttons.forEach((button) => {
@@ -102,6 +103,7 @@ function initDashboardCarousel() {
   }
 
   window.addEventListener("resize", syncHeight);
+  window.addEventListener("uber-tab-shown", syncHeight);
 
   carousel?.addEventListener("touchstart", (event) => {
     const touch = event.changedTouches[0];
@@ -110,6 +112,82 @@ function initDashboardCarousel() {
   }, { passive: true });
 
   carousel?.addEventListener("touchend", (event) => {
+    const touch = event.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = touch.clientY - touchStartY;
+
+    if (Math.abs(deltaX) < 45 || Math.abs(deltaX) < Math.abs(deltaY) * 1.4) return;
+
+    showSlide(activeIndex + (deltaX < 0 ? 1 : -1));
+  }, { passive: true });
+}
+
+function initMonthCarousel() {
+  const carousel = document.querySelector(".month-carousel");
+  const viewport = carousel?.querySelector(".dashboard-carousel__viewport");
+  const slideTrack = carousel?.querySelector(".dashboard-carousel__slides");
+  const slides = Array.from(carousel?.querySelectorAll("[data-month-slide]") || []);
+  const buttons = Array.from(carousel?.querySelectorAll("[data-month-dot]") || []);
+  if (!carousel || !viewport || !slideTrack || !slides.length || !buttons.length) return;
+
+  let activeIndex = Math.max(0, slides.findIndex((slide) => slide.classList.contains("active")));
+  let touchStartX = 0;
+  let touchStartY = 0;
+
+  function syncHeight() {
+    const activeSlide = slides[activeIndex];
+    if (!activeSlide) return;
+
+    viewport.style.height = `${activeSlide.offsetHeight}px`;
+  }
+
+  function showSlide(index) {
+    activeIndex = Math.max(0, Math.min(slides.length - 1, index));
+
+    slides.forEach((slide, slideIndex) => {
+      const active = slideIndex === activeIndex;
+      slide.classList.toggle("active", active);
+      slide.setAttribute("aria-hidden", String(!active));
+      if ("inert" in slide) slide.inert = !active;
+    });
+
+    slideTrack.style.transform = `translateX(-${activeIndex * 100}%)`;
+    window.requestAnimationFrame(syncHeight);
+
+    buttons.forEach((button, buttonIndex) => {
+      const active = buttonIndex === activeIndex;
+      button.classList.toggle("active", active);
+      if (active) {
+        button.setAttribute("aria-current", "true");
+      } else {
+        button.removeAttribute("aria-current");
+      }
+    });
+  }
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", () => {
+      showSlide(Number(button.dataset.monthDot || 0));
+    });
+  });
+
+  showSlide(activeIndex);
+
+  if ("ResizeObserver" in window) {
+    const resizeObserver = new ResizeObserver(syncHeight);
+    slides.forEach((slide) => resizeObserver.observe(slide));
+  }
+
+  window.addEventListener("resize", syncHeight);
+  window.addEventListener("uber-tab-shown", syncHeight);
+
+  carousel.addEventListener("touchstart", (event) => {
+    const touch = event.changedTouches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+  }, { passive: true });
+
+  carousel.addEventListener("touchend", (event) => {
     const touch = event.changedTouches[0];
     const deltaX = touch.clientX - touchStartX;
     const deltaY = touch.clientY - touchStartY;
@@ -133,6 +211,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initTabs();
   initCostToggle();
   initDashboardCarousel();
+  initMonthCarousel();
   initDays();
   initMonthly();
   initFuel();

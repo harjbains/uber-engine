@@ -674,8 +674,8 @@ input[type="date"] {
 }
 
 .dashboard-carousel__dot {
-  width: 8px;
-  height: 8px;
+  width: 18px;
+  height: 16px;
   border: 1px solid #94a3b8;
   border-radius: 999px;
   background: #e5e7eb;
@@ -684,7 +684,7 @@ input[type="date"] {
 }
 
 .dashboard-carousel__dot.active {
-  width: 22px;
+  width: 28px;
   background: #111827;
   border-color: #111827;
 }
@@ -1702,6 +1702,44 @@ input[type="date"] {
 
 #month_summary {
   display: block;
+}
+
+.month-carousel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+  touch-action: pan-y;
+}
+
+.month-carousel .card {
+  margin-bottom: 0;
+}
+
+.month-carousel__pager {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  padding: 4px;
+  border: 1px solid #d8dee7;
+  border-radius: 999px;
+  background: #eef2f7;
+}
+
+.month-carousel__button {
+  min-width: 0;
+  min-height: 34px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #475569;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.month-carousel__button.active {
+  background: #0f172a;
+  color: #ffffff;
 }
 
 .month-dashboard {

@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.43";
+export const VERSION = "v2.3.44";
 
 export const RELEASE_NOTES = {
+  "2.3.44": "Month tab now uses swipe slides with larger clickable controls",
   "2.3.43": "Work Efficiency cards now use softer numbers and colour accents",
   "2.3.42": "Month Summary now uses visual money-flow and efficiency charts",
   "2.3.41": "Uber import can read copied breakdown text from the clipboard and OCR retries more gracefully",

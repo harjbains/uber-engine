@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.43">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.44">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -203,93 +203,111 @@
         <input type="month" id="month_picker">
       </div>
 
-      <div class="card">
-        <h3>Uber Weekly Statement</h3>
+      <section class="month-carousel" aria-label="Month dashboard">
+        <div class="dashboard-carousel__viewport">
+          <div class="dashboard-carousel__slides">
+            <div class="dashboard-slide active" data-month-slide="0" aria-hidden="false">
+              <div class="card">
+                <h3>Month Summary</h3>
+                <div id="month_summary" class="summary-grid"></div>
 
-        <div class="uber-import">
-          <label for="uber_statement_import_text">Import Uber Breakdown</label>
-          <textarea id="uber_statement_import_text" rows="4" placeholder="Paste screenshot or copied breakdown text"></textarea>
-          <div class="uber-import__actions">
-            <label for="uber_statement_import_image" class="btn-secondary uber-import__file-button">Choose Screenshot</label>
-            <input id="uber_statement_import_image" class="uber-import__file-input" type="file" accept="image/*">
-            <button id="read_uber_clipboard" type="button" class="btn-secondary">Read Clipboard</button>
-            <button id="parse_uber_statement" type="button" class="btn-secondary">Parse Import</button>
-            <span id="uber_statement_import_status" class="uber-import__status" aria-live="polite"></span>
+                <div class="month-export-actions">
+                  <button id="export-month" type="button" class="btn-primary">
+                    Export Month
+                  </button>
+
+                  <button id="export-mtd" type="button" class="btn-secondary">
+                    Export MTD
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="dashboard-slide" data-month-slide="1" aria-hidden="true">
+              <div class="card">
+                <h3>Uber Weekly Statement</h3>
+
+                <div class="uber-import">
+                  <label for="uber_statement_import_text">Import Uber Breakdown</label>
+                  <textarea id="uber_statement_import_text" rows="4" placeholder="Paste screenshot or copied breakdown text"></textarea>
+                  <div class="uber-import__actions">
+                    <label for="uber_statement_import_image" class="btn-secondary uber-import__file-button">Choose Screenshot</label>
+                    <input id="uber_statement_import_image" class="uber-import__file-input" type="file" accept="image/*">
+                    <button id="read_uber_clipboard" type="button" class="btn-secondary">Read Clipboard</button>
+                    <button id="parse_uber_statement" type="button" class="btn-secondary">Parse Import</button>
+                    <span id="uber_statement_import_status" class="uber-import__status" aria-live="polite"></span>
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="field">
+                    <label for="uber_statement_week_start">Week Start</label>
+                    <input id="uber_statement_week_start" type="date">
+                  </div>
+
+                  <div class="field">
+                    <label for="uber_statement_week_end">Week End</label>
+                    <input id="uber_statement_week_end" type="date">
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="field">
+                    <label for="uber_customer_payments">Customer Payments (&pound;)</label>
+                    <input id="uber_customer_payments" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                  </div>
+
+                  <div class="field">
+                    <label for="uber_tips">Tips (&pound;)</label>
+                    <input id="uber_tips" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="field">
+                    <label for="uber_taxes_third_party_fees">Taxes &amp; 3rd Party Fees (&pound;)</label>
+                    <input id="uber_taxes_third_party_fees" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                  </div>
+
+                  <div class="field">
+                    <label for="uber_service_fee">Uber Service Fee (&pound;)</label>
+                    <input id="uber_service_fee" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                  </div>
+                </div>
+
+                <div class="form-row-2">
+                  <div class="field">
+                    <label for="uber_earnings">Earnings (&pound;)</label>
+                    <input id="uber_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                  </div>
+
+                  <div class="field">
+                    <label for="uber_total_earnings">Total Earnings (&pound;)</label>
+                    <input id="uber_total_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+                  </div>
+                </div>
+
+                <button id="save_uber_weekly" type="button" class="btn-primary">
+                  Save Weekly Statement
+                </button>
+              </div>
+            </div>
+
+            <div class="dashboard-slide" data-month-slide="2" aria-hidden="true">
+              <div class="card">
+                <h3>Uber Weekly Statements</h3>
+                <div id="uber_weekly_history"></div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div class="form-row-2">
-          <div class="field">
-            <label for="uber_statement_week_start">Week Start</label>
-            <input id="uber_statement_week_start" type="date">
-          </div>
-
-          <div class="field">
-            <label for="uber_statement_week_end">Week End</label>
-            <input id="uber_statement_week_end" type="date">
-          </div>
+        <div class="month-carousel__pager" role="tablist" aria-label="Month dashboard slides">
+          <button class="month-carousel__button active" type="button" data-month-dot="0" aria-label="Show Month Summary" aria-current="true">Summary</button>
+          <button class="month-carousel__button" type="button" data-month-dot="1" aria-label="Show Uber Weekly Statement">Add Week</button>
+          <button class="month-carousel__button" type="button" data-month-dot="2" aria-label="Show Uber Weekly Statements">History</button>
         </div>
-
-        <div class="form-row-2">
-          <div class="field">
-            <label for="uber_customer_payments">Customer Payments (&pound;)</label>
-            <input id="uber_customer_payments" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </div>
-
-          <div class="field">
-            <label for="uber_tips">Tips (&pound;)</label>
-            <input id="uber_tips" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </div>
-        </div>
-
-        <div class="form-row-2">
-          <div class="field">
-            <label for="uber_taxes_third_party_fees">Taxes &amp; 3rd Party Fees (&pound;)</label>
-            <input id="uber_taxes_third_party_fees" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </div>
-
-          <div class="field">
-            <label for="uber_service_fee">Uber Service Fee (&pound;)</label>
-            <input id="uber_service_fee" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </div>
-        </div>
-
-        <div class="form-row-2">
-          <div class="field">
-            <label for="uber_earnings">Earnings (&pound;)</label>
-            <input id="uber_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </div>
-
-          <div class="field">
-            <label for="uber_total_earnings">Total Earnings (&pound;)</label>
-            <input id="uber_total_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </div>
-        </div>
-
-        <button id="save_uber_weekly" type="button" class="btn-primary">
-          Save Weekly Statement
-        </button>
-      </div>
-
-      <div class="card">
-        <h3>Uber Weekly Statements</h3>
-        <div id="uber_weekly_history"></div>
-      </div>
-
-      <div class="card">
-        <h3>Month Summary</h3>
-        <div id="month_summary" class="summary-grid"></div>
-
-        <div class="month-export-actions">
-          <button id="export-month" type="button" class="btn-primary">
-            Export Month
-          </button>
-
-          <button id="export-mtd" type="button" class="btn-secondary">
-            Export MTD
-          </button>
-        </div>
-      </div>
+      </section>
 
     </div>
 
@@ -556,7 +574,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.43"></script>
+  <script type="module" src="js/app.js?v=2.3.44"></script>
 </body>
 
 </html>
