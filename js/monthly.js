@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.41";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.42";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.41";
+} from "./settings.js?v=2.3.42";
 
 const ids = {
   picker: "month_picker",
@@ -962,6 +962,60 @@ function getVehicleEnergyLabels(settings = getSettings(), fuelPrice = null) {
   };
 }
 
+function moneyFlowSegment(label, value, className) {
+  const amount = Math.max(0, Number(value || 0));
+  return { label, value: amount, className };
+}
+
+function renderStackedBar(segments, total) {
+  const safeTotal = Math.max(0, Number(total || 0));
+  const visibleSegments = segments.filter((segment) => segment.value > 0);
+
+  if (!safeTotal || !visibleSegments.length) {
+    return `<div class="visual-bar visual-bar--empty"></div>`;
+  }
+
+  return `
+    <div class="visual-bar" aria-hidden="true">
+      ${visibleSegments.map((segment) => {
+        const width = Math.max(2, Math.min(100, pct(segment.value, safeTotal)));
+        return `<span class="${segment.className}" style="width: ${width}%"></span>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function renderVisualLegend(segments, total) {
+  const safeTotal = Math.max(0, Number(total || 0));
+  return `
+    <div class="visual-legend">
+      ${segments.map((segment) => `
+        <div class="visual-legend__item">
+          <span class="visual-legend__dot ${segment.className}"></span>
+          <span>${escapeHtml(segment.label)}</span>
+          <strong>${formatMoney(segment.value)}</strong>
+          <em>${formatNumber(pct(segment.value, safeTotal), 0)}%</em>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderProgressRow(label, value, total, meta = "") {
+  const percent = Math.max(0, Math.min(100, pct(value, total)));
+  return `
+    <div class="visual-progress-row">
+      <div class="visual-progress-row__meta">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(meta)}</strong>
+      </div>
+      <div class="visual-progress-track">
+        <span style="width: ${percent}%"></span>
+      </div>
+    </div>
+  `;
+}
+
 export async function loadMonthSummary() {
   const monthValue = el(ids.picker)?.value || currentMonthValue();
   const container = el(ids.summary);
@@ -1084,116 +1138,94 @@ export async function loadMonthSummary() {
     avgPerHour: totalHours > 0 ? totalIncome / totalHours : 0
   };
 
-  const retainedPct = pct(summary.totalTrueRetained, summary.totalIncome);
+  const retainedPercent = pct(summary.totalTrueRetained, summary.incomeBase);
+  const moneyFlowSegments = [
+    moneyFlowSegment(vehicleEnergyLabels.estimate, summary.totalFuel, "visual-segment--fuel"),
+    moneyFlowSegment("Costs", summary.totalCosts, "visual-segment--costs"),
+    moneyFlowSegment("Tax", summary.totalTax, "visual-segment--tax"),
+    moneyFlowSegment("Net", summary.totalTrueRetained, "visual-segment--net")
+  ];
+  const fareSplitSegments = [
+    moneyFlowSegment("Earnings", summary.uberStatement.earnings, "visual-segment--net"),
+    moneyFlowSegment("Tips", summary.uberStatement.tips, "visual-segment--tips"),
+    moneyFlowSegment("Uber Fee", summary.uberStatement.serviceFee, "visual-segment--costs"),
+    moneyFlowSegment("3rd Party", summary.uberStatement.taxesThirdPartyFees, "visual-segment--tax")
+  ];
+  const fareSplitTotal = fareSplitSegments.reduce((sum, segment) => sum + segment.value, 0);
+  const averageMilesPerSession = summary.sessionsWorked > 0 ? summary.totalMiles / summary.sessionsWorked : 0;
+  const averageHoursPerSession = summary.sessionsWorked > 0 ? summary.totalHours / summary.sessionsWorked : 0;
+  const mileageClaimPercent = pct(summary.mileageExpense, summary.totalFuel + summary.mileageExpense);
 
   container.innerHTML = `
     <div class="month-dashboard">
       <section class="month-section month-section--net">
         <div class="month-section__header">
-          <h4>Net Income</h4>
-          <span>${formatNumber(pct(summary.totalTrueRetained, summary.incomeBase), 0)}% retained</span>
+          <h4>Money Flow</h4>
+          <span>${formatNumber(retainedPercent, 0)}% retained</span>
         </div>
 
-        <div class="month-section-grid">
-          <div class="summary-card summary-card--primary">
-            <div class="summary-label">Uber Total</div>
-            <div class="summary-value">${formatMoney(summary.uberStatement.totalEarnings)}</div>
+        <div class="visual-panel visual-panel--money">
+          <div class="visual-panel__headline">
+            <div>
+              <span>Gross</span>
+              <strong>${formatMoney(summary.incomeBase)}</strong>
+            </div>
+            <div>
+              <span>Net Retained</span>
+              <strong>${formatMoney(summary.totalTrueRetained)}</strong>
+            </div>
           </div>
-          <div class="summary-card">
-            <div class="summary-label">Costs</div>
-            <div class="summary-value">${formatMoney(summary.totalCosts)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">${vehicleEnergyLabels.estimate}</div>
-            <div class="summary-value">${formatMoney(summary.totalFuel)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Tax Est.</div>
-            <div class="summary-value">${formatMoney(summary.totalTax)}</div>
-          </div>
-          <div class="summary-card summary-card--retained">
-            <div class="summary-label">Net Retained</div>
-            <div class="summary-value">${formatMoney(summary.totalTrueRetained)}</div>
-          </div>
+          ${renderStackedBar(moneyFlowSegments, summary.incomeBase)}
+          ${renderVisualLegend(moneyFlowSegments, summary.incomeBase)}
         </div>
       </section>
 
       <section class="month-section">
         <div class="month-section__header">
-          <h4>Tax Summary</h4>
+          <h4>Uber Split</h4>
           <span>${formatInt(summary.uberStatement.statementCount)} statements</span>
         </div>
 
-        <div class="month-section-grid">
-          <div class="summary-card">
-            <div class="summary-label">Customer Payments</div>
-            <div class="summary-value">${formatMoney(summary.uberStatement.customerPayments)}</div>
+        <div class="visual-panel">
+          <div class="visual-panel__headline visual-panel__headline--compact">
+            <div>
+              <span>Customer Paid</span>
+              <strong>${formatMoney(summary.uberStatement.customerPayments)}</strong>
+            </div>
+            <div>
+              <span>You Received</span>
+              <strong>${formatMoney(summary.uberStatement.totalEarnings)}</strong>
+            </div>
           </div>
-          <div class="summary-card">
-            <div class="summary-label">Taxes & Fees</div>
-            <div class="summary-value">${formatMoney(summary.uberStatement.taxesThirdPartyFees)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Uber Service Fee</div>
-            <div class="summary-value">${formatMoney(summary.uberStatement.serviceFee)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Earnings</div>
-            <div class="summary-value">${formatMoney(summary.uberStatement.earnings)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Tips</div>
-            <div class="summary-value">${formatMoney(summary.uberStatement.tips)}</div>
-          </div>
-          <div class="summary-card summary-card--primary">
-            <div class="summary-label">Total Earnings</div>
-            <div class="summary-value">${formatMoney(summary.uberStatement.totalEarnings)}</div>
-          </div>
+          ${renderStackedBar(fareSplitSegments, fareSplitTotal)}
+          ${renderVisualLegend(fareSplitSegments, fareSplitTotal)}
         </div>
       </section>
 
       <section class="month-section">
         <div class="month-section__header">
-          <h4>Performance</h4>
+          <h4>Work Efficiency</h4>
           <span>${formatMoney(summary.totalIncome - summary.uberStatement.totalEarnings)} log diff</span>
         </div>
 
-        <div class="month-section-grid">
-          <div class="summary-card">
-            <div class="summary-label">Sessions</div>
-            <div class="summary-value">${formatInt(summary.sessionsWorked)}</div>
+        <div class="visual-panel">
+          <div class="efficiency-grid">
+            <div class="efficiency-score">
+              <span>Hourly Rate</span>
+              <strong>${formatMoney(summary.avgPerHour)}</strong>
+              <em>${formatClockHours(summary.totalHours)} over ${formatInt(summary.sessionsWorked)} sessions</em>
+            </div>
+            <div class="efficiency-score">
+              <span>Miles</span>
+              <strong>${formatNumber(summary.totalMiles, 0)}</strong>
+              <em>${formatNumber(averageMilesPerSession, 0)} mi/session</em>
+            </div>
           </div>
-          <div class="summary-card">
-            <div class="summary-label">Hours</div>
-            <div class="summary-value">${formatClockHours(summary.totalHours)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Per Hour</div>
-            <div class="summary-value">${formatMoney(summary.avgPerHour)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Miles</div>
-            <div class="summary-value">${formatNumber(summary.totalMiles, 0)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">${vehicleEnergyLabels.rate}</div>
-            <div class="summary-value">${vehicleEnergyLabels.rateValue}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">${vehicleEnergyLabels.perMile}</div>
-            <div class="summary-value">${formatMoney(summary.totalMiles > 0 ? summary.totalFuel / summary.totalMiles : 0)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Mileage Claim</div>
-            <div class="summary-value">${formatMoney(summary.mileageExpense)}</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Mileage Rate</div>
-            <div class="summary-value">${formatMoney(summary.mileageRate)}/mi</div>
-          </div>
-          <div class="summary-card">
-            <div class="summary-label">Vehicle Method</div>
-            <div class="summary-value">${summary.vehicleExpenseMethod === "actual" ? "Actual" : "Mileage"}</div>
+          ${renderProgressRow("Avg session length", averageHoursPerSession, 8, formatClockHours(averageHoursPerSession))}
+          ${renderProgressRow(vehicleEnergyLabels.perMile, summary.totalMiles > 0 ? summary.totalFuel / summary.totalMiles : 0, 0.5, formatMoney(summary.totalMiles > 0 ? summary.totalFuel / summary.totalMiles : 0))}
+          ${renderProgressRow("Mileage claim cover", summary.mileageExpense, summary.totalFuel + summary.mileageExpense, `${formatNumber(mileageClaimPercent, 0)}%`)}
+          <div class="visual-footnote">
+            ${escapeHtml(vehicleEnergyLabels.rate)} ${escapeHtml(vehicleEnergyLabels.rateValue)} · ${summary.vehicleExpenseMethod === "actual" ? "Actual vehicle costs" : "Mileage claim method"}
           </div>
         </div>
       </section>

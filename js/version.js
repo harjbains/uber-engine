@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.41";
+export const VERSION = "v2.3.42";
 
 export const RELEASE_NOTES = {
+  "2.3.42": "Month Summary now uses visual money-flow and efficiency charts",
   "2.3.41": "Uber import can read copied breakdown text from the clipboard and OCR retries more gracefully",
   "2.3.40": "iPhone screenshot import now reads the statement date area more aggressively",
   "2.3.39": "Uber statement import now supports choosing a screenshot from the photo library",
