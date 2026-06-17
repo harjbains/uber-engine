@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.40";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.41";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.40";
+} from "./settings.js?v=2.3.41";
 
 const ids = {
   picker: "month_picker",
@@ -30,6 +30,7 @@ const ids = {
   importImage: "uber_statement_import_image",
   importStatus: "uber_statement_import_status",
   parseImportBtn: "parse_uber_statement",
+  readClipboardBtn: "read_uber_clipboard",
   saveUberWeeklyBtn: "save_uber_weekly",
   weeklyHistory: "uber_weekly_history"
 };
@@ -585,15 +586,20 @@ async function readImageWithOcr(file) {
   const texts = [];
 
   for (let index = 0; index < regions.length; index += 1) {
-    const crop = await cropScreenshotForOcr(file, regions[index]);
-    const text = await recogniseImage(tesseract, crop || file);
-    texts.push(text);
+    try {
+      const crop = await cropScreenshotForOcr(file, regions[index]);
+      const text = await recogniseImage(tesseract, crop || file);
+      if (text.trim()) texts.push(text);
+    } catch (error) {
+      console.warn("Uber statement OCR crop failed:", error);
+    }
 
     const parsed = parseUberBreakdownText(texts.join("\n"));
     if (importCompleteness(parsed) >= 7) return texts.join("\n");
     setImportStatus("Reading another screenshot area...", "info");
   }
 
+  setImportStatus("Reading full screenshot...", "info");
   const fullText = await recogniseImage(tesseract, file);
   return [...texts, fullText].join("\n");
 }
@@ -632,6 +638,28 @@ async function handleUberImportFile(event) {
   const file = event.target.files?.[0];
   await importUberStatementImage(file);
   event.target.value = "";
+}
+
+async function handleUberClipboardImport() {
+  if (!navigator.clipboard?.readText) {
+    setImportStatus("Clipboard access is not available here. Paste text into the box.", "error");
+    return;
+  }
+
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text.trim()) {
+      setImportStatus("Clipboard is empty. Copy the Uber breakdown text first.", "error");
+      return;
+    }
+
+    const textNode = el(ids.importText);
+    if (textNode) textNode.value = text;
+    parseUberImportText(text);
+  } catch (error) {
+    console.error("Unable to read Uber statement clipboard:", error);
+    setImportStatus("Clipboard read failed. Paste copied text into the box.", "error");
+  }
 }
 
 function taxYearStartForDate(dateIso) {
@@ -1305,6 +1333,7 @@ export function initMonthly() {
   const exportMtdBtn = el(ids.exportMtdBtn);
   const saveUberWeeklyBtn = el(ids.saveUberWeeklyBtn);
   const parseImportBtn = el(ids.parseImportBtn);
+  const readClipboardBtn = el(ids.readClipboardBtn);
   const importText = el(ids.importText);
   const importImage = el(ids.importImage);
 
@@ -1317,6 +1346,7 @@ export function initMonthly() {
   exportMtdBtn?.addEventListener("click", handleExportMtd);
   saveUberWeeklyBtn?.addEventListener("click", handleSaveUberWeekly);
   parseImportBtn?.addEventListener("click", () => parseUberImportText(importText?.value || ""));
+  readClipboardBtn?.addEventListener("click", handleUberClipboardImport);
   importText?.addEventListener("paste", handleUberImportPaste);
   importImage?.addEventListener("change", handleUberImportFile);
   el(ids.weeklyHistory)?.addEventListener("click", async (event) => {

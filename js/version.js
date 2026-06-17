@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.40";
+export const VERSION = "v2.3.41";
 
 export const RELEASE_NOTES = {
+  "2.3.41": "Uber import can read copied breakdown text from the clipboard and OCR retries more gracefully",
   "2.3.40": "iPhone screenshot import now reads the statement date area more aggressively",
   "2.3.39": "Uber statement import now supports choosing a screenshot from the photo library",
   "2.3.38": "Saving an Uber weekly statement now clears the import box",
