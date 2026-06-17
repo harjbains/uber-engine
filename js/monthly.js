@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.44";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.45";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -11,7 +11,7 @@ import {
   getSettings,
   getTaxRate,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.44";
+} from "./settings.js?v=2.3.45";
 
 const ids = {
   picker: "month_picker",
@@ -1086,10 +1086,10 @@ export async function loadMonthSummary() {
   }
 
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
-  const totalTax = totalIncome * getTaxRate(settings);
   const totalInsurance = Number(settings.insuranceMonthly || 0);
   const uberTotalEarnings = uberStatement.totalEarnings;
   const incomeBase = uberTotalEarnings > 0 ? uberTotalEarnings : totalIncome;
+  const totalTax = incomeBase * getTaxRate(settings);
   const totalCosts = totalExpenses + totalInsurance;
   const vehicleExpenseMethod = getVehicleExpenseMethod(settings);
   const mileageClaim = calculateMileageClaimForMonth(mileageDays, start, end);
@@ -1132,10 +1132,10 @@ export async function loadMonthSummary() {
     vehicleExpenseMethod,
     uberStatement,
     uberWeeklyStatements,
-    avgPerTrip: totalTrips > 0 ? totalIncome / totalTrips : 0,
-    avgPerMile: totalMiles > 0 ? totalIncome / totalMiles : 0,
-    avgPerWorkedDay: distinctDatesWorked > 0 ? totalIncome / distinctDatesWorked : 0,
-    avgPerHour: totalHours > 0 ? totalIncome / totalHours : 0
+    avgPerTrip: totalTrips > 0 ? incomeBase / totalTrips : 0,
+    avgPerMile: totalMiles > 0 ? incomeBase / totalMiles : 0,
+    avgPerWorkedDay: distinctDatesWorked > 0 ? incomeBase / distinctDatesWorked : 0,
+    avgPerHour: totalHours > 0 ? incomeBase / totalHours : 0
   };
 
   const retainedPercent = pct(summary.totalTrueRetained, summary.incomeBase);
@@ -1152,6 +1152,7 @@ export async function loadMonthSummary() {
     moneyFlowSegment("3rd Party", summary.uberStatement.taxesThirdPartyFees, "visual-segment--tax")
   ];
   const fareSplitTotal = fareSplitSegments.reduce((sum, segment) => sum + segment.value, 0);
+  const customerPlusTips = summary.uberStatement.customerPayments + summary.uberStatement.tips;
   const averageMilesPerSession = summary.sessionsWorked > 0 ? summary.totalMiles / summary.sessionsWorked : 0;
   const averageHoursPerSession = summary.sessionsWorked > 0 ? summary.totalHours / summary.sessionsWorked : 0;
   const mileageClaimPercent = pct(summary.mileageExpense, summary.totalFuel + summary.mileageExpense);
@@ -1189,8 +1190,8 @@ export async function loadMonthSummary() {
         <div class="visual-panel">
           <div class="visual-panel__headline visual-panel__headline--compact">
             <div>
-              <span>Customer Paid</span>
-              <strong>${formatMoney(summary.uberStatement.customerPayments)}</strong>
+              <span>Fares + Tips</span>
+              <strong>${formatMoney(customerPlusTips)}</strong>
             </div>
             <div>
               <span>You Received</span>
