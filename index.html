@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.46">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.47">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -39,6 +39,13 @@
         <div class="dashboard-carousel__viewport">
           <div class="dashboard-carousel__slides">
             <div class="dashboard-slide active" data-dashboard-slide="0" aria-hidden="false">
+              <div class="card live-shift-slide-card">
+                <h2>Live Shift Coach</h2>
+                <div id="live_shift_card" class="live-shift-card"></div>
+              </div>
+            </div>
+
+            <div class="dashboard-slide" data-dashboard-slide="1" aria-hidden="true">
               <div class="card">
                 <div class="week-header">
                   <h3 id="week_title">Week to Date</h3>
@@ -57,7 +64,7 @@
               </div>
             </div>
 
-            <div class="dashboard-slide" data-dashboard-slide="1" aria-hidden="true">
+            <div class="dashboard-slide" data-dashboard-slide="2" aria-hidden="true">
               <div class="card target-card">
                 <div class="target-card__header">
                   <div>
@@ -125,7 +132,7 @@
               </div>
             </div>
 
-            <div class="dashboard-slide" data-dashboard-slide="2" aria-hidden="true">
+            <div class="dashboard-slide" data-dashboard-slide="3" aria-hidden="true">
               <div class="card today-target-card">
                 <h2>Total Remaining</h2>
                 <div id="target_summary" class="target-summary-grid"></div>
@@ -135,9 +142,10 @@
         </div>
 
         <div class="dashboard-carousel__pager" role="tablist" aria-label="Dashboard slides">
-          <button class="dashboard-carousel__dot active" type="button" data-dashboard-dot="0" aria-label="Show Week to Date" aria-current="true"></button>
-          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="1" aria-label="Show Weekly Target"></button>
-          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="2" aria-label="Show Total Remaining"></button>
+          <button class="dashboard-carousel__dot active" type="button" data-dashboard-dot="0" aria-label="Show Live Shift Coach" aria-current="true"></button>
+          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="1" aria-label="Show Week to Date"></button>
+          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="2" aria-label="Show Weekly Target"></button>
+          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="3" aria-label="Show Total Remaining"></button>
         </div>
       </section>
 
@@ -584,7 +592,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.46"></script>
+  <script type="module" src="js/app.js?v=2.3.47"></script>
 </body>
 
 </html>

@@ -19,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.46";
+} from "./settings.js?v=2.3.47";
 
 const ids = {
   date: "day_date",
@@ -37,6 +37,7 @@ const ids = {
   targetWeekStrip: "target_week_strip",
   targetProgressSummary: "target_progress_summary",
   targetSummary: "target_summary",
+  liveShiftCard: "live_shift_card",
   targetStatus: "target_status",
   targetPrevWeek: "target_prev_week",
   targetNextWeek: "target_next_week",
@@ -54,12 +55,163 @@ const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const WEEKDAY_FORECAST_WEIGHTS = [0.9, 0.95, 1, 1, 1.2, 1.25, 0.75];
 const WEEKDAY_HOUR_WEIGHTS = [1, 1, 1, 1, 1.15, 1.25, 0.9];
+const LIVE_SHIFT_ACTIVE_KEY = "uberEngineLiveShiftActive";
+const LIVE_SHIFT_HISTORY_KEY = "uberEngineLiveShiftHistory";
+const MIN_FORECAST_ELAPSED_HOURS = 0.5;
+const MIN_FORECAST_CHECKPOINT_GAP_HOURS = 10 / 60;
+const MAX_REASONABLE_GROSS_PER_MILE = 10;
+const ENERGY_LEVELS = [
+  { value: "DRAINED", label: "Drained", icon: "😫", score: 1 },
+  { value: "LOW", label: "Low", icon: "😕", score: 2 },
+  { value: "OK", label: "OK", icon: "😐", score: 3 },
+  { value: "GOOD", label: "Good", icon: "🙂", score: 4 },
+  { value: "EXCELLENT", label: "Excellent", icon: "😃", score: 5 }
+];
+const SHIFT_COACH_MESSAGES = {
+  start: [
+    "Shift started. Focus on steady jobs and let the data build.",
+    "You are now on shift. First checkpoint recommended in around 60 to 90 minutes.",
+    "Shift active. No pressure yet. Early data can be noisy.",
+    "You are in the game. Build the shift one job at a time."
+  ],
+  firstCheckpoint: [
+    "First checkpoint recorded. The shift now has enough data to start tracking pace.",
+    "Early checkpoint saved. Treat this as a baseline, not a final judgement.",
+    "First reading captured. Reassess after the next checkpoint for a clearer trend.",
+    "Good start. Uber Engine will now compare future checkpoints against this baseline."
+  ],
+  forecastWaiting: [
+    "Early checkpoint — projections will appear once more shift data is available.",
+    "Checkpoint saved. More data needed before reliable forecasting.",
+    "Keep building the shift. Forecasting will unlock after a stronger data window.",
+    "Early data can be noisy. Add another checkpoint before treating the forecast as useful."
+  ],
+  forecastSuppressed: [
+    "Checkpoint saved. More data needed before reliable forecasting.",
+    "This checkpoint created an unusual rate. Forecasting is paused until the next reading.",
+    "The data is saved, but the forecast needs a steadier sample before it is useful.",
+    "Uber Engine is holding back the forecast so the numbers do not mislead you."
+  ],
+  ahead: [
+    "You are currently running above target pace. Keep going if the work feels easy.",
+    "Strong shift so far. You are ahead of the required hourly rate.",
+    "You have built a good cushion. Further driving is productive but not desperate.",
+    "Target pressure is reducing. Stay steady and avoid chasing poor jobs.",
+    "You are ahead of plan. Consider banking the momentum without overextending.",
+    "Strong pace detected. This is the kind of shift that protects the week."
+  ],
+  onTrack: [
+    "Current pace supports the target. Stay in the game.",
+    "You are close to the required pace. Keep working and reassess at the next checkpoint.",
+    "This is a viable shift. No major change needed.",
+    "Progress is steady. Continue unless fatigue or poor job quality becomes an issue.",
+    "The numbers are acceptable. Stay calm and keep taking sensible jobs.",
+    "Target remains achievable from here."
+  ],
+  quietPatch: [
+    "Recent pace has dropped, but the overall shift may still recover.",
+    "This looks like a slow spell rather than a failed shift. Reassess at the next checkpoint.",
+    "Income has softened recently. Stay patient if the area still feels active.",
+    "Quiet period detected. Consider repositioning rather than ending immediately.",
+    "The last checkpoint period was weaker. Give the shift one more review window.",
+    "Recent earnings have slowed. Protect your patience and reassess soon."
+  ],
+  weak: [
+    "Current pace is low and recovery time may be limited. Consider whether this shift is worth extending.",
+    "The shift is underperforming. Repositioning or preserving energy for the next session may be sensible.",
+    "This shift is not currently paying well. Avoid forcing hours just to stay busy.",
+    "Low pace detected. Consider setting a short review window before deciding whether to continue.",
+    "The numbers suggest this may become a poor shift unless the next hour improves.",
+    "Weak return so far. Protect energy if another shift is planned later."
+  ],
+  recovery: [
+    "You are behind target, but there is still enough shift time to recover.",
+    "The shift is below plan, but one decent run could bring it back.",
+    "Recovery remains realistic. Stay available and reassess after the next checkpoint.",
+    "You are behind, but not out of range. Keep decisions sensible.",
+    "Target is still reachable if the next hour improves.",
+    "This is not yet a failed shift. Give it another checkpoint before deciding."
+  ],
+  recoveryUnlikely: [
+    "Based on current pace and remaining shift time, today's target may be difficult.",
+    "The remaining time may not be enough to recover the shortfall.",
+    "Continuing may still earn money, but it is unlikely to rescue the target.",
+    "This shift may be better treated as damage limitation.",
+    "Consider protecting energy for the next stronger earning window.",
+    "The data suggests diminishing returns. A planned stop may be better than a tired grind."
+  ],
+  targetAchieved: [
+    "Daily target reached. Anything more is optional.",
+    "You have hit the day's target. Protect energy and avoid unnecessary risk.",
+    "Target protected. Further driving is a bonus, not a requirement.",
+    "You have done enough for today's plan.",
+    "Daily goal complete. Consider finishing on a good note.",
+    "You are now in bonus territory."
+  ],
+  weeklyProtected: [
+    "You are on track for the weekly target.",
+    "This shift has reduced pressure on the rest of the week.",
+    "The week is now in a stronger position.",
+    "You have created breathing room for later in the week.",
+    "Weekly target remains achievable without panic driving.",
+    "You are building the week properly."
+  ],
+  weeklyPressure: [
+    "The weekly target is still achievable, but the remaining days need consistency.",
+    "You are slightly behind the weekly plan. Extra hours may be needed later.",
+    "The week is not in danger yet, but avoid losing more momentum.",
+    "This is a useful checkpoint: the week needs attention, not panic.",
+    "You may need one stronger shift to get the week back on track.",
+    "Weekly target pressure is increasing. Plan the next shift carefully."
+  ],
+  lowMileageReturn: [
+    "Income per mile is lower than ideal. Watch for jobs that send you too far out.",
+    "You are working, but the mileage return is weak.",
+    "Consider favouring shorter local jobs until pounds per mile improves.",
+    "High miles with low income can quietly damage the shift.",
+    "Efficiency is below target. Avoid long dead miles if possible."
+  ],
+  goodMileageReturn: [
+    "Good pounds per mile so far. This shift is using the car efficiently.",
+    "Mileage return is healthy. Keep taking sensible local work.",
+    "This is a good efficiency pattern.",
+    "You are earning without excessive mileage.",
+    "Strong mileage efficiency detected. This protects profit and energy."
+  ],
+  energy: [
+    "You have been out for several hours. Check fatigue before extending the shift.",
+    "The numbers may support continuing, but energy matters too.",
+    "Do not trade tomorrow's early start for a tired extra hour tonight.",
+    "If concentration is dropping, protect yourself and stop after a sensible job.",
+    "Preserving energy may be the best business decision.",
+    "The goal is repeatable income, not one heroic shift."
+  ],
+  energyWarning: [
+    "The shift is performing well, but energy is falling. Consider finishing after the next suitable job.",
+    "The numbers may support continuing, but your energy level needs protecting.",
+    "You are earning, but do not trade tomorrow's shift for a tired extra hour.",
+    "Strong earnings are useful. Sustainable earnings are better."
+  ],
+  sustainabilityAlert: [
+    "Recent earnings have weakened and energy is low. A break may provide more value than grinding.",
+    "This is becoming a sustainability decision, not just an earnings decision.",
+    "Weak returns and low energy are a poor combination. Consider protecting recovery.",
+    "The shift may not be worth forcing if the next checkpoint does not improve."
+  ],
+  strongPosition: [
+    "Current pace remains healthy and energy is good. Continue if desired.",
+    "Strong position. The shift is productive and your energy is holding up.",
+    "You have both pace and energy. Stay disciplined and keep the work sensible.",
+    "This is a healthy shift pattern. Continue if it still feels easy."
+  ]
+};
 
 let weekOffset = 0;
 let currentWeekDays = [];
 let currentHistoricalDays = [];
 let currentWeekRange = null;
 let weeklyTargetsTableAvailable = true;
+let liveShiftTimer = null;
 
 function el(id) {
   return document.getElementById(id);
@@ -98,6 +250,258 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function readJsonStorage(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  } catch (err) {
+    console.warn(`Unable to read ${key}`, err);
+    return fallback;
+  }
+}
+
+function readActiveShift() {
+  const shift = readJsonStorage(LIVE_SHIFT_ACTIVE_KEY, null);
+  if (!shift || !shift.start_time) return null;
+
+  return {
+    ...shift,
+    checkpoints: Array.isArray(shift.checkpoints) ? shift.checkpoints : []
+  };
+}
+
+function writeActiveShift(shift) {
+  localStorage.setItem(LIVE_SHIFT_ACTIVE_KEY, JSON.stringify(shift));
+}
+
+function clearActiveShift() {
+  localStorage.removeItem(LIVE_SHIFT_ACTIVE_KEY);
+}
+
+function archiveLiveShift(shift) {
+  const history = readJsonStorage(LIVE_SHIFT_HISTORY_KEY, []);
+  const nextHistory = [shift, ...history.filter((item) => item.id !== shift.id)].slice(0, 20);
+  localStorage.setItem(LIVE_SHIFT_HISTORY_KEY, JSON.stringify(nextHistory));
+}
+
+function formatShiftTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "--:--";
+
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function elapsedHoursBetween(startValue, endValue = new Date()) {
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+
+  return Math.max(0, (end.getTime() - start.getTime()) / 3600000);
+}
+
+function formatElapsedTime(hours) {
+  const totalMinutes = Math.max(0, Math.floor(Number(hours || 0) * 60));
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return `${wholeHours}h ${String(minutes).padStart(2, "0")}m`;
+}
+
+function getLastCheckpoint(shift) {
+  if (!shift?.checkpoints?.length) return null;
+  return shift.checkpoints[shift.checkpoints.length - 1];
+}
+
+function getEnergyLevel(value) {
+  return ENERGY_LEVELS.find((level) => level.value === value) || ENERGY_LEVELS[2];
+}
+
+function renderEnergyOptions(selectedValue = "OK") {
+  const selected = getEnergyLevel(selectedValue).value;
+
+  return ENERGY_LEVELS.map((level) => `
+    <label class="live-energy-option" title="${escapeHtml(level.label)}" aria-label="${escapeHtml(level.label)}">
+      <input type="radio" name="live_checkpoint_energy" value="${level.value}" ${level.value === selected ? "checked" : ""}>
+      <span aria-hidden="true">${level.icon}</span>
+    </label>
+  `).join("");
+}
+
+function pickShiftCoachMessage(category, seedValue = 0) {
+  const messages = SHIFT_COACH_MESSAGES[category] || SHIFT_COACH_MESSAGES.onTrack;
+  const seed = Math.abs(Number(seedValue) || 0);
+  return messages[seed % messages.length];
+}
+
+function getRecentCheckpointHourlyRate(shift) {
+  if (!shift?.checkpoints || shift.checkpoints.length < 2) return 0;
+
+  const latest = shift.checkpoints[shift.checkpoints.length - 1];
+  const previous = shift.checkpoints[shift.checkpoints.length - 2];
+  const earningsDelta = Number(latest.earnings || 0) - Number(previous.earnings || 0);
+  const hoursDelta = elapsedHoursBetween(previous.timestamp, latest.timestamp);
+
+  return hoursDelta > 0 && earningsDelta > 0 ? earningsDelta / hoursDelta : 0;
+}
+
+function getRecentCheckpointGapHours(shift) {
+  if (!shift?.checkpoints || shift.checkpoints.length < 2) return 0;
+
+  const latest = shift.checkpoints[shift.checkpoints.length - 1];
+  const previous = shift.checkpoints[shift.checkpoints.length - 2];
+  return elapsedHoursBetween(previous.timestamp, latest.timestamp);
+}
+
+function getLiveShiftCoach(shift, summary) {
+  const checkpoint = getLastCheckpoint(shift);
+  const elapsedHours = elapsedHoursBetween(shift.start_time);
+  const earnings = Number(checkpoint?.earnings || 0);
+  const miles = Number(checkpoint?.business_miles || 0);
+  const energy = getEnergyLevel(checkpoint?.energy_level);
+  const hourlyRate = elapsedHours > 0 && earnings > 0 ? earnings / elapsedHours : 0;
+  const recentHourlyRate = getRecentCheckpointHourlyRate(shift);
+  const recentCheckpointGapHours = getRecentCheckpointGapHours(shift);
+  const grossPerMile = miles > 0 && earnings > 0 ? earnings / miles : 0;
+  const todayGoal = summary.hasTodayTarget
+    ? summary.todayEarned + summary.todayTarget
+    : summary.requiredPerDay;
+  const plannedHoursLeft = Math.max(0, summary.todayHoursRemaining);
+  const planningRate = Math.max(1, Number(summary.planningHourlyRate || 0));
+  const maxReasonableHourlyRate = Math.max(75, planningRate * 3.5);
+  const hasElapsedForecastWindow = elapsedHours >= MIN_FORECAST_ELAPSED_HOURS;
+  const hasCheckpointForecastWindow = shift.checkpoints.length >= 2
+    && recentCheckpointGapHours >= MIN_FORECAST_CHECKPOINT_GAP_HOURS;
+  const hasForecastWindow = Boolean(checkpoint) && (hasElapsedForecastWindow || hasCheckpointForecastWindow);
+  const hasExtremeHourlyRate = hourlyRate > maxReasonableHourlyRate
+    || recentHourlyRate > maxReasonableHourlyRate;
+  const hasExtremeMileageRate = grossPerMile > MAX_REASONABLE_GROSS_PER_MILE;
+  const forecastAvailable = hasForecastWindow && !hasExtremeHourlyRate && !hasExtremeMileageRate;
+  const projectedDay = forecastAvailable && hourlyRate > 0
+    ? hourlyRate * Math.max(elapsedHours, elapsedHours + plannedHoursLeft)
+    : 0;
+  const projectedWeek = forecastAvailable
+    ? Math.max(0, summary.earned - summary.todayEarned) + Math.max(earnings, projectedDay)
+    : 0;
+  const currentWeekPosition = Math.max(0, summary.earned - summary.todayEarned) + earnings;
+
+  let tone = "idle";
+  let label = "Add first checkpoint";
+  let category = "start";
+
+  if (checkpoint) {
+    const isFirstCheckpoint = shift.checkpoints.length === 1;
+    const dailyTargetAchieved = todayGoal > 0 && earnings >= todayGoal;
+    const weeklyProtected = forecastAvailable && summary.target > 0 && projectedWeek >= summary.target;
+    const quietPatch = recentHourlyRate > 0 && recentHourlyRate < planningRate * 0.65 && hourlyRate >= planningRate * 0.75;
+    const weakShift = hourlyRate < planningRate * 0.75 && (recentHourlyRate === 0 || recentHourlyRate < planningRate * 0.75);
+    const recoveryPossible = forecastAvailable && hourlyRate < planningRate * 0.85 && plannedHoursLeft > 1.5 && projectedDay >= todayGoal * 0.85;
+    const recoveryUnlikely = forecastAvailable && hourlyRate < planningRate * 0.75 && plannedHoursLeft <= 1.5 && todayGoal > 0 && projectedDay < todayGoal;
+    const lowMileageReturn = grossPerMile > 0 && grossPerMile < 0.9;
+    const goodMileageReturn = grossPerMile >= 1.25;
+    const lowEnergy = energy.score <= 2;
+    const goodEnergy = energy.score >= 4;
+    const strongPace = forecastAvailable && hourlyRate >= planningRate * 1.1;
+
+    if (!forecastAvailable && (hasExtremeHourlyRate || hasExtremeMileageRate)) {
+      tone = "amber";
+      label = "More Data Needed";
+      category = "forecastSuppressed";
+    } else if (!forecastAvailable) {
+      tone = "amber";
+      label = isFirstCheckpoint ? "First Checkpoint" : "More Data Needed";
+      category = "forecastWaiting";
+    } else if (dailyTargetAchieved) {
+      tone = "green";
+      label = "Target Achieved";
+      category = "targetAchieved";
+    } else if (recoveryUnlikely) {
+      tone = "red";
+      label = "Recovery Unlikely";
+      category = "recoveryUnlikely";
+    } else if (weakShift && lowEnergy) {
+      tone = "red";
+      label = "Sustainability Alert";
+      category = "sustainabilityAlert";
+    } else if (weakShift) {
+      tone = "red";
+      label = "Weak Shift Forming";
+      category = "weak";
+    } else if (quietPatch) {
+      tone = "amber";
+      label = "Quiet Patch";
+      category = "quietPatch";
+    } else if (recoveryPossible) {
+      tone = "amber";
+      label = "Recovery Possible";
+      category = "recovery";
+    } else if (strongPace && lowEnergy) {
+      tone = "amber";
+      label = "Energy Warning";
+      category = "energyWarning";
+    } else if (strongPace && goodEnergy) {
+      tone = "green";
+      label = "Strong Position";
+      category = "strongPosition";
+    } else if (hourlyRate >= planningRate * 1.1) {
+      tone = "green";
+      label = "Ahead of Plan";
+      category = weeklyProtected ? "weeklyProtected" : "ahead";
+    } else if (hourlyRate >= planningRate * 0.85 || projectedWeek >= summary.target * 0.95) {
+      tone = "amber";
+      label = "On Plan";
+      category = weeklyProtected ? "weeklyProtected" : "onTrack";
+    } else {
+      tone = "red";
+      label = "Weekly Pressure";
+      category = "weeklyPressure";
+    }
+
+    if (forecastAvailable && !isFirstCheckpoint && elapsedHours >= 6 && tone !== "red" && !dailyTargetAchieved) {
+      tone = "amber";
+      label = "Energy Check";
+      category = "energy";
+    } else if (forecastAvailable && !isFirstCheckpoint && lowMileageReturn && tone !== "red") {
+      tone = "amber";
+      label = "Mileage Efficiency";
+      category = "lowMileageReturn";
+    } else if (forecastAvailable && !isFirstCheckpoint && goodMileageReturn && tone === "amber" && hourlyRate >= planningRate * 0.85) {
+      tone = "green";
+      label = "Strong Mileage Efficiency";
+      category = "goodMileageReturn";
+    }
+  }
+
+  const messageSeed = shift.checkpoints.length + Math.floor(elapsedHours) + Math.round(earnings);
+
+  return {
+    checkpoint,
+    elapsedHours,
+    earnings,
+    miles,
+    hourlyRate,
+    recentHourlyRate,
+    grossPerMile,
+    energy,
+    projectedDay,
+    projectedWeek,
+    currentWeekPosition,
+    todayGoal,
+    weeklyGoal: summary.target,
+    todayProgress: todayGoal > 0 ? Math.min(100, (earnings / todayGoal) * 100) : 0,
+    weeklyProgress: summary.target > 0
+      ? Math.min(100, ((forecastAvailable ? projectedWeek : currentWeekPosition) / summary.target) * 100)
+      : 0,
+    forecastAvailable,
+    showHourlyRate: forecastAvailable,
+    showGrossPerMile: grossPerMile > 0 && !hasExtremeMileageRate,
+    tone,
+    label,
+    message: pickShiftCoachMessage(category, messageSeed)
+  };
 }
 
 function todayIso() {
@@ -451,6 +855,122 @@ function renderTargetWorkdays(settings, weekDates) {
       renderWeeklyTarget(currentWeekDays);
     });
   });
+}
+
+function renderLiveShiftCard(summary) {
+  const node = el(ids.liveShiftCard);
+  if (!node) return;
+
+  const shift = readActiveShift();
+
+  if (!shift) {
+    node.innerHTML = `
+      <section class="live-shift-panel live-shift-panel--idle">
+        <div class="live-shift-panel__header">
+          <div>
+            <h3>Live Shift Coach</h3>
+            <p>Quick checkpoints while you work.</p>
+          </div>
+          <span class="live-shift-pill">Ready</span>
+        </div>
+        <button class="live-shift-button live-shift-button--primary" type="button" data-live-shift-action="start">
+          Start Shift
+        </button>
+      </section>
+    `;
+    syncLiveShiftTimer(false);
+    return;
+  }
+
+  const coach = getLiveShiftCoach(shift, summary);
+  const checkpoint = coach.checkpoint;
+  const checkpointCount = shift.checkpoints.length;
+  const selectedEnergy = checkpoint?.energy_level || "OK";
+
+  node.innerHTML = `
+    <section class="live-shift-panel live-shift-panel--active live-shift-panel--${coach.tone}">
+      <div class="live-shift-panel__header">
+        <div>
+          <h3>Live Shift Coach</h3>
+          <p>Shift started ${formatShiftTime(shift.start_time)}</p>
+        </div>
+        <span class="live-shift-pill live-shift-pill--${coach.tone}">${escapeHtml(coach.label)}</span>
+      </div>
+
+      <div class="live-shift-clock">
+        <span>Elapsed</span>
+        <strong data-live-shift-elapsed>${formatElapsedTime(coach.elapsedHours)}</strong>
+      </div>
+
+      <form class="live-shift-form" data-live-shift-form>
+        <label>
+          <span>Current Earnings</span>
+          <input id="live_checkpoint_earnings" type="number" min="0" step="0.01" inputmode="decimal" value="${checkpoint ? coach.earnings.toFixed(2) : ""}" placeholder="0.00">
+        </label>
+        <label>
+          <span>Business Miles</span>
+          <input id="live_checkpoint_miles" type="number" min="0" step="0.1" inputmode="decimal" value="${checkpoint ? coach.miles.toFixed(1) : ""}" placeholder="0.0">
+        </label>
+        <fieldset class="live-energy-field">
+          <legend>Energy Level</legend>
+          <div class="live-energy-options">
+            ${renderEnergyOptions(selectedEnergy)}
+          </div>
+        </fieldset>
+        <button class="live-shift-button live-shift-button--primary" type="submit">Save Checkpoint</button>
+      </form>
+
+      <div class="live-shift-coach">
+        <div class="live-shift-coach__status">
+          <span class="live-shift-dot live-shift-dot--${coach.tone}"></span>
+          <div>
+            <strong>${escapeHtml(coach.label)}</strong>
+            <span>${escapeHtml(coach.message)}</span>
+          </div>
+        </div>
+        <div class="live-shift-metrics">
+          <div>
+            <span>Hourly</span>
+            <strong>${coach.showHourlyRate ? `${formatMoney(coach.hourlyRate)}/hr` : "More data"}</strong>
+          </div>
+          <div>
+            <span>Per Mile</span>
+            <strong>${coach.showGrossPerMile ? `${formatMoney(coach.grossPerMile)}/mi` : "Add miles"}</strong>
+          </div>
+          <div>
+            <span>Projected Day</span>
+            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedDay) : "Waiting"}</strong>
+          </div>
+          <div>
+            <span>Projected Week</span>
+            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedWeek) : "Waiting"}</strong>
+          </div>
+        </div>
+        <div class="live-shift-bars">
+          <div>
+            <span>Today</span>
+            <div class="live-shift-track"><i style="width: ${coach.todayProgress}%"></i></div>
+            <b>${formatMoney(coach.earnings)} of ${formatMoney(coach.todayGoal || 0)}</b>
+          </div>
+          <div>
+            <span>Week Plan</span>
+            <div class="live-shift-track"><i style="width: ${coach.weeklyProgress}%"></i></div>
+            <b>${coach.forecastAvailable
+              ? `${formatMoney(coach.projectedWeek)} projected vs ${formatMoney(coach.weeklyGoal || 0)}`
+              : `Forecast after 30m or another checkpoint. Current week ${formatMoney(coach.currentWeekPosition)}`}
+            </b>
+          </div>
+        </div>
+      </div>
+
+      <div class="live-shift-footer">
+        <span>${checkpoint ? `Last checkpoint ${formatShiftTime(checkpoint.timestamp)} (${checkpointCount})` : "No checkpoints yet"}</span>
+        <button class="live-shift-button" type="button" data-live-shift-action="end">End Shift</button>
+      </div>
+    </section>
+  `;
+
+  syncLiveShiftTimer(true);
 }
 
 function buildWeeklyTargetSummary(days, settings, weekDates) {
@@ -955,6 +1475,125 @@ function renderWeeklyTarget(days) {
       <div class="summary-sub">${summary.hourlyRateSource === "actual" ? "From actuals" : "Settings rate"}</div>
     </div>
   `;
+
+  renderLiveShiftCard(summary);
+}
+
+function syncLiveShiftTimer(active) {
+  if (liveShiftTimer) {
+    window.clearInterval(liveShiftTimer);
+    liveShiftTimer = null;
+  }
+
+  if (!active) return;
+
+  liveShiftTimer = window.setInterval(() => {
+    if (!readActiveShift()) {
+      syncLiveShiftTimer(false);
+      return;
+    }
+
+    renderWeeklyTarget(currentWeekDays);
+  }, 30000);
+}
+
+function startLiveShift() {
+  const now = new Date();
+  writeActiveShift({
+    id: `shift-${now.getTime()}`,
+    start_time: now.toISOString(),
+    end_time: "",
+    checkpoints: []
+  });
+
+  renderWeeklyTarget(currentWeekDays);
+  showStatus("Live shift started.", "success");
+}
+
+function endLiveShift() {
+  const shift = readActiveShift();
+  if (!shift) return;
+
+  archiveLiveShift({
+    ...shift,
+    end_time: new Date().toISOString()
+  });
+  clearActiveShift();
+  renderWeeklyTarget(currentWeekDays);
+  showStatus("Live shift ended. Save the final session when ready.", "success");
+}
+
+function saveLiveCheckpoint(event) {
+  event.preventDefault();
+
+  const shift = readActiveShift();
+  if (!shift) {
+    showStatus("Start a shift before adding a checkpoint.", "error");
+    return;
+  }
+
+  const earnings = toNumber(document.getElementById("live_checkpoint_earnings")?.value);
+  const miles = toNumber(document.getElementById("live_checkpoint_miles")?.value);
+  const energyLevel = getEnergyLevel(document.querySelector("input[name='live_checkpoint_energy']:checked")?.value);
+
+  if (earnings === null || earnings < 0) {
+    showStatus("Enter current Uber earnings.", "error");
+    return;
+  }
+
+  if (miles === null || miles < 0) {
+    showStatus("Enter current business miles.", "error");
+    return;
+  }
+
+  const previousCheckpoint = getLastCheckpoint(shift);
+  if (previousCheckpoint) {
+    const previousEarnings = Number(previousCheckpoint.earnings || 0);
+    const previousMiles = Number(previousCheckpoint.business_miles || 0);
+
+    if (earnings < previousEarnings) {
+      showStatus("Current earnings are lower than the previous checkpoint. Start a new shift or correct the value.", "error");
+      return;
+    }
+
+    if (miles < previousMiles) {
+      showStatus("Business miles are lower than the previous checkpoint. Check the current total.", "error");
+      return;
+    }
+  }
+
+  const nextShift = {
+    ...shift,
+    checkpoints: [
+      ...shift.checkpoints,
+      {
+        timestamp: new Date().toISOString(),
+        earnings,
+        business_miles: miles,
+        energy_level: energyLevel.value
+      }
+    ]
+  };
+
+  writeActiveShift(nextShift);
+  renderWeeklyTarget(currentWeekDays);
+  showStatus("Checkpoint saved.", "success");
+}
+
+function handleLiveShiftClick(event) {
+  const button = event.target.closest("[data-live-shift-action]");
+  if (!button) return;
+
+  if (button.dataset.liveShiftAction === "start") {
+    startLiveShift();
+  } else if (button.dataset.liveShiftAction === "end") {
+    endLiveShift();
+  }
+}
+
+function handleLiveShiftSubmit(event) {
+  if (!event.target.closest("[data-live-shift-form]")) return;
+  saveLiveCheckpoint(event);
 }
 
 function initialiseWeeklyTarget(range) {
@@ -1686,6 +2325,8 @@ export async function saveDay() {
 
 function bindDayEvents() {
   el(ids.saveBtn)?.addEventListener("click", saveDay);
+  el(ids.liveShiftCard)?.addEventListener("click", handleLiveShiftClick);
+  el(ids.liveShiftCard)?.addEventListener("submit", handleLiveShiftSubmit);
   el(ids.list)?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-day]");
     if (!button) return;
