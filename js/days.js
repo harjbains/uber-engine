@@ -19,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.47";
+} from "./settings.js?v=2.3.48";
 
 const ids = {
   date: "day_date",
@@ -60,6 +60,7 @@ const LIVE_SHIFT_HISTORY_KEY = "uberEngineLiveShiftHistory";
 const MIN_FORECAST_ELAPSED_HOURS = 0.5;
 const MIN_FORECAST_CHECKPOINT_GAP_HOURS = 10 / 60;
 const MAX_REASONABLE_GROSS_PER_MILE = 10;
+const EARLY_SHIFT_PROTECTION_HOURS = 1.5;
 const ENERGY_LEVELS = [
   { value: "DRAINED", label: "Drained", icon: "😫", score: 1 },
   { value: "LOW", label: "Low", icon: "😕", score: 2 },
@@ -91,6 +92,12 @@ const SHIFT_COACH_MESSAGES = {
     "This checkpoint created an unusual rate. Forecasting is paused until the next reading.",
     "The data is saved, but the forecast needs a steadier sample before it is useful.",
     "Uber Engine is holding back the forecast so the numbers do not mislead you."
+  ],
+  paused: [
+    "Shift paused. Break time will not count against your working pace.",
+    "Paused for now. Resume when you are ready to keep building the shift.",
+    "Break protected. The coach will continue when the shift resumes.",
+    "Shift paused. Rest, food, charging, or errands will not distort the numbers."
   ],
   ahead: [
     "You are currently running above target pace. Keep going if the work feels easy.",
@@ -268,7 +275,9 @@ function readActiveShift() {
 
   return {
     ...shift,
-    checkpoints: Array.isArray(shift.checkpoints) ? shift.checkpoints : []
+    checkpoints: Array.isArray(shift.checkpoints) ? shift.checkpoints : [],
+    pauses: Array.isArray(shift.pauses) ? shift.pauses : [],
+    paused_at: shift.paused_at || ""
   };
 }
 
@@ -304,6 +313,59 @@ function elapsedHoursBetween(startValue, endValue = new Date()) {
   return Math.max(0, (end.getTime() - start.getTime()) / 3600000);
 }
 
+function getPauseIntervals(shift) {
+  return Array.isArray(shift?.pauses) ? shift.pauses : [];
+}
+
+function isLiveShiftPaused(shift) {
+  return Boolean(shift?.paused_at);
+}
+
+function getPausedMs(shift, endValue = new Date()) {
+  const end = new Date(endValue);
+  const pauseIntervals = getPauseIntervals(shift);
+  const savedPauseMs = pauseIntervals.reduce((sum, pause) => {
+    const start = new Date(pause.start_time);
+    const pauseEnd = new Date(pause.end_time);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(pauseEnd.getTime())) return sum;
+    return sum + Math.max(0, pauseEnd.getTime() - start.getTime());
+  }, 0);
+
+  if (!shift?.paused_at) return savedPauseMs;
+
+  const pausedAt = new Date(shift.paused_at);
+  if (Number.isNaN(pausedAt.getTime()) || Number.isNaN(end.getTime())) return savedPauseMs;
+  return savedPauseMs + Math.max(0, end.getTime() - pausedAt.getTime());
+}
+
+function getLiveShiftElapsedHours(shift, endValue = new Date()) {
+  if (!shift?.start_time) return 0;
+
+  const start = new Date(shift.start_time);
+  const end = isLiveShiftPaused(shift) ? new Date(shift.paused_at) : new Date(endValue);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+
+  return Math.max(0, (end.getTime() - start.getTime() - getPausedMs(shift, end)) / 3600000);
+}
+
+function getLiveShiftHoursBetween(shift, startValue, endValue) {
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+
+  const pauseMs = getPauseIntervals(shift).reduce((sum, pause) => {
+    const pauseStart = new Date(pause.start_time);
+    const pauseEnd = new Date(pause.end_time);
+    if (Number.isNaN(pauseStart.getTime()) || Number.isNaN(pauseEnd.getTime())) return sum;
+
+    const overlapStart = Math.max(start.getTime(), pauseStart.getTime());
+    const overlapEnd = Math.min(end.getTime(), pauseEnd.getTime());
+    return sum + Math.max(0, overlapEnd - overlapStart);
+  }, 0);
+
+  return Math.max(0, (end.getTime() - start.getTime() - pauseMs) / 3600000);
+}
+
 function formatElapsedTime(hours) {
   const totalMinutes = Math.max(0, Math.floor(Number(hours || 0) * 60));
   const wholeHours = Math.floor(totalMinutes / 60);
@@ -337,13 +399,125 @@ function pickShiftCoachMessage(category, seedValue = 0) {
   return messages[seed % messages.length];
 }
 
+function formatProductiveHours(hours) {
+  const value = Number(hours || 0);
+  if (value <= 0.25) return "less than 30 minutes";
+  if (value < 1) return `around ${Math.max(15, Math.round(value * 60 / 15) * 15)} minutes`;
+  if (value < 1.35) return "around 1 productive hour";
+
+  const lower = Math.max(1, Math.floor(value));
+  const upper = Math.max(lower + 1, Math.ceil(value));
+  return `${lower}-${upper} productive hours`;
+}
+
+function buildLiveShiftNarrative(details) {
+  const {
+    category,
+    paused,
+    forecastAvailable,
+    earnings,
+    todayGoal,
+    projectedDay,
+    projectedWeek,
+    weeklyGoal,
+    hourlyRate,
+    energy,
+    remainingToday,
+    hoursToTodayTarget
+  } = details;
+
+  if (!details.checkpoint) {
+    return "Start the shift, then add a checkpoint once the first earning pattern begins to form.";
+  }
+
+  if (paused) {
+    return "Shift paused. Break time is protected and will not count against your working pace. Resume when you are ready to continue.";
+  }
+
+  if (!forecastAvailable) {
+    return "More data needed. You have started building the shift, but forecasting is not reliable yet. Add another checkpoint in around 30 minutes.";
+  }
+
+  if (category === "targetAchieved") {
+    const bufferText = projectedWeek >= weeklyGoal && weeklyGoal > 0
+      ? "Anything extra now can reduce pressure later in the week."
+      : "Further driving is optional rather than required.";
+    return `Today's target is effectively secured. ${bufferText}`;
+  }
+
+  if (category === "energyWarning") {
+    return `The shift is earning well at ${formatMoney(hourlyRate)}/hr, but energy is ${energy.label.toLowerCase()}. Consider banking progress or taking a break before fatigue starts making decisions for you.`;
+  }
+
+  if (category === "sustainabilityAlert") {
+    return "Recent earnings are weak and energy is low. A break may provide more value than grinding through another poor window.";
+  }
+
+  if (category === "recoveryUnlikely") {
+    return "Today's target looks difficult from the current pace. Treat the next checkpoint as a decision point rather than forcing the shift.";
+  }
+
+  if (category === "recovery") {
+    return `Recovery remains possible. Another ${formatProductiveHours(hoursToTodayTarget)} could bring today's target back within reach if the next hour improves.`;
+  }
+
+  if (category === "weak" || category === "weeklyPressure") {
+    return "The shift is currently below the pace needed. Reassess at the next checkpoint and protect energy if the work does not improve.";
+  }
+
+  if (category === "quietPatch") {
+    return "Recent pace has softened. This may just be a quiet patch, so keep the next checkpoint as the review point before making a bigger decision.";
+  }
+
+  if (category === "strongPosition" || category === "ahead" || category === "weeklyProtected") {
+    return `You are ahead of the required pace. Current pace suggests about ${formatMoney(projectedDay)} today and ${formatMoney(projectedWeek)} for the week, so you can build a useful buffer if energy remains good.`;
+  }
+
+  if (remainingToday > 0) {
+    return `You are close to target pace. Another ${formatProductiveHours(hoursToTodayTarget)} could bring today's target within reach.`;
+  }
+
+  return "Current pace supports the plan. Stay in the game and use the next checkpoint to confirm the trend.";
+}
+
+function buildLiveShiftDetail(details) {
+  const {
+    checkpoint,
+    forecastAvailable,
+    hourlyRate,
+    remainingToday,
+    hoursToTodayTarget,
+    grossPerMile,
+    miles,
+    tripsCompleted,
+    energy
+  } = details;
+
+  if (!checkpoint) return "Add earnings, miles, trips and energy when you have a real checkpoint.";
+  if (!forecastAvailable) return "Low-value rides still reduce the target gap. Keep the next checkpoint simple and let the data build.";
+
+  const paceText = `Current pace is ${formatMoney(hourlyRate)}/hr.`;
+  const targetText = remainingToday > 0
+    ? `To hit today's target, you may need ${formatProductiveHours(hoursToTodayTarget)}.`
+    : "Today's target is already protected.";
+  const workloadParts = [];
+
+  if (tripsCompleted > 0) workloadParts.push(`${formatInt(tripsCompleted)} trips`);
+  if (miles > 0 && grossPerMile > 0) workloadParts.push(`${formatMoney(grossPerMile)}/mi`);
+  if (energy.score <= 2) workloadParts.push(`energy ${energy.label.toLowerCase()}`);
+
+  return workloadParts.length
+    ? `${paceText} ${targetText} Context: ${workloadParts.join(", ")}.`
+    : `${paceText} ${targetText}`;
+}
+
 function getRecentCheckpointHourlyRate(shift) {
   if (!shift?.checkpoints || shift.checkpoints.length < 2) return 0;
 
   const latest = shift.checkpoints[shift.checkpoints.length - 1];
   const previous = shift.checkpoints[shift.checkpoints.length - 2];
   const earningsDelta = Number(latest.earnings || 0) - Number(previous.earnings || 0);
-  const hoursDelta = elapsedHoursBetween(previous.timestamp, latest.timestamp);
+  const hoursDelta = getLiveShiftHoursBetween(shift, previous.timestamp, latest.timestamp);
 
   return hoursDelta > 0 && earningsDelta > 0 ? earningsDelta / hoursDelta : 0;
 }
@@ -353,14 +527,17 @@ function getRecentCheckpointGapHours(shift) {
 
   const latest = shift.checkpoints[shift.checkpoints.length - 1];
   const previous = shift.checkpoints[shift.checkpoints.length - 2];
-  return elapsedHoursBetween(previous.timestamp, latest.timestamp);
+  return getLiveShiftHoursBetween(shift, previous.timestamp, latest.timestamp);
 }
 
 function getLiveShiftCoach(shift, summary) {
   const checkpoint = getLastCheckpoint(shift);
-  const elapsedHours = elapsedHoursBetween(shift.start_time);
+  const paused = isLiveShiftPaused(shift);
+  const elapsedHours = getLiveShiftElapsedHours(shift);
+  const pauseHours = getPausedMs(shift) / 3600000;
   const earnings = Number(checkpoint?.earnings || 0);
   const miles = Number(checkpoint?.business_miles || 0);
+  const tripsCompleted = Number(checkpoint?.trips_completed || 0);
   const energy = getEnergyLevel(checkpoint?.energy_level);
   const hourlyRate = elapsedHours > 0 && earnings > 0 ? earnings / elapsedHours : 0;
   const recentHourlyRate = getRecentCheckpointHourlyRate(shift);
@@ -380,6 +557,7 @@ function getLiveShiftCoach(shift, summary) {
     || recentHourlyRate > maxReasonableHourlyRate;
   const hasExtremeMileageRate = grossPerMile > MAX_REASONABLE_GROSS_PER_MILE;
   const forecastAvailable = hasForecastWindow && !hasExtremeHourlyRate && !hasExtremeMileageRate;
+  const earlyShiftProtected = elapsedHours < EARLY_SHIFT_PROTECTION_HOURS;
   const projectedDay = forecastAvailable && hourlyRate > 0
     ? hourlyRate * Math.max(elapsedHours, elapsedHours + plannedHoursLeft)
     : 0;
@@ -387,6 +565,12 @@ function getLiveShiftCoach(shift, summary) {
     ? Math.max(0, summary.earned - summary.todayEarned) + Math.max(earnings, projectedDay)
     : 0;
   const currentWeekPosition = Math.max(0, summary.earned - summary.todayEarned) + earnings;
+  const remainingToday = Math.max(0, todayGoal - earnings);
+  const hoursToTodayTarget = forecastAvailable && hourlyRate > 0
+    ? remainingToday / hourlyRate
+    : 0;
+  const dayBuffer = forecastAvailable ? Math.max(0, projectedDay - todayGoal) : 0;
+  const weekBuffer = forecastAvailable ? Math.max(0, projectedWeek - summary.target) : 0;
 
   let tone = "idle";
   let label = "Add first checkpoint";
@@ -405,8 +589,17 @@ function getLiveShiftCoach(shift, summary) {
     const lowEnergy = energy.score <= 2;
     const goodEnergy = energy.score >= 4;
     const strongPace = forecastAvailable && hourlyRate >= planningRate * 1.1;
+    const highTripLoad = tripsCompleted >= 18 && elapsedHours >= 4;
 
-    if (!forecastAvailable && (hasExtremeHourlyRate || hasExtremeMileageRate)) {
+    if (paused) {
+      tone = "amber";
+      label = "Shift Paused";
+      category = "paused";
+    } else if (earlyShiftProtected && !dailyTargetAchieved) {
+      tone = "amber";
+      label = "Building Data";
+      category = "forecastWaiting";
+    } else if (!forecastAvailable && (hasExtremeHourlyRate || hasExtremeMileageRate)) {
       tone = "amber";
       label = "More Data Needed";
       category = "forecastSuppressed";
@@ -460,15 +653,19 @@ function getLiveShiftCoach(shift, summary) {
       category = "weeklyPressure";
     }
 
-    if (forecastAvailable && !isFirstCheckpoint && elapsedHours >= 6 && tone !== "red" && !dailyTargetAchieved) {
+    if (!paused && forecastAvailable && !isFirstCheckpoint && elapsedHours >= 6 && tone !== "red" && !dailyTargetAchieved) {
       tone = "amber";
       label = "Energy Check";
       category = "energy";
-    } else if (forecastAvailable && !isFirstCheckpoint && lowMileageReturn && tone !== "red") {
+    } else if (!paused && highTripLoad && lowEnergy && tone !== "red") {
+      tone = "amber";
+      label = "Energy Check";
+      category = "energyWarning";
+    } else if (!paused && forecastAvailable && !isFirstCheckpoint && lowMileageReturn && tone !== "red") {
       tone = "amber";
       label = "Mileage Efficiency";
       category = "lowMileageReturn";
-    } else if (forecastAvailable && !isFirstCheckpoint && goodMileageReturn && tone === "amber" && hourlyRate >= planningRate * 0.85) {
+    } else if (!paused && forecastAvailable && !isFirstCheckpoint && goodMileageReturn && tone === "amber" && hourlyRate >= planningRate * 0.85) {
       tone = "green";
       label = "Strong Mileage Efficiency";
       category = "goodMileageReturn";
@@ -476,12 +673,42 @@ function getLiveShiftCoach(shift, summary) {
   }
 
   const messageSeed = shift.checkpoints.length + Math.floor(elapsedHours) + Math.round(earnings);
+  const fallbackMessage = pickShiftCoachMessage(category, messageSeed);
+  const narrativeMessage = buildLiveShiftNarrative({
+    checkpoint,
+    category,
+    paused,
+    forecastAvailable,
+    earnings,
+    todayGoal,
+    projectedDay,
+    projectedWeek,
+    weeklyGoal: summary.target,
+    hourlyRate,
+    energy,
+    remainingToday,
+    hoursToTodayTarget
+  });
+  const detailMessage = buildLiveShiftDetail({
+    checkpoint,
+    forecastAvailable,
+    hourlyRate,
+    remainingToday,
+    hoursToTodayTarget,
+    grossPerMile,
+    miles,
+    tripsCompleted,
+    energy
+  });
 
   return {
     checkpoint,
+    paused,
     elapsedHours,
+    pauseHours,
     earnings,
     miles,
+    tripsCompleted,
     hourlyRate,
     recentHourlyRate,
     grossPerMile,
@@ -490,6 +717,10 @@ function getLiveShiftCoach(shift, summary) {
     projectedWeek,
     currentWeekPosition,
     todayGoal,
+    remainingToday,
+    hoursToTodayTarget,
+    dayBuffer,
+    weekBuffer,
     weeklyGoal: summary.target,
     todayProgress: todayGoal > 0 ? Math.min(100, (earnings / todayGoal) * 100) : 0,
     weeklyProgress: summary.target > 0
@@ -500,7 +731,8 @@ function getLiveShiftCoach(shift, summary) {
     showGrossPerMile: grossPerMile > 0 && !hasExtremeMileageRate,
     tone,
     label,
-    message: pickShiftCoachMessage(category, messageSeed)
+    message: narrativeMessage || fallbackMessage,
+    detailMessage
   };
 }
 
@@ -886,30 +1118,38 @@ function renderLiveShiftCard(summary) {
   const checkpoint = coach.checkpoint;
   const checkpointCount = shift.checkpoints.length;
   const selectedEnergy = checkpoint?.energy_level || "OK";
+  const shiftState = coach.paused ? "Shift paused" : `Shift started ${formatShiftTime(shift.start_time)}`;
+  const actionLabel = coach.paused ? "Resume Shift" : "Pause Shift";
+  const actionName = coach.paused ? "resume" : "pause";
+  const checkpointMeta = checkpoint ? `Last checkpoint ${formatShiftTime(checkpoint.timestamp)} (${checkpointCount})` : "No checkpoints yet";
+  const pauseMeta = coach.pauseHours > 0 ? `${formatElapsedTime(coach.pauseHours)} paused` : "";
 
   node.innerHTML = `
     <section class="live-shift-panel live-shift-panel--active live-shift-panel--${coach.tone}">
       <div class="live-shift-panel__header">
         <div>
           <h3>Live Shift Coach</h3>
-          <p>Shift started ${formatShiftTime(shift.start_time)}</p>
+          <p>${escapeHtml(shiftState)}</p>
+        </div>
+        <div class="live-shift-panel__elapsed">
+          <span>Elapsed</span>
+          <strong data-live-shift-elapsed>${formatElapsedTime(coach.elapsedHours)}</strong>
         </div>
         <span class="live-shift-pill live-shift-pill--${coach.tone}">${escapeHtml(coach.label)}</span>
       </div>
 
-      <div class="live-shift-clock">
-        <span>Elapsed</span>
-        <strong data-live-shift-elapsed>${formatElapsedTime(coach.elapsedHours)}</strong>
-      </div>
-
-      <form class="live-shift-form" data-live-shift-form>
+      <form id="live_shift_form" class="live-shift-form" data-live-shift-form>
         <label>
-          <span>Current Earnings</span>
-          <input id="live_checkpoint_earnings" type="number" min="0" step="0.01" inputmode="decimal" value="${checkpoint ? coach.earnings.toFixed(2) : ""}" placeholder="0.00">
+          <span>Earnings</span>
+          <input id="live_checkpoint_earnings" type="number" min="0" step="0.01" inputmode="decimal" value="${checkpoint ? coach.earnings.toFixed(2) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
         </label>
         <label>
-          <span>Business Miles</span>
-          <input id="live_checkpoint_miles" type="number" min="0" step="0.1" inputmode="decimal" value="${checkpoint ? coach.miles.toFixed(1) : ""}" placeholder="0.0">
+          <span>Miles</span>
+          <input id="live_checkpoint_miles" type="number" min="0" step="0.1" inputmode="decimal" value="${checkpoint ? coach.miles.toFixed(1) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
+        </label>
+        <label>
+          <span>Trips</span>
+          <input id="live_checkpoint_trips" type="number" min="0" step="1" inputmode="numeric" value="${checkpoint?.trips_completed ?? ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
         </label>
         <fieldset class="live-energy-field">
           <legend>Energy Level</legend>
@@ -917,7 +1157,6 @@ function renderLiveShiftCard(summary) {
             ${renderEnergyOptions(selectedEnergy)}
           </div>
         </fieldset>
-        <button class="live-shift-button live-shift-button--primary" type="submit">Save Checkpoint</button>
       </form>
 
       <div class="live-shift-coach">
@@ -928,44 +1167,59 @@ function renderLiveShiftCard(summary) {
             <span>${escapeHtml(coach.message)}</span>
           </div>
         </div>
-        <div class="live-shift-metrics">
-          <div>
-            <span>Hourly</span>
-            <strong>${coach.showHourlyRate ? `${formatMoney(coach.hourlyRate)}/hr` : "More data"}</strong>
-          </div>
-          <div>
-            <span>Per Mile</span>
-            <strong>${coach.showGrossPerMile ? `${formatMoney(coach.grossPerMile)}/mi` : "Add miles"}</strong>
-          </div>
-          <div>
-            <span>Projected Day</span>
-            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedDay) : "Waiting"}</strong>
-          </div>
-          <div>
-            <span>Projected Week</span>
-            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedWeek) : "Waiting"}</strong>
-          </div>
-        </div>
+
         <div class="live-shift-bars">
           <div>
             <span>Today</span>
             <div class="live-shift-track"><i style="width: ${coach.todayProgress}%"></i></div>
             <b>${formatMoney(coach.earnings)} of ${formatMoney(coach.todayGoal || 0)}</b>
           </div>
+        </div>
+
+        <div class="live-forecast-block" aria-label="Driver Coach forecast">
+          <div class="live-forecast-block__title">
+            <span>Forecast Evidence</span>
+            <b>${coach.forecastAvailable ? "Live" : "Building"}</b>
+          </div>
+          <div class="live-forecast-grid">
           <div>
-            <span>Week Plan</span>
-            <div class="live-shift-track"><i style="width: ${coach.weeklyProgress}%"></i></div>
-            <b>${coach.forecastAvailable
-              ? `${formatMoney(coach.projectedWeek)} projected vs ${formatMoney(coach.weeklyGoal || 0)}`
-              : `Forecast after 30m or another checkpoint. Current week ${formatMoney(coach.currentWeekPosition)}`}
-            </b>
+            <span>Current Pace</span>
+            <strong>${coach.showHourlyRate ? `${formatMoney(coach.hourlyRate)}/hr` : "Building data"}</strong>
+          </div>
+          <div>
+            <span>Day Forecast</span>
+            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedDay) : "After 30m"}</strong>
+          </div>
+          <div>
+            <span>Week Forecast</span>
+            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedWeek) : "After 30m"}</strong>
+          </div>
+          <div>
+            <span>Hours Left</span>
+            <strong>${coach.forecastAvailable ? (coach.remainingToday > 0 ? formatProductiveHours(coach.hoursToTodayTarget) : "Protected") : "More data"}</strong>
+          </div>
+          <div>
+            <span>Buffer</span>
+            <strong>${coach.forecastAvailable ? (coach.dayBuffer > 0 ? formatMoney(coach.dayBuffer) : formatMoney(coach.weekBuffer)) : "More data"}</strong>
+          </div>
+          <div>
+            <span>Per Mile</span>
+            <strong>${coach.showGrossPerMile ? `${formatMoney(coach.grossPerMile)}/mi` : "Add miles"}</strong>
+          </div>
           </div>
         </div>
+
+        <p class="live-shift-detail">${escapeHtml(coach.detailMessage)}</p>
       </div>
 
+      <button class="live-shift-button live-shift-button--primary" type="submit" form="live_shift_form" ${coach.paused ? "disabled" : ""}>Save Checkpoint</button>
+
       <div class="live-shift-footer">
-        <span>${checkpoint ? `Last checkpoint ${formatShiftTime(checkpoint.timestamp)} (${checkpointCount})` : "No checkpoints yet"}</span>
-        <button class="live-shift-button" type="button" data-live-shift-action="end">End Shift</button>
+        <span>${escapeHtml([checkpointMeta, pauseMeta].filter(Boolean).join(" · "))}</span>
+        <div class="live-shift-footer__actions">
+          <button class="live-shift-button" type="button" data-live-shift-action="${actionName}">${actionLabel}</button>
+          <button class="live-shift-button" type="button" data-live-shift-action="end">End Shift</button>
+        </div>
       </div>
     </section>
   `;
@@ -1503,6 +1757,8 @@ function startLiveShift() {
     id: `shift-${now.getTime()}`,
     start_time: now.toISOString(),
     end_time: "",
+    paused_at: "",
+    pauses: [],
     checkpoints: []
   });
 
@@ -1510,13 +1766,57 @@ function startLiveShift() {
   showStatus("Live shift started.", "success");
 }
 
+function pauseLiveShift() {
+  const shift = readActiveShift();
+  if (!shift || isLiveShiftPaused(shift)) return;
+
+  writeActiveShift({
+    ...shift,
+    paused_at: new Date().toISOString()
+  });
+  renderWeeklyTarget(currentWeekDays);
+  showStatus("Shift paused.", "success");
+}
+
+function resumeLiveShift() {
+  const shift = readActiveShift();
+  if (!shift || !isLiveShiftPaused(shift)) return;
+
+  const now = new Date().toISOString();
+  writeActiveShift({
+    ...shift,
+    paused_at: "",
+    pauses: [
+      ...getPauseIntervals(shift),
+      {
+        start_time: shift.paused_at,
+        end_time: now
+      }
+    ]
+  });
+  renderWeeklyTarget(currentWeekDays);
+  showStatus("Shift resumed.", "success");
+}
+
 function endLiveShift() {
   const shift = readActiveShift();
   if (!shift) return;
+  const now = new Date().toISOString();
+  const pauses = isLiveShiftPaused(shift)
+    ? [
+        ...getPauseIntervals(shift),
+        {
+          start_time: shift.paused_at,
+          end_time: now
+        }
+      ]
+    : getPauseIntervals(shift);
 
   archiveLiveShift({
     ...shift,
-    end_time: new Date().toISOString()
+    paused_at: "",
+    pauses,
+    end_time: now
   });
   clearActiveShift();
   renderWeeklyTarget(currentWeekDays);
@@ -1534,6 +1834,7 @@ function saveLiveCheckpoint(event) {
 
   const earnings = toNumber(document.getElementById("live_checkpoint_earnings")?.value);
   const miles = toNumber(document.getElementById("live_checkpoint_miles")?.value);
+  const trips = toNumber(document.getElementById("live_checkpoint_trips")?.value) ?? 0;
   const energyLevel = getEnergyLevel(document.querySelector("input[name='live_checkpoint_energy']:checked")?.value);
 
   if (earnings === null || earnings < 0) {
@@ -1546,10 +1847,16 @@ function saveLiveCheckpoint(event) {
     return;
   }
 
+  if (trips < 0 || !Number.isInteger(trips)) {
+    showStatus("Enter whole trips completed.", "error");
+    return;
+  }
+
   const previousCheckpoint = getLastCheckpoint(shift);
   if (previousCheckpoint) {
     const previousEarnings = Number(previousCheckpoint.earnings || 0);
     const previousMiles = Number(previousCheckpoint.business_miles || 0);
+    const previousTrips = Number(previousCheckpoint.trips_completed || 0);
 
     if (earnings < previousEarnings) {
       showStatus("Current earnings are lower than the previous checkpoint. Start a new shift or correct the value.", "error");
@@ -1558,6 +1865,11 @@ function saveLiveCheckpoint(event) {
 
     if (miles < previousMiles) {
       showStatus("Business miles are lower than the previous checkpoint. Check the current total.", "error");
+      return;
+    }
+
+    if (trips < previousTrips) {
+      showStatus("Trips completed are lower than the previous checkpoint. Check the current total.", "error");
       return;
     }
   }
@@ -1570,6 +1882,7 @@ function saveLiveCheckpoint(event) {
         timestamp: new Date().toISOString(),
         earnings,
         business_miles: miles,
+        trips_completed: trips,
         energy_level: energyLevel.value
       }
     ]
@@ -1586,6 +1899,10 @@ function handleLiveShiftClick(event) {
 
   if (button.dataset.liveShiftAction === "start") {
     startLiveShift();
+  } else if (button.dataset.liveShiftAction === "pause") {
+    pauseLiveShift();
+  } else if (button.dataset.liveShiftAction === "resume") {
+    resumeLiveShift();
   } else if (button.dataset.liveShiftAction === "end") {
     endLiveShift();
   }
@@ -1594,6 +1911,12 @@ function handleLiveShiftClick(event) {
 function handleLiveShiftSubmit(event) {
   if (!event.target.closest("[data-live-shift-form]")) return;
   saveLiveCheckpoint(event);
+}
+
+function handleLiveShiftInputFocus(event) {
+  const input = event.target.closest("#live_checkpoint_earnings, #live_checkpoint_miles, #live_checkpoint_trips");
+  if (!input || input.disabled) return;
+  window.setTimeout(() => input.select(), 0);
 }
 
 function initialiseWeeklyTarget(range) {
@@ -2327,6 +2650,7 @@ function bindDayEvents() {
   el(ids.saveBtn)?.addEventListener("click", saveDay);
   el(ids.liveShiftCard)?.addEventListener("click", handleLiveShiftClick);
   el(ids.liveShiftCard)?.addEventListener("submit", handleLiveShiftSubmit);
+  el(ids.liveShiftCard)?.addEventListener("focusin", handleLiveShiftInputFocus);
   el(ids.list)?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-day]");
     if (!button) return;
