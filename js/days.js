@@ -1209,7 +1209,6 @@ function renderLiveShiftCard(summary) {
           </div>
         </div>
 
-        <p class="live-shift-detail">${escapeHtml(coach.detailMessage)}</p>
       </div>
 
       <button class="live-shift-button live-shift-button--primary" type="submit" form="live_shift_form" ${coach.paused ? "disabled" : ""}>Save Checkpoint</button>
