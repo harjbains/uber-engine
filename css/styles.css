@@ -670,23 +670,27 @@ input[type="date"] {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 7px;
+  gap: 5px;
 }
 
 .dashboard-carousel__dot {
-  width: 18px;
-  height: 16px;
+  min-width: 74px;
+  height: 32px;
   border: 1px solid #94a3b8;
   border-radius: 999px;
   background: #e5e7eb;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
   cursor: pointer;
-  padding: 0;
+  padding: 0 10px;
 }
 
 .dashboard-carousel__dot.active {
-  width: 28px;
   background: #111827;
   border-color: #111827;
+  color: #ffffff;
 }
 
 .dashboard-slide h2,
@@ -1000,6 +1004,21 @@ input[type="date"] {
   font-weight: 700;
 }
 
+.target-remaining-section {
+  margin: 4px 0 -2px;
+  padding-top: 4px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.target-remaining-section h3 {
+  margin: 0;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .target-summary-card {
   min-width: 0;
   min-height: 54px;
@@ -1170,6 +1189,31 @@ input[type="date"] {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
+}
+
+.live-finish-field {
+  display: grid;
+  gap: 4px;
+}
+
+.live-finish-field span {
+  color: #53657d;
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.live-finish-field input {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  padding: 7px 10px;
+  background: #ffffff;
+  color: #020617;
+  font-size: 18px;
+  font-weight: 850;
 }
 
 .live-shift-form label {
@@ -2275,6 +2319,10 @@ input[type="date"] {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 8px;
+}
+
+.month-section-grid--forecast {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .month-section-grid .summary-card {

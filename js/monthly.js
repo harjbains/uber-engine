@@ -1,5 +1,5 @@
 import { supabaseClient } from "./supabase.js";
-import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.48";
+import { exportMonthlySummary, exportMtdSummary } from "./googleSheets.js?v=2.3.52";
 import { showStatus } from "./status.js";
 import { getChargingTotalsForRange, getRollingFuelPricePerLitre } from "./fuel.js";
 import {
@@ -7,11 +7,13 @@ import {
   getFallbackFuelPrice,
   getFuelType,
   formatClockHours,
+  getDesiredHourlyRate,
   getMpg,
   getSettings,
   getTaxRate,
+  getWeeklyTargetDefault,
   getVehicleExpenseMethod
-} from "./settings.js?v=2.3.48";
+} from "./settings.js?v=2.3.52";
 
 const ids = {
   picker: "month_picker",
@@ -105,6 +107,41 @@ function monthDateRange(monthValue) {
   const endDate = new Date(year, month, 0);
   const end = `${year}-${String(month).padStart(2, "0")}-${String(endDate.getDate()).padStart(2, "0")}`;
   return { start, end };
+}
+
+function buildMonthProjection(monthValue, incomeBase, settings) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const currentMonth = currentMonthValue();
+  const today = new Date();
+  const elapsedDays = monthValue < currentMonth
+    ? daysInMonth
+    : monthValue === currentMonth
+      ? Math.max(1, Math.min(today.getDate(), daysInMonth))
+      : 0;
+  const remainingDays = monthValue === currentMonth
+    ? Math.max(0, daysInMonth - elapsedDays)
+    : 0;
+  const monthlyTarget = getWeeklyTargetDefault(settings) * (daysInMonth / 7);
+  const dailyPace = elapsedDays > 0 ? incomeBase / elapsedDays : 0;
+  const projectedGross = monthValue === currentMonth && elapsedDays > 0
+    ? dailyPace * daysInMonth
+    : incomeBase;
+  const projectedGap = projectedGross - monthlyTarget;
+  const remainingToTarget = Math.max(0, monthlyTarget - incomeBase);
+  const planningRate = getDesiredHourlyRate(settings);
+
+  return {
+    monthlyTarget,
+    dailyPace,
+    projectedGross,
+    projectedGap,
+    remainingToTarget,
+    requiredHours: planningRate > 0 ? remainingToTarget / planningRate : 0,
+    elapsedDays,
+    remainingDays,
+    label: monthValue === currentMonth ? "Current pace" : monthValue < currentMonth ? "Completed month" : "Not started"
+  };
 }
 
 function addMonthsToMonthValue(monthValue, delta) {
@@ -1146,6 +1183,8 @@ export async function loadMonthSummary() {
     avgPerHour: totalHours > 0 ? incomeBase / totalHours : 0
   };
 
+  summary.projection = buildMonthProjection(monthValue, summary.incomeBase, settings);
+
   const retainedPercent = pct(summary.totalTrueRetained, summary.incomeBase);
   const moneyFlowSegments = [
     moneyFlowSegment(vehicleEnergyLabels.estimate, summary.totalFuel, "visual-segment--fuel"),
@@ -1167,6 +1206,36 @@ export async function loadMonthSummary() {
 
   container.innerHTML = `
     <div class="month-dashboard">
+      <section class="month-section month-section--forecast">
+        <div class="month-section__header">
+          <h4>Month Forecast</h4>
+          <span>${escapeHtml(summary.projection.label)}</span>
+        </div>
+
+        <div class="month-section-grid month-section-grid--forecast">
+          <div class="summary-card summary-card--primary">
+            <div class="summary-label">Projected Month</div>
+            <div class="summary-value">${formatMoney(summary.projection.projectedGross)}</div>
+            <div class="summary-sub">${formatMoney(summary.projection.dailyPace)} / day pace</div>
+          </div>
+          <div class="summary-card ${summary.projection.projectedGap >= 0 ? "summary-card--retained" : ""}">
+            <div class="summary-label">${summary.projection.projectedGap >= 0 ? "Projected Buffer" : "Projected Short"}</div>
+            <div class="summary-value">${formatMoney(Math.abs(summary.projection.projectedGap))}</div>
+            <div class="summary-sub">${formatMoney(summary.projection.monthlyTarget)} month target</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">To Monthly Target</div>
+            <div class="summary-value">${formatMoney(summary.projection.remainingToTarget)}</div>
+            <div class="summary-sub">${formatInt(summary.projection.remainingDays)} days left</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-label">Hours Required</div>
+            <div class="summary-value">${formatClockHours(summary.projection.requiredHours)}</div>
+            <div class="summary-sub">At planning rate</div>
+          </div>
+        </div>
+      </section>
+
       <section class="month-section month-section--net">
         <div class="month-section__header">
           <h4>Money Flow</h4>

@@ -19,7 +19,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.48";
+} from "./settings.js?v=2.3.52";
 
 const ids = {
   date: "day_date",
@@ -248,6 +248,35 @@ function formatInt(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return "-";
   return String(Math.round(n));
+}
+
+function formatTripWindow(value) {
+  const n = Number(value || 0);
+  if (!Number.isFinite(n) || n <= 0) return "trip estimate building";
+
+  const lower = Math.max(1, Math.floor(n * 0.85));
+  const upper = Math.max(lower + 1, Math.ceil(n * 1.15));
+  return `${lower}-${upper} trips`;
+}
+
+function formatTimeWindow(hours) {
+  const minutes = Number(hours || 0) * 60;
+  if (!Number.isFinite(minutes) || minutes <= 0) return "0 minutes";
+
+  const lower = Math.max(10, Math.floor((minutes * 0.85) / 5) * 5);
+  const upper = Math.max(lower + 5, Math.ceil((minutes * 1.15) / 5) * 5);
+
+  if (upper < 90) return `${lower}-${upper} minutes`;
+  return `${formatClockHours(lower / 60)}-${formatClockHours(upper / 60)} hours`;
+}
+
+function normaliseTimeValue(value) {
+  const text = String(value || "").trim();
+  return /^\d{2}:\d{2}$/.test(text) ? text : "";
+}
+
+function readPlannedFinishInput() {
+  return normaliseTimeValue(document.getElementById("live_shift_planned_finish")?.value);
 }
 
 function escapeHtml(value) {
@@ -571,6 +600,24 @@ function getLiveShiftCoach(shift, summary) {
     : 0;
   const dayBuffer = forecastAvailable ? Math.max(0, projectedDay - todayGoal) : 0;
   const weekBuffer = forecastAvailable ? Math.max(0, projectedWeek - summary.target) : 0;
+  const todayProgress = todayGoal > 0 ? Math.min(100, (earnings / todayGoal) * 100) : 0;
+  const averageTripValue = earnings > 0 && tripsCompleted > 0
+    ? earnings / tripsCompleted
+    : summary.earned > 0 && summary.tripsWorked > 0
+      ? summary.earned / summary.tripsWorked
+      : 0;
+  const estimatedTripsToToday = remainingToday > 0 && averageTripValue > 0
+    ? remainingToday / averageTripValue
+    : 0;
+  const dailyCountdownActive = todayProgress >= 50 && remainingToday > 0;
+  const todayProgressLabel = dailyCountdownActive ? "To Target" : "Today";
+  const todayProgressText = dailyCountdownActive
+    ? forecastAvailable && hoursToTodayTarget > 0
+      ? `${formatMoney(remainingToday)} left / ${formatTripWindow(estimatedTripsToToday)} / ${formatTimeWindow(hoursToTodayTarget)}`
+      : `${formatMoney(remainingToday)} left`
+    : remainingToday <= 0 && todayGoal > 0
+      ? "Daily target protected"
+      : `${formatMoney(earnings)} of ${formatMoney(todayGoal || 0)}`;
 
   let tone = "idle";
   let label = "Add first checkpoint";
@@ -722,7 +769,9 @@ function getLiveShiftCoach(shift, summary) {
     dayBuffer,
     weekBuffer,
     weeklyGoal: summary.target,
-    todayProgress: todayGoal > 0 ? Math.min(100, (earnings / todayGoal) * 100) : 0,
+    todayProgress,
+    todayProgressLabel,
+    todayProgressText,
     weeklyProgress: summary.target > 0
       ? Math.min(100, ((forecastAvailable ? projectedWeek : currentWeekPosition) / summary.target) * 100)
       : 0,
@@ -1105,6 +1154,10 @@ function renderLiveShiftCard(summary) {
           </div>
           <span class="live-shift-pill">Ready</span>
         </div>
+        <label class="live-finish-field">
+          <span>Planned Finish</span>
+          <input id="live_shift_planned_finish" type="time" inputmode="numeric">
+        </label>
         <button class="live-shift-button live-shift-button--primary" type="button" data-live-shift-action="start">
           Start Shift
         </button>
@@ -1118,7 +1171,9 @@ function renderLiveShiftCard(summary) {
   const checkpoint = coach.checkpoint;
   const checkpointCount = shift.checkpoints.length;
   const selectedEnergy = checkpoint?.energy_level || "OK";
-  const shiftState = coach.paused ? "Shift paused" : `Shift started ${formatShiftTime(shift.start_time)}`;
+  const plannedFinish = normaliseTimeValue(shift.planned_finish_time);
+  const plannedFinishText = plannedFinish ? ` / finish ${plannedFinish}` : "";
+  const shiftState = coach.paused ? `Shift paused${plannedFinishText}` : `Shift started ${formatShiftTime(shift.start_time)}${plannedFinishText}`;
   const actionLabel = coach.paused ? "Resume Shift" : "Pause Shift";
   const actionName = coach.paused ? "resume" : "pause";
   const checkpointMeta = checkpoint ? `Last checkpoint ${formatShiftTime(checkpoint.timestamp)} (${checkpointCount})` : "No checkpoints yet";
@@ -1137,6 +1192,13 @@ function renderLiveShiftCard(summary) {
         </div>
         <span class="live-shift-pill live-shift-pill--${coach.tone}">${escapeHtml(coach.label)}</span>
       </div>
+
+      ${coach.paused ? `
+        <label class="live-finish-field">
+          <span>Planned Finish</span>
+          <input id="live_shift_planned_finish" type="time" inputmode="numeric" value="${escapeHtml(plannedFinish)}">
+        </label>
+      ` : ""}
 
       <form id="live_shift_form" class="live-shift-form" data-live-shift-form>
         <label>
@@ -1170,9 +1232,9 @@ function renderLiveShiftCard(summary) {
 
         <div class="live-shift-bars">
           <div>
-            <span>Today</span>
+            <span>${escapeHtml(coach.todayProgressLabel)}</span>
             <div class="live-shift-track"><i style="width: ${coach.todayProgress}%"></i></div>
-            <b>${formatMoney(coach.earnings)} of ${formatMoney(coach.todayGoal || 0)}</b>
+            <b>${escapeHtml(coach.todayProgressText)}</b>
           </div>
         </div>
 
@@ -1245,6 +1307,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     ? settings.targetSnapshotMode || targetMode
     : completedWeek ? "manual" : targetMode;
   const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
+  const tripsWorked = days.reduce((sum, day) => sum + Number(day.trips || 0), 0);
   const hoursWorked = days.reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
@@ -1304,6 +1367,11 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   );
   const hasTodayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
   const todayTarget = hasTodayTarget ? futureForecasts[todayIndex] || 0 : 0;
+  const averageTripValue = earned > 0 && tripsWorked > 0 ? earned / tripsWorked : 0;
+  const estimatedTripsRemaining = remaining > 0 && averageTripValue > 0
+    ? remaining / averageTripValue
+    : 0;
+  const completionFocus = target > 0 && progressPercent >= 50;
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
@@ -1360,8 +1428,13 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   return {
     target,
     earned,
+    tripsWorked,
     hoursWorked,
     remaining,
+    completionFocus,
+    estimatedTripsRemaining,
+    estimatedTripsText: formatTripWindow(estimatedTripsRemaining),
+    remainingTimeText: formatTimeWindow(remainingHours),
     initialHoursEstimate,
     weeklyHoursTarget: forecastTotalHours,
     remainingHours,
@@ -1663,17 +1736,24 @@ function renderWeeklyTarget(days) {
   statusNode.textContent = summary.status;
   statusNode.className = summary.statusClass;
 
+  const targetProgressLabel = summary.completionFocus && summary.remaining > 0
+    ? "Remaining to target"
+    : summary.paceLabel;
+  const targetProgressSub = summary.completionFocus && summary.remaining > 0
+    ? `${formatMoney(summary.remaining)} to target / ${summary.estimatedTripsText} / ${summary.remainingTimeText}`
+    : `${formatMoney(summary.earned)} of ${formatMoney(summary.target)} target`;
+
   progressNode.innerHTML = `
     <div class="target-progress-panel">
       <div class="target-progress-meta">
-        <span>${escapeHtml(summary.paceLabel)}</span>
+        <span>${escapeHtml(targetProgressLabel)}</span>
         <strong>${formatNumber(summary.progressPercent, 0)}%</strong>
       </div>
       <div class="target-progress-track" aria-label="Weekly target progress">
         <div class="${summary.progressClass}" style="width: ${summary.progressPercent}%"></div>
       </div>
       <div class="target-progress-sub">
-        ${formatMoney(summary.earned)} of ${formatMoney(summary.target)} target
+        ${escapeHtml(targetProgressSub)}
       </div>
     </div>
     <div class="target-progress-panel target-progress-panel--hours">
@@ -1756,6 +1836,7 @@ function startLiveShift() {
     id: `shift-${now.getTime()}`,
     start_time: now.toISOString(),
     end_time: "",
+    planned_finish_time: readPlannedFinishInput(),
     paused_at: "",
     pauses: [],
     checkpoints: []
@@ -1784,6 +1865,7 @@ function resumeLiveShift() {
   const now = new Date().toISOString();
   writeActiveShift({
     ...shift,
+    planned_finish_time: readPlannedFinishInput() || normaliseTimeValue(shift.planned_finish_time),
     paused_at: "",
     pauses: [
       ...getPauseIntervals(shift),

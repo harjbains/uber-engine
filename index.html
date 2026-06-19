@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.48">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.52">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -46,25 +46,6 @@
             </div>
 
             <div class="dashboard-slide" data-dashboard-slide="1" aria-hidden="true">
-              <div class="card">
-                <div class="week-header">
-                  <h3 id="week_title">Week to Date</h3>
-                  <div class="week-nav">
-                    <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
-                      <span aria-hidden="true">&lsaquo;</span>
-                    </button>
-                    <button id="this_week" class="week-nav__button" type="button">Today</button>
-                    <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
-                      <span aria-hidden="true">&rsaquo;</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div id="week_summary" class="summary-grid"></div>
-              </div>
-            </div>
-
-            <div class="dashboard-slide" data-dashboard-slide="2" aria-hidden="true">
               <div class="card target-card">
                 <div class="target-card__header">
                   <div>
@@ -129,23 +110,38 @@
                 <div id="target_week_strip" class="target-week-strip" aria-label="Week so far"></div>
 
                 <div id="target_progress_summary" class="target-progress-grid"></div>
+                <div class="target-remaining-section">
+                  <h3>Remaining</h3>
+                </div>
+                <div id="target_summary" class="target-summary-grid"></div>
               </div>
             </div>
 
-            <div class="dashboard-slide" data-dashboard-slide="3" aria-hidden="true">
-              <div class="card today-target-card">
-                <h2>Total Remaining</h2>
-                <div id="target_summary" class="target-summary-grid"></div>
+            <div class="dashboard-slide" data-dashboard-slide="2" aria-hidden="true">
+              <div class="card">
+                <div class="week-header">
+                  <h3 id="week_title">Week to Date</h3>
+                  <div class="week-nav">
+                    <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
+                      <span aria-hidden="true">&lsaquo;</span>
+                    </button>
+                    <button id="this_week" class="week-nav__button" type="button">Today</button>
+                    <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
+                      <span aria-hidden="true">&rsaquo;</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div id="week_summary" class="summary-grid"></div>
               </div>
             </div>
           </div>
         </div>
 
         <div class="dashboard-carousel__pager" role="tablist" aria-label="Dashboard slides">
-          <button class="dashboard-carousel__dot active" type="button" data-dashboard-dot="0" aria-label="Show Live Shift Coach" aria-current="true"></button>
-          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="1" aria-label="Show Week to Date"></button>
-          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="2" aria-label="Show Weekly Target"></button>
-          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="3" aria-label="Show Total Remaining"></button>
+          <button class="dashboard-carousel__dot active" type="button" data-dashboard-dot="0" aria-label="Show Live Shift Coach" aria-current="true">Coach</button>
+          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="1" aria-label="Show Weekly Target">Target</button>
+          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="2" aria-label="Show Week to Date">Week</button>
         </div>
       </section>
 
@@ -495,7 +491,7 @@
           </div>
 
           <div class="field">
-            <label for="settings_weekly_target">Default Weekly Target (Â£)</label>
+            <label for="settings_weekly_target">Default Weekly Target (£)</label>
             <input id="settings_weekly_target" type="number" min="0" step="1" inputmode="numeric">
           </div>
 
@@ -541,7 +537,7 @@
           <h3>Operating Costs</h3>
           <div class="form-row-2">
             <div class="field">
-              <label for="settings_insurance_monthly">Insurance / Month (Â£)</label>
+              <label for="settings_insurance_monthly">Insurance / Month (£)</label>
               <input id="settings_insurance_monthly" type="number" min="0" step="0.01" inputmode="decimal">
             </div>
 
@@ -552,7 +548,7 @@
           </div>
 
           <div class="field">
-            <label for="settings_fuel_price">Fallback Fuel Price / L (Â£)</label>
+            <label for="settings_fuel_price">Fallback Fuel Price / L (£)</label>
             <input id="settings_fuel_price" type="number" min="0" step="0.01" inputmode="decimal">
           </div>
 
@@ -592,7 +588,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.48"></script>
+  <script type="module" src="js/app.js?v=2.3.52"></script>
 </body>
 
 </html>

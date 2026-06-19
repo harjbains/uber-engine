@@ -1,6 +1,10 @@
-export const VERSION = "v2.3.48";
+export const VERSION = "v2.3.52";
 
 export const RELEASE_NOTES = {
+  "2.3.52": "Weekly Target now includes remaining target metrics on the same slide",
+  "2.3.51": "Coach adds planned finish time, daily countdown guidance, and Month Summary projections",
+  "2.3.50": "Day dashboard now has labelled Coach, Target, Remaining, and Week slide controls",
+  "2.3.49": "Day flow now prioritises Coach and Weekly Target, with halfway target guidance focused on what remains",
   "2.3.48": "Driver Coach adds pause, trip workload, and message-first layout",
   "2.3.47": "Live Shift Coach tracks active shifts and quick checkpoints",
   "2.3.46": "Weekly statement entry is more compact and month picker has arrow navigation",
