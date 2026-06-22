@@ -1,6 +1,17 @@
-export const VERSION = "v2.3.52";
+export const VERSION = "v2.3.63";
 
 export const RELEASE_NOTES = {
+  "2.3.63": "Ask Coach voice is more conversational and avoids exact per-mile readouts in fallback replies",
+  "2.3.62": "Ask Coach replies use a more conversational driver-coach tone",
+  "2.3.61": "Ask Coach adds clear next-message handling after a coach reply",
+  "2.3.60": "Ask Coach now uses AI extraction before app-calculated job metrics and coaching",
+  "2.3.59": "Ask Coach understands pound-word fares and pickup distances phrased as miles away",
+  "2.3.58": "Ask Coach reads natural pickup/drop-off wording and shows a thinking state",
+  "2.3.57": "Ask Coach can call a secure backend OpenAI endpoint with local fallback coaching",
+  "2.3.56": "Ask Coach now calculates logged job fare, pickup miles, trip miles, and full-distance value",
+  "2.3.55": "Live Shift Coach adds an Ask Coach dialogue for driver questions",
+  "2.3.54": "Live Shift Coach hides forecast evidence behind a reveal and adds driver notes",
+  "2.3.53": "Live Shift Coach removes Energy Level entry and bases coaching on shift data only",
   "2.3.52": "Weekly Target now includes remaining target metrics on the same slide",
   "2.3.51": "Coach adds planned finish time, daily countdown guidance, and Month Summary projections",
   "2.3.50": "Day dashboard now has labelled Coach, Target, Remaining, and Week slide controls",
