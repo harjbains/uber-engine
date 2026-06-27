@@ -1794,6 +1794,22 @@ input[type="date"] {
   padding: 11px 13px 12px;
 }
 
+.missed-session-accordion summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 850;
+}
+
+.missed-session-form {
+  display: grid;
+  gap: 6px;
+  padding-top: 10px;
+}
+
 .session-card h2 {
   margin-bottom: 7px;
   font-size: 19px;

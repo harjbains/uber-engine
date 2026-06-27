@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.70";
+export const VERSION = "v2.3.71";
 
 export const RELEASE_NOTES = {
+  "2.3.71": "Day screen adds a collapsed Add Missed Session panel for retrospective entries",
   "2.3.70": "Day screen removes manual Log Session entry and opens Forecast Evidence by default",
   "2.3.69": "Live Shift focuses on checkpoints and saves the final session automatically when ending a shift",
   "2.3.68": "Coach infers emotion, market and intent from natural language instead of relying on phrase matching",
