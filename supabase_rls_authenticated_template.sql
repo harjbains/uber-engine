@@ -1,0 +1,53 @@
+-- Template for a proper authenticated-user RLS model.
+--
+-- Do not run this blindly against live data. It shows the target direction:
+-- 1. Add a user_id column to user-owned tables.
+-- 2. Backfill existing rows to your Supabase auth user id.
+-- 3. Enforce user-owned read/write policies.
+
+-- Example:
+-- alter table public.days add column if not exists user_id uuid references auth.users(id);
+-- update public.days set user_id = '<YOUR_AUTH_USER_UUID>' where user_id is null;
+-- alter table public.days alter column user_id set not null;
+--
+-- create policy "Users can read own days"
+-- on public.days
+-- for select
+-- to authenticated
+-- using (auth.uid() = user_id);
+--
+-- create policy "Users can insert own days"
+-- on public.days
+-- for insert
+-- to authenticated
+-- with check (auth.uid() = user_id);
+--
+-- create policy "Users can update own days"
+-- on public.days
+-- for update
+-- to authenticated
+-- using (auth.uid() = user_id)
+-- with check (auth.uid() = user_id);
+--
+-- create policy "Users can delete own days"
+-- on public.days
+-- for delete
+-- to authenticated
+-- using (auth.uid() = user_id);
+
+-- User-owned app tables likely needing the same pattern:
+-- public.days
+-- public.expenses
+-- public.fuel_logs
+-- public.charging_sessions
+-- public.weekly_targets
+-- public.shifts
+
+-- Lookup/reference tables such as public.expense_categories may be read-only:
+--
+-- create policy "Authenticated users can read expense categories"
+-- on public.expense_categories
+-- for select
+-- to authenticated
+-- using (true);
+

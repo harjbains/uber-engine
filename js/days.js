@@ -428,6 +428,7 @@ function formatProductiveHours(hours) {
   if (value <= 0.25) return "less than 30 minutes";
   if (value < 1) return `around ${Math.max(15, Math.round(value * 60 / 15) * 15)} minutes`;
   if (value < 1.35) return "around 1 productive hour";
+  if (value > 10) return "a full shift or more";
 
   const lower = Math.max(1, Math.floor(value));
   const upper = Math.max(lower + 1, Math.ceil(value));
@@ -601,6 +602,94 @@ function getJobReviewInput(text) {
   };
 }
 
+function getDriverIntentionMode(text) {
+  const lower = String(text || "").toLowerCase();
+  const splitShift = /\b(go(?:ing)? home|come back later|coming back later|back later|later session|split shift|restart later|home and come back)\b/.test(lower);
+  const pause = /\b(break|pause|reset|rest|eat|eating|food|hungry|coffee|stop for a bit)\b/.test(lower);
+  const fatigue = /\b(tired|fatigue|drained|not feeling it|frustrated|fed up|stress|head(?:'s| is)? gone|low energy|rubbish)\b/.test(lower);
+  const weakMarket = /\b(poor jobs|low jobs|cheap jobs|bad offers|weak offers|jobs offered|trip radar|radar empty|empty|quiet|dead|slow|nothing|rubbish jobs|rubbish offers)\b/.test(lower)
+    || /(?:£|gbp|Â£)\s*\d+(?:\.\d+)?\s*(?:jobs?|offers?)/i.test(text || "");
+
+  if (!splitShift && !pause && !fatigue && !weakMarket) {
+    return {
+      mode: "normal",
+      suppressForecast: false,
+      reason: ""
+    };
+  }
+
+  const reasons = [];
+  if (splitShift) reasons.push("split shift");
+  if (pause) reasons.push("planned pause");
+  if (fatigue) reasons.push("energy");
+  if (weakMarket) reasons.push("weak market");
+
+  return {
+    mode: splitShift ? "split-shift" : fatigue ? "energy" : pause ? "pause" : "weak-market",
+    suppressForecast: true,
+    reason: reasons.join(", ")
+  };
+}
+
+function getDriverEmotionMode(text) {
+  const lower = String(text || "").toLowerCase();
+  const positive = /\b(result|finally|relief|relieved|happy|excellent|brilliant|perfect|lovely|great|nice|good|saved|turned.*around)\b/.test(lower);
+  const negative = /\b(frustrat|fed up|tired|drained|quiet|rubbish|poor|annoy|dead|slow|grim|struggl|nothing|not.*happen|not.*click|no rhythm|flow)\b/.test(lower);
+
+  if (positive) {
+    return {
+      mood: "positive",
+      mirror: true,
+      hint: "driver sounds positive or relieved"
+    };
+  }
+
+  if (negative) {
+    return {
+      mood: "negative",
+      mirror: true,
+      hint: "driver sounds frustrated, tired, or affected by a weak market"
+    };
+  }
+
+  return {
+    mood: "neutral",
+    mirror: false,
+    hint: ""
+  };
+}
+
+function buildEmotionalCoachReply(text, emotion, coach) {
+  const lower = String(text || "").toLowerCase();
+
+  if (emotion.mood === "positive") {
+    return "Nice one. That sounds like the lift the shift needed. Take the confidence from it, let it reset the mood, and use the next checkpoint to decide whether to keep pushing or bank the momentum.";
+  }
+
+  if (emotion.mood === "negative") {
+    if (/(tired|drained|fed up|frustrat|not feeling)/.test(lower)) {
+      return "Fair enough. Some windows just wear you down. Take a proper reset, protect your energy, and reassess when you feel ready rather than forcing the shift from a flat place.";
+    }
+
+    return "I get it. Some shifts feel like hard work when you cannot find any rhythm. Do not judge the whole day on one poor patch; keep calm, reset if needed, and see what the next window brings.";
+  }
+
+  return coach?.message || "I hear you. Keep the next decision simple and reassess at the next checkpoint.";
+}
+
+function isSpecificJobReviewPrompt(text, job) {
+  const lower = String(text || "").toLowerCase();
+  const hasSpecificAction = /\b(accepted|declined|rejected|passed|completed|took|taken|did it|didn'?t take|let it go|last job|that job|this job)\b/.test(lower);
+  const asksForReview = /\b(review|worth|good|bad|reasonable|should|would you|fair|right call|decision|accept|decline|take it|pass)\b/.test(lower);
+  const hasSpecificJobDetail = [job?.pickupMiles, job?.tripMiles].some((value) => value !== null)
+    || /\b(drop|drop off|drop-off|pickup|pick up|from .+ miles|to .+ miles)\b/.test(lower);
+  const genericMarketNote = getDriverIntentionMode(text).suppressForecast
+    && !hasSpecificAction
+    && !hasSpecificJobDetail;
+
+  return !genericMarketNote && hasSpecificAction && asksForReview && (job?.fare !== null || hasSpecificJobDetail);
+}
+
 function getPerMileBand(value) {
   if (value >= 1.3) return { label: "strong", score: 3 };
   if (value >= 1) return { label: "acceptable", score: 2 };
@@ -622,6 +711,7 @@ function calculateLoggedJobMetrics(prompt) {
   if (!job.hasJobLanguage && !hasAnyJobValue) return null;
 
   if (job.fare === null || job.pickupMiles === null || job.tripMiles === null) {
+    if (!isSpecificJobReviewPrompt(prompt, job)) return null;
     return {
       incomplete: true,
       missingMessage: "I can review the job, but I need three figures: fare, pickup miles, and trip/drop-off miles. Example: £5 fare, 2 pickup miles, 5 trip miles.",
@@ -707,11 +797,31 @@ function buildJobDecisionReview(prompt, coach) {
   return `${opener} That's about ${formatNumber(metrics.totalMiles, 1)} miles for ${formatMoney(metrics.fare)}, so it ${milePhrase} once pickup is included.${destinationNote}${contextNote}${shiftContext} No need to overthink it; reassess after the next checkpoint.`;
 }
 
+function getRecentCoachConversation(shift) {
+  const interactions = Array.isArray(shift?.coach_interactions) ? shift.coach_interactions : [];
+  return interactions.slice(0, 4).map((interaction) => ({
+    driverNote: interaction.driver_note || "",
+    coachReply: interaction.coach_reply || "",
+    messageType: interaction.message_type || "",
+    emotionalTone: interaction.emotional_tone || "",
+    intent: interaction.driver_intent || "",
+    marketCondition: interaction.market_condition || ""
+  }));
+}
+
 function buildCoachApiPayload(driverNote, shift, coach, summary) {
   const latestCheckpoint = coach.checkpoint;
+  const driverIntent = getDriverIntentionMode(driverNote);
+  const driverEmotion = getDriverEmotionMode(driverNote);
 
   return {
     driverNote,
+    recentConversation: getRecentCoachConversation(shift),
+    cueHints: {
+      emotion: driverEmotion.hint,
+      intention: driverIntent.reason,
+      suppressForecast: driverIntent.suppressForecast
+    },
     shift: {
       startTime: formatShiftTime(shift.start_time),
       plannedFinish: normaliseTimeValue(shift.planned_finish_time),
@@ -783,13 +893,39 @@ async function requestCoachApi(payload) {
 function buildLiveCoachDialogueReply(prompt, coach) {
   const text = String(prompt || "").trim();
   const lower = text.toLowerCase();
+  const driverIntent = getDriverIntentionMode(text);
+  const driverEmotion = getDriverEmotionMode(text);
 
   if (!text) {
     return "Tell me what you are deciding: carry on, reposition, pause, or protect the day. I will use the shift data to answer calmly.";
   }
 
+  if (driverEmotion.mood === "positive") {
+    return buildEmotionalCoachReply(text, driverEmotion, coach);
+  }
+
   const jobReview = buildJobDecisionReview(text, coach);
   if (jobReview) return jobReview;
+
+  if (driverEmotion.mood === "negative" && !isSpecificJobReviewPrompt(text, getJobReviewInput(text))) {
+    return buildEmotionalCoachReply(text, driverEmotion, coach);
+  }
+
+  if (driverIntent.suppressForecast) {
+    if (driverIntent.mode === "split-shift") {
+      return "Fair enough. The work on offer sounds weak, and splitting the shift is a sensible way to protect energy. Go home, reset properly, and see what the later session brings. No need to force low-value jobs through a poor patch.";
+    }
+
+    if (driverIntent.mode === "energy" || driverIntent.mode === "pause") {
+      return "Listen to that. If your energy is dipping, take a proper reset before making the next decision. The aim is not to grind through every weak window; it is to stay sharp enough to use the better ones.";
+    }
+
+    return "Fair enough. Poor offers are information too. Keep your standards, avoid forcing low-value work, and reassess after a short reset or the next useful area. No need to overthink a weak patch.";
+  }
+
+  if (/(trip radar|empty|quiet|dead|not feeling it|nothing|slow|jobs offered)/.test(lower)) {
+    return "Fair enough. If it feels quiet and the offers are not worth chasing, keep it simple: take a short reset, stay available, and see what the next area brings. No need to force low-value work just because the app is quiet.";
+  }
 
   if (!coach.checkpoint) {
     return "I need one checkpoint before I can judge the shift. Add current earnings and business miles, then I can give you a useful read.";
@@ -806,6 +942,10 @@ function buildLiveCoachDialogueReply(prompt, coach) {
   if (/(stop|finish|home|done|enough|quit|carry on|continue|stay out)/.test(lower)) {
     if (targetProtected) {
       return `Today's target is protected. At ${paceText}, carrying on is optional; finishing now would still be a disciplined result.`;
+    }
+
+    if (coach.hoursToTodayTarget > 10) {
+      return "Current pace is not a useful guide right now. Treat this as a review window rather than a verdict: either reset and come back later, or add one cleaner checkpoint before judging the day.";
     }
 
     return `You still have ${formatMoney(coach.remainingToday)} to find. At the current pace, that looks like about ${formatProductiveHours(coach.hoursToTodayTarget)}. Give the next checkpoint a clear review point rather than drifting.`;
@@ -832,12 +972,20 @@ function buildLiveCoachDialogueReply(prompt, coach) {
       return `Today is protected and the week projects to ${formatMoney(coach.projectedWeek)}. Extra work now is about building buffer, not rescuing the target.`;
     }
 
+    if (coach.hoursToTodayTarget > 10) {
+      return `The target gap is still there, but current pace is not representative enough to turn into an hours plan. Reassess after the next meaningful checkpoint.`;
+    }
+
     return `The live forecast says ${formatMoney(coach.projectedDay)} today and ${formatMoney(coach.projectedWeek)} for the week. You need about ${formatProductiveHours(coach.hoursToTodayTarget)} at this pace to protect today.`;
   }
 
   if (/(break|pause|tired|fatigue|hungry|stress|head|focus)/.test(lower)) {
     if (targetProtected) {
       return "A break or finish is sensible if concentration is dropping. You have already protected the day, so the next decision can favour tomorrow.";
+    }
+
+    if (coach.hoursToTodayTarget > 10) {
+      return "If focus is fading, take a planned pause and protect the next earning window. Current pace is too weak to turn into a sensible hours estimate, so reset first and reassess later.";
     }
 
     return `If focus is fading, take a planned pause and preserve the next earning window. The numbers say about ${formatProductiveHours(coach.hoursToTodayTarget)} remains for today at current pace.`;
@@ -1430,7 +1578,8 @@ function renderLiveShiftCard(summary) {
   if (!node) return;
 
   const shift = readActiveShift();
-  const forecastWasOpen = Boolean(node.querySelector(".live-forecast-block")?.open);
+  const forecastBlock = node.querySelector(".live-forecast-block");
+  const forecastWasOpen = forecastBlock ? forecastBlock.open : true;
 
   if (!shift) {
     node.innerHTML = `
@@ -1487,20 +1636,26 @@ function renderLiveShiftCard(summary) {
         </label>
       ` : ""}
 
-      <form id="live_shift_form" class="live-shift-form" data-live-shift-form>
-        <label>
-          <span>Earnings</span>
-          <input id="live_checkpoint_earnings" type="number" min="0" step="0.01" inputmode="decimal" value="${checkpoint ? coach.earnings.toFixed(2) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
-        </label>
-        <label>
-          <span>Miles</span>
-          <input id="live_checkpoint_miles" type="number" min="0" step="0.1" inputmode="decimal" value="${checkpoint ? coach.miles.toFixed(1) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
-        </label>
-        <label>
-          <span>Trips</span>
-          <input id="live_checkpoint_trips" type="number" min="0" step="1" inputmode="numeric" value="${checkpoint?.trips_completed ?? ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
-        </label>
-      </form>
+      <section class="live-shift-section live-shift-section--checkpoint" aria-label="Shift checkpoint">
+        <div class="live-shift-section__title">
+          <span>Shift Checkpoint</span>
+          <b>Performance Data</b>
+        </div>
+        <form id="live_shift_form" class="live-shift-form" data-live-shift-form>
+          <label>
+            <span>Earnings</span>
+            <input id="live_checkpoint_earnings" type="number" min="0" step="0.01" inputmode="decimal" value="${checkpoint ? coach.earnings.toFixed(2) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
+          </label>
+          <label>
+            <span>Miles</span>
+            <input id="live_checkpoint_miles" type="number" min="0" step="0.1" inputmode="decimal" value="${checkpoint ? coach.miles.toFixed(1) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
+          </label>
+          <label>
+            <span>Trips</span>
+            <input id="live_checkpoint_trips" type="number" min="0" step="1" inputmode="numeric" value="${checkpoint?.trips_completed ?? ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
+          </label>
+        </form>
+      </section>
 
       <div class="live-shift-coach">
         <div class="live-shift-coach__status">
@@ -1519,7 +1674,12 @@ function renderLiveShiftCard(summary) {
           </div>
         </div>
 
-        <div class="live-coach-dialogue">
+        <section class="live-shift-section live-shift-section--chat" aria-label="Coach chat">
+          <div class="live-shift-section__title">
+            <span>Coach Chat</span>
+            <b>Driver Notes</b>
+          </div>
+          <div class="live-coach-dialogue">
           <label class="live-driver-notes">
             <span>Ask Coach</span>
             <textarea id="live_shift_notes" rows="2" placeholder="Ask: £5 fare, 2 pickup, 5 trip. Or: should I move, pause, carry on?">${escapeHtml(shift.driver_notes)}</textarea>
@@ -1533,7 +1693,8 @@ function renderLiveShiftCard(summary) {
               ${escapeHtml(shift.coach_reply)}
             </div>
           ` : ""}
-        </div>
+          </div>
+        </section>
 
         <details class="live-forecast-block" aria-label="Driver Coach forecast" ${forecastWasOpen ? "open" : ""}>
           <summary class="live-forecast-block__title">
@@ -1583,6 +1744,7 @@ function renderLiveShiftCard(summary) {
   `;
 
   syncLiveShiftTimer(true);
+  resizeCoachTextarea();
 }
 
 function buildWeeklyTargetSummary(days, settings, weekDates) {
@@ -2180,9 +2342,81 @@ function resumeLiveShift() {
   showStatus("Shift resumed.", "success");
 }
 
-function endLiveShift() {
+function readLiveCheckpointInput(shift) {
+  const earnings = toNumber(document.getElementById("live_checkpoint_earnings")?.value);
+  const miles = toNumber(document.getElementById("live_checkpoint_miles")?.value);
+  const trips = toNumber(document.getElementById("live_checkpoint_trips")?.value) ?? 0;
+
+  if (earnings === null || earnings < 0) {
+    showStatus("Enter current Uber earnings.", "error");
+    return null;
+  }
+
+  if (miles === null || miles < 0) {
+    showStatus("Enter current business miles.", "error");
+    return null;
+  }
+
+  if (trips < 0 || !Number.isInteger(trips)) {
+    showStatus("Enter whole trips completed.", "error");
+    return null;
+  }
+
+  const previousCheckpoint = getLastCheckpoint(shift);
+  if (previousCheckpoint) {
+    const previousEarnings = Number(previousCheckpoint.earnings || 0);
+    const previousMiles = Number(previousCheckpoint.business_miles || 0);
+    const previousTrips = Number(previousCheckpoint.trips_completed || 0);
+
+    if (earnings < previousEarnings) {
+      showStatus("Current earnings are lower than the previous checkpoint. Start a new shift or correct the value.", "error");
+      return null;
+    }
+
+    if (miles < previousMiles) {
+      showStatus("Business miles are lower than the previous checkpoint. Check the current total.", "error");
+      return null;
+    }
+
+    if (trips < previousTrips) {
+      showStatus("Trips completed are lower than the previous checkpoint. Check the current total.", "error");
+      return null;
+    }
+  }
+
+  return {
+    timestamp: new Date().toISOString(),
+    earnings,
+    business_miles: miles,
+    trips_completed: trips
+  };
+}
+
+async function endLiveShift(button = null) {
   const shift = readActiveShift();
   if (!shift) return;
+  const fieldCheckpoint = isLiveShiftPaused(shift) ? null : readLiveCheckpointInput(shift);
+  if (!fieldCheckpoint && !isLiveShiftPaused(shift)) return;
+  const previousCheckpoint = getLastCheckpoint(shift);
+  const shouldAppendCheckpoint = fieldCheckpoint && (
+    !previousCheckpoint ||
+    Number(previousCheckpoint.earnings || 0) !== Number(fieldCheckpoint.earnings || 0) ||
+    Number(previousCheckpoint.business_miles || 0) !== Number(fieldCheckpoint.business_miles || 0) ||
+    Number(previousCheckpoint.trips_completed || 0) !== Number(fieldCheckpoint.trips_completed || 0)
+  );
+  const checkpoint = shouldAppendCheckpoint ? fieldCheckpoint : previousCheckpoint;
+
+  if (!checkpoint) {
+    showStatus("Add a checkpoint before ending the shift.", "error");
+    return;
+  }
+
+  const originalButtonText = button?.textContent || "End Shift";
+  if (button) {
+    button.disabled = true;
+    button.textContent = "Saving...";
+  }
+
   const now = new Date().toISOString();
   const pauses = isLiveShiftPaused(shift)
     ? [
@@ -2194,16 +2428,47 @@ function endLiveShift() {
       ]
     : getPauseIntervals(shift);
 
-  archiveLiveShift({
+  const completedShift = {
     ...shift,
     driver_notes: readDriverNotesInput() || shift.driver_notes || "",
     paused_at: "",
     pauses,
+    checkpoints: shouldAppendCheckpoint ? [...shift.checkpoints, fieldCheckpoint] : shift.checkpoints,
     end_time: now
+  };
+
+  const payload = await buildLiveShiftDayPayload(completedShift);
+  const validationError = validateDay(payload);
+
+  if (validationError) {
+    showStatus(validationError, "error");
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalButtonText;
+    }
+    return;
+  }
+
+  const result = await saveSessionPayload(payload, {
+    savingMessage: "Ending shift and saving session...",
+    successMessage: "Shift ended and session saved successfully.",
+    syncErrorMessage: "Shift saved, but Google Sheets sync failed."
   });
+
+  if (!result.ok) {
+    if (button) {
+      button.disabled = false;
+      button.textContent = originalButtonText;
+    }
+    return;
+  }
+
+  archiveLiveShift(completedShift);
   clearActiveShift();
+  clearDayForm();
+  await loadWeekDays();
+  await loadMonthSummary();
   renderWeeklyTarget(currentWeekDays);
-  showStatus("Live shift ended. Save the final session when ready.", "success");
 }
 
 function saveLiveCheckpoint(event) {
@@ -2215,58 +2480,15 @@ function saveLiveCheckpoint(event) {
     return;
   }
 
-  const earnings = toNumber(document.getElementById("live_checkpoint_earnings")?.value);
-  const miles = toNumber(document.getElementById("live_checkpoint_miles")?.value);
-  const trips = toNumber(document.getElementById("live_checkpoint_trips")?.value) ?? 0;
-
-  if (earnings === null || earnings < 0) {
-    showStatus("Enter current Uber earnings.", "error");
-    return;
-  }
-
-  if (miles === null || miles < 0) {
-    showStatus("Enter current business miles.", "error");
-    return;
-  }
-
-  if (trips < 0 || !Number.isInteger(trips)) {
-    showStatus("Enter whole trips completed.", "error");
-    return;
-  }
-
-  const previousCheckpoint = getLastCheckpoint(shift);
-  if (previousCheckpoint) {
-    const previousEarnings = Number(previousCheckpoint.earnings || 0);
-    const previousMiles = Number(previousCheckpoint.business_miles || 0);
-    const previousTrips = Number(previousCheckpoint.trips_completed || 0);
-
-    if (earnings < previousEarnings) {
-      showStatus("Current earnings are lower than the previous checkpoint. Start a new shift or correct the value.", "error");
-      return;
-    }
-
-    if (miles < previousMiles) {
-      showStatus("Business miles are lower than the previous checkpoint. Check the current total.", "error");
-      return;
-    }
-
-    if (trips < previousTrips) {
-      showStatus("Trips completed are lower than the previous checkpoint. Check the current total.", "error");
-      return;
-    }
-  }
+  const checkpoint = readLiveCheckpointInput(shift);
+  if (!checkpoint) return;
 
   const nextShift = {
     ...shift,
     driver_notes: readDriverNotesInput(),
     checkpoints: [
       ...shift.checkpoints,
-      {
-        timestamp: new Date().toISOString(),
-        earnings,
-        business_miles: miles,
-        trips_completed: trips
-      }
+      checkpoint
     ]
   };
 
@@ -2286,7 +2508,7 @@ function handleLiveShiftClick(event) {
   } else if (button.dataset.liveShiftAction === "resume") {
     resumeLiveShift();
   } else if (button.dataset.liveShiftAction === "end") {
-    endLiveShift();
+    void endLiveShift(button);
   } else if (button.dataset.liveShiftAction === "ask-coach") {
     void askLiveShiftCoach(button);
   } else if (button.dataset.liveShiftAction === "new-coach-message") {
@@ -2305,10 +2527,19 @@ function handleLiveShiftInputFocus(event) {
   window.setTimeout(() => input.select(), 0);
 }
 
+function resizeCoachTextarea(textarea = document.getElementById("live_shift_notes")) {
+  if (!textarea) return;
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
+}
+
 function handleLiveShiftNotesFocus(event) {
   if (event.target?.id !== "live_shift_notes") return;
   const shift = readActiveShift();
-  if (!shift || shift.coach_draft_status !== "answered") return;
+  if (!shift || shift.coach_draft_status !== "answered") {
+    resizeCoachTextarea(event.target);
+    return;
+  }
   startNewCoachMessage({ focus: true });
 }
 
@@ -2322,6 +2553,7 @@ function handleLiveShiftNotesInput(event) {
     coach_reply: "",
     coach_draft_status: "draft"
   });
+  resizeCoachTextarea(event.target);
 }
 
 function startNewCoachMessage(options = {}) {
@@ -2337,7 +2569,11 @@ function startNewCoachMessage(options = {}) {
   renderWeeklyTarget(currentWeekDays);
 
   if (options.focus) {
-    window.setTimeout(() => document.getElementById("live_shift_notes")?.focus(), 0);
+    window.setTimeout(() => {
+      const textarea = document.getElementById("live_shift_notes");
+      textarea?.focus();
+      resizeCoachTextarea(textarea);
+    }, 0);
   }
 }
 
@@ -2371,6 +2607,10 @@ function buildCoachInteractionRecord(driverNote, coachReply, payload, source, ap
     status_label: payload.shift?.status || "",
     extracted_action: extractedJob.action || "",
     extracted_context: extractedJob.context || "",
+    message_type: extractedJob.messageType || "",
+    emotional_tone: extractedJob.emotion || payload.cueHints?.emotion || "",
+    driver_intent: extractedJob.intent || payload.cueHints?.intention || "",
+    market_condition: extractedJob.marketCondition || "",
     source
   };
 }
@@ -2612,13 +2852,14 @@ async function getSavedDayTotalsForDate(dateString) {
   if (!dateString) {
     return {
       gross: 0,
-      businessMiles: 0
+      businessMiles: 0,
+      trips: 0
     };
   }
 
   const { data, error } = await supabaseClient
     .from("days")
-    .select("gross,business_miles")
+    .select("gross,business_miles,trips")
     .eq("date", dateString);
 
   if (error) {
@@ -2628,35 +2869,59 @@ async function getSavedDayTotalsForDate(dateString) {
 
   return (data || []).reduce((totals, day) => ({
     gross: totals.gross + Number(day.gross || 0),
-    businessMiles: totals.businessMiles + Number(day.business_miles || 0)
+    businessMiles: totals.businessMiles + Number(day.business_miles || 0),
+    trips: totals.trips + Number(day.trips || 0)
   }), {
     gross: 0,
-    businessMiles: 0
+    businessMiles: 0,
+    trips: 0
   });
 }
 
-async function buildDayPayload() {
-  const date = el(ids.date)?.value?.trim() || "";
-  const uberDayTotal = toNumber(el(ids.gross)?.value) ?? 0;
+async function buildDayPayload(source = {}) {
+  const date = source.date || el(ids.date)?.value?.trim() || "";
+  const uberDayTotal = source.uberDayTotal ?? toNumber(el(ids.gross)?.value) ?? 0;
   const savedTotals = await getSavedDayTotalsForDate(date);
   const existingGross = savedTotals.gross;
   const sessionGross = Math.max(0, uberDayTotal - existingGross);
-  const businessMilesDayTotal = toNumber(el(ids.miles)?.value) ?? 0;
+  const businessMilesDayTotal = source.businessMilesDayTotal ?? toNumber(el(ids.miles)?.value) ?? 0;
   const existingMiles = savedTotals.businessMiles;
   const sessionMiles = Math.max(0, businessMilesDayTotal - existingMiles);
+  const hasTripsDayTotal = source.tripsDayTotal !== undefined;
+  const tripsDayTotal = hasTripsDayTotal ? Number(source.tripsDayTotal || 0) : null;
+  const existingTrips = savedTotals.trips;
+  const sessionTrips = hasTripsDayTotal ? Math.max(0, tripsDayTotal - existingTrips) : 0;
 
   return {
     date,
-    end_time: null,
-    hours_worked: readWorkedHoursInput(),
+    end_time: source.endTime ?? null,
+    hours_worked: source.hoursWorked ?? readWorkedHoursInput(),
     gross: sessionGross,
     uber_day_total: uberDayTotal,
     existing_day_gross: existingGross,
     business_miles_day_total: businessMilesDayTotal,
     existing_day_miles: existingMiles,
-    trips: 0,
+    trips_day_total: tripsDayTotal,
+    existing_day_trips: existingTrips,
+    trips: sessionTrips,
     business_miles: sessionMiles
   };
+}
+
+async function buildLiveShiftDayPayload(shift) {
+  const checkpoint = getLastCheckpoint(shift);
+  const endDate = new Date(shift.end_time || new Date());
+  const startDate = new Date(shift.start_time || endDate);
+  const workDate = Number.isNaN(startDate.getTime()) ? dateToIso(endDate) : dateToIso(startDate);
+
+  return buildDayPayload({
+    date: workDate,
+    endTime: formatShiftTime(shift.end_time || endDate),
+    hoursWorked: getLiveShiftElapsedHours(shift, shift.end_time || endDate),
+    uberDayTotal: Number(checkpoint?.earnings || 0),
+    businessMilesDayTotal: Number(checkpoint?.business_miles || 0),
+    tripsDayTotal: Number(checkpoint?.trips_completed || 0)
+  });
 }
 
 function validateDay(payload) {
@@ -2670,8 +2935,65 @@ function validateDay(payload) {
   if (payload.business_miles_day_total < payload.existing_day_miles) {
     return `Business miles day total is below saved sessions for this date (${formatNumber(payload.existing_day_miles, 1)}).`;
   }
+  if (payload.trips_day_total !== null && payload.trips_day_total < payload.existing_day_trips) {
+    return `Trips total is below saved sessions for this date (${formatNumber(payload.existing_day_trips, 0)}).`;
+  }
   if (payload.business_miles < 0) return "Business miles must be zero or greater.";
   return null;
+}
+
+async function saveSessionPayload(payload, options = {}) {
+  const {
+    savingMessage = "Saving session...",
+    successMessage = "Session saved and synced successfully.",
+    syncErrorMessage = "Session saved, but Google Sheets sync failed."
+  } = options;
+
+  showStatus(savingMessage, "info", false);
+
+  const {
+    uber_day_total,
+    existing_day_gross,
+    business_miles_day_total,
+    existing_day_miles,
+    trips_day_total,
+    existing_day_trips,
+    ...supabasePayload
+  } = payload;
+  console.log("saving session payload:", supabasePayload);
+
+  const { data, error } = await supabaseClient
+    .from("days")
+    .insert([supabasePayload])
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error saving session:", error);
+    showStatus(
+      `Failed to save session: ${error.message || "Unknown database error"}`,
+      "error",
+      false
+    );
+    return {
+      ok: false,
+      data: null
+    };
+  }
+
+  try {
+    const sheetPayload = buildDaySheetPayload(data);
+    await sendToGoogleSheets("day", sheetPayload);
+    showStatus(successMessage, "success");
+  } catch (syncError) {
+    console.error("Session sync failed:", syncError);
+    showStatus(syncErrorMessage, "error", false);
+  }
+
+  return {
+    ok: true,
+    data
+  };
 }
 
 function getLitresPerMile(mpg) {
@@ -3110,8 +3432,6 @@ export async function saveDay() {
   try {
     if (saveBtn) saveBtn.disabled = true;
 
-    showStatus("Saving session...", "info", false);
-
     const payload = await buildDayPayload();
     const validationError = validateDay(payload);
 
@@ -3120,39 +3440,8 @@ export async function saveDay() {
       return;
     }
 
-    const {
-      uber_day_total,
-      existing_day_gross,
-      business_miles_day_total,
-      existing_day_miles,
-      ...supabasePayload
-    } = payload;
-    console.log("saving session payload:", supabasePayload);
-
-    const { data, error } = await supabaseClient
-      .from("days")
-      .insert([supabasePayload])
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error saving session:", error);
-      showStatus(
-        `Failed to save session: ${error.message || "Unknown database error"}`,
-        "error",
-        false
-      );
-      return;
-    }
-
-    try {
-      const sheetPayload = buildDaySheetPayload(data);
-      await sendToGoogleSheets("day", sheetPayload);
-      showStatus("Session saved and synced successfully.", "success");
-    } catch (syncError) {
-      console.error("Session sync failed:", syncError);
-      showStatus("Session saved, but Google Sheets sync failed.", "error", false);
-    }
+    const result = await saveSessionPayload(payload);
+    if (!result.ok) return;
 
     clearDayForm();
     await loadWeekDays();
@@ -3170,8 +3459,6 @@ function bindDayEvents() {
   el(ids.liveShiftCard)?.addEventListener("click", handleLiveShiftClick);
   el(ids.liveShiftCard)?.addEventListener("submit", handleLiveShiftSubmit);
   el(ids.liveShiftCard)?.addEventListener("focusin", handleLiveShiftInputFocus);
-  el(ids.liveShiftCard)?.addEventListener("focusin", handleLiveShiftNotesFocus);
-  el(ids.liveShiftCard)?.addEventListener("input", handleLiveShiftNotesInput);
   el(ids.list)?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-day]");
     if (!button) return;

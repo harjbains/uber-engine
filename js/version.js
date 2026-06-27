@@ -1,6 +1,13 @@
-export const VERSION = "v2.3.63";
+export const VERSION = "v2.3.70";
 
 export const RELEASE_NOTES = {
+  "2.3.70": "Day screen removes manual Log Session entry and opens Forecast Evidence by default",
+  "2.3.69": "Live Shift focuses on checkpoints and saves the final session automatically when ending a shift",
+  "2.3.68": "Coach infers emotion, market and intent from natural language instead of relying on phrase matching",
+  "2.3.67": "Coach mirrors positive and negative emotional cues before reaching for metrics",
+  "2.3.66": "Coach treats breaks, weak offers and split-shift intentions as energy mode before forecast maths",
+  "2.3.65": "Coach only asks for trip data when a specific job review is clearly requested",
+  "2.3.64": "Coach Chat is separated from checkpoints with larger auto-growing text for parked-driver use",
   "2.3.63": "Ask Coach voice is more conversational and avoids exact per-mile readouts in fallback replies",
   "2.3.62": "Ask Coach replies use a more conversational driver-coach tone",
   "2.3.61": "Ask Coach adds clear next-message handling after a coach reply",
