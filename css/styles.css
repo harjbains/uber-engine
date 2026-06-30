@@ -1603,9 +1603,10 @@ input[type="date"] {
   background: #ffffff;
 }
 
-.live-driver-notes input {
+.live-driver-notes textarea {
   width: 100%;
   min-height: 28px;
+  max-height: 84px;
   border: 0;
   border-radius: 0;
   padding: 4px 0;
@@ -1614,13 +1615,15 @@ input[type="date"] {
   font-size: 14px;
   font-weight: 750;
   line-height: 1.2;
+  resize: none;
+  overflow-y: auto;
 }
 
-.live-driver-notes input::placeholder {
+.live-driver-notes textarea::placeholder {
   color: #94a3b8;
 }
 
-.live-driver-notes input:focus {
+.live-driver-notes textarea:focus {
   outline: none;
 }
 

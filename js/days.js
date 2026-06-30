@@ -1860,7 +1860,7 @@ function renderLiveShiftCard(summary) {
             <form class="live-driver-notes" data-live-coach-form>
               <label class="sr-only" for="live_shift_notes">Message coach</label>
               <span class="live-chat-composer">
-                <input id="live_shift_notes" type="text" autocomplete="off" placeholder="Message coach" value="${escapeHtml(shift.driver_notes)}">
+                <textarea id="live_shift_notes" rows="1" autocomplete="off" autocapitalize="sentences" spellcheck="true" placeholder="Message coach">${escapeHtml(shift.driver_notes)}</textarea>
                 <button class="live-chat-send" type="submit" aria-label="Send coach message">
                   <span aria-hidden="true"></span>
                 </button>
@@ -2697,6 +2697,8 @@ function handleLiveShiftSubmit(event) {
 function handleLiveShiftKeydown(event) {
   if (event.target?.id !== "live_shift_notes") return;
   if (event.key !== "Enter" || event.shiftKey) return;
+  const likelyTouchKeyboard = window.matchMedia?.("(pointer: coarse)")?.matches;
+  if (likelyTouchKeyboard || event.isComposing) return;
 
   event.preventDefault();
   const sendButton = el(ids.liveShiftCard)?.querySelector(".live-chat-send");
@@ -2713,7 +2715,7 @@ function resizeCoachTextarea(textarea = document.getElementById("live_shift_note
   if (!textarea) return;
   if (textarea.tagName !== "TEXTAREA") return;
   textarea.style.height = "auto";
-  textarea.style.height = "32px";
+  textarea.style.height = `${Math.min(84, Math.max(32, textarea.scrollHeight))}px`;
 }
 
 function handleLiveShiftNotesFocus(event) {
