@@ -2448,8 +2448,13 @@ function syncLiveShiftTimer(active) {
       return;
     }
 
+    if (isCoachInputActive()) return;
     renderWeeklyTarget(currentWeekDays);
   }, 30000);
+}
+
+function isCoachInputActive() {
+  return document.activeElement?.id === "live_shift_notes";
 }
 
 function startLiveShift() {
@@ -2722,21 +2727,11 @@ function resizeCoachTextarea(textarea = document.getElementById("live_shift_note
 
 function handleLiveShiftNotesFocus(event) {
   if (event.target?.id !== "live_shift_notes") return;
-  resizeCoachTextarea(event.target);
   scrollCoachHistoryToLatest();
 }
 
 function handleLiveShiftNotesInput(event) {
   if (event.target?.id !== "live_shift_notes") return;
-  const shift = readActiveShift();
-  if (!shift) return;
-  writeActiveShift({
-    ...shift,
-    driver_notes: String(event.target.value || ""),
-    coach_reply: "",
-    coach_draft_status: "draft"
-  });
-  resizeCoachTextarea(event.target);
 }
 
 function startNewCoachMessage(options = {}) {
