@@ -1849,7 +1849,9 @@ function renderLiveShiftCard(summary) {
         <section class="live-shift-section live-shift-section--chat" aria-label="Coach chat">
           <div class="live-shift-section__title">
             <span>Coach</span>
-            <b>Chat</b>
+            <button class="live-coach-clear" type="button" data-live-shift-action="clear-coach-chat" ${shift.coach_interactions?.length ? "" : "disabled"}>
+              Clear
+            </button>
           </div>
           <div class="live-coach-dialogue">
             <div class="live-coach-history" aria-label="Coach conversation history">
@@ -2674,6 +2676,8 @@ function handleLiveShiftClick(event) {
     void askLiveShiftCoach(button);
   } else if (button.dataset.liveShiftAction === "new-coach-message") {
     startNewCoachMessage();
+  } else if (button.dataset.liveShiftAction === "clear-coach-chat") {
+    clearLiveCoachChat();
   }
 }
 
@@ -2750,6 +2754,22 @@ function startNewCoachMessage(options = {}) {
       resizeCoachTextarea(textarea);
     }, 0);
   }
+}
+
+function clearLiveCoachChat() {
+  const shift = readActiveShift();
+  if (!shift) return;
+
+  writeActiveShift({
+    ...shift,
+    driver_notes: "",
+    coach_reply: "",
+    coach_draft_status: "",
+    coach_interactions: []
+  });
+
+  renderWeeklyTarget(currentWeekDays);
+  showStatus("Coach chat cleared.", "success");
 }
 
 function getCurrentLiveShiftSummary() {

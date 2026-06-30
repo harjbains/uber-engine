@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.87";
+export const VERSION = "v2.3.88";
 
 export const RELEASE_NOTES = {
+  "2.3.88": "Live Shift Coach adds a clear chat control for the active shift",
   "2.3.87": "Coach classification now tracks safety, mental fatigue, reassurance need, and driver capacity",
   "2.3.86": "Coach framework now prioritises safety, wellbeing, intention, and one clear decision",
   "2.3.85": "Coach vocabulary gains validation tooling and maintenance guidance",
