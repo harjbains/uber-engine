@@ -1861,7 +1861,7 @@ function renderLiveShiftCard(summary) {
               <label class="sr-only" for="live_shift_notes">Message coach</label>
               <span class="live-chat-composer">
                 <textarea id="live_shift_notes" rows="1" autocomplete="off" autocapitalize="sentences" spellcheck="true" placeholder="Message coach">${escapeHtml(shift.driver_notes)}</textarea>
-                <button class="live-chat-send" type="submit" aria-label="Send coach message">
+                <button class="live-chat-send" type="button" data-live-shift-action="ask-coach" aria-label="Send coach message">
                   <span aria-hidden="true"></span>
                 </button>
               </span>
@@ -2685,8 +2685,6 @@ function handleLiveShiftSubmit(event) {
   const coachForm = event.target.closest("[data-live-coach-form]");
   if (coachForm) {
     event.preventDefault();
-    const sendButton = coachForm.querySelector(".live-chat-send");
-    if (sendButton) void askLiveShiftCoach(sendButton);
     return;
   }
 
@@ -2696,9 +2694,13 @@ function handleLiveShiftSubmit(event) {
 
 function handleLiveShiftKeydown(event) {
   if (event.target?.id !== "live_shift_notes") return;
-  if (event.key !== "Enter" || event.shiftKey) return;
+  if (event.key !== "Enter") return;
+  if (event.shiftKey) return;
   const likelyTouchKeyboard = window.matchMedia?.("(pointer: coarse)")?.matches;
-  if (likelyTouchKeyboard || event.isComposing) return;
+  if (likelyTouchKeyboard || event.isComposing) {
+    event.stopPropagation();
+    return;
+  }
 
   event.preventDefault();
   const sendButton = el(ids.liveShiftCard)?.querySelector(".live-chat-send");

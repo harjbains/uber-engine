@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.89";
+export const VERSION = "v2.3.90";
 
 export const RELEASE_NOTES = {
+  "2.3.90": "Live Shift Coach prevents mobile dictation from triggering hidden chat submits",
   "2.3.89": "Live Shift Coach dictation uses a mobile-safe textarea and avoids touch-keyboard Enter submits",
   "2.3.88": "Live Shift Coach adds a clear chat control for the active shift",
   "2.3.87": "Coach classification now tracks safety, mental fatigue, reassurance need, and driver capacity",
