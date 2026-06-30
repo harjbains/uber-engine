@@ -1,0 +1,30 @@
+{
+  "description": "Living vocabulary from real driver messages. Runtime logging anonymises obvious emails, phone numbers, and UK postcodes. Add manual examples only when anonymised; do not include names, phone numbers, exact addresses, or other personal data.",
+  "examples": [
+    {
+      "message": "not feel good going home",
+      "expectedMeaning": {
+        "messageType": "fatigue / wellbeing",
+        "intent": "finish",
+        "driverState": "unwell",
+        "conversationPurpose": "reassurance"
+      }
+    },
+    {
+      "message": "dead out here can't get rhythm",
+      "expectedMeaning": {
+        "messageType": "market conditions",
+        "marketCondition": "quiet",
+        "driverState": "frustrated",
+        "conversationPurpose": "venting"
+      }
+    },
+    {
+      "message": "5 pick 6 drop 10 pounds",
+      "expectedMeaning": {
+        "messageType": "ride decision",
+        "conversationPurpose": "job_review"
+      }
+    }
+  ]
+}

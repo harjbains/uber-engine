@@ -1,0 +1,58 @@
+{
+  "description": "Driver state examples for wellbeing, motivation, and safety. These examples help semantic interpretation.",
+  "fresh": [
+    "just started",
+    "ready to go",
+    "feeling fresh"
+  ],
+  "steady": [
+    "doing ok",
+    "steady shift",
+    "nothing dramatic"
+  ],
+  "grinding": [
+    "slow going",
+    "hard work today",
+    "fighting the market"
+  ],
+  "frustrated": [
+    "fed up",
+    "can't be bothered",
+    "head gone",
+    "frustrated",
+    "can't get rhythm"
+  ],
+  "fatigued": [
+    "tired",
+    "knackered",
+    "drained",
+    "need food",
+    "need break"
+  ],
+  "demoralised": [
+    "not feeling it",
+    "rubbish today",
+    "nothing is clicking",
+    "can't get going"
+  ],
+  "ready_to_finish": [
+    "calling it",
+    "going home",
+    "done for now",
+    "one more job then home"
+  ],
+  "unwell": [
+    "not feeling good",
+    "not feel good going home",
+    "ill",
+    "dizzy",
+    "feel sick"
+  ],
+  "unsafe_to_drive": [
+    "not safe",
+    "too dizzy to drive",
+    "falling asleep",
+    "can't focus",
+    "unsafe"
+  ]
+}

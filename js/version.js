@@ -1,6 +1,22 @@
-export const VERSION = "v2.3.71";
+export const VERSION = "v2.3.87";
 
 export const RELEASE_NOTES = {
+  "2.3.87": "Coach classification now tracks safety, mental fatigue, reassurance need, and driver capacity",
+  "2.3.86": "Coach framework now prioritises safety, wellbeing, intention, and one clear decision",
+  "2.3.85": "Coach vocabulary gains validation tooling and maintenance guidance",
+  "2.3.84": "Coach vocabulary now captures anonymised real driver phrases for future semantic examples",
+  "2.3.83": "Coach extraction now loads structured phrase-library JSON examples for broader semantic understanding",
+  "2.3.82": "Coach extraction understands wider driver language, slang, broken English, wellbeing, and conversation purpose",
+  "2.3.81": "Live Shift Coach replies favour short conversational advice and one clear driver decision",
+  "2.3.80": "Live Shift Coach opens chat history at the latest message after page reload",
+  "2.3.79": "Live Shift Coach keeps chat pinned to the latest message when focusing the input",
+  "2.3.78": "Live Shift Coach chat scrolls to the latest message after replies",
+  "2.3.77": "Live Shift Coach chat sends reliably, clears after submit, and uses smaller app-aligned input styling",
+  "2.3.76": "Live Shift Coach makes chat the primary panel and trims duplicate reply and controls",
+  "2.3.75": "Live Shift Coach chat uses a single-line mobile-style composer",
+  "2.3.74": "Live Shift Coach replaces the go-home card with a compact coach chat window",
+  "2.3.73": "Live Shift Coach removes extra coach panels and uses compact media-style shift controls",
+  "2.3.72": "Live Shift Coach focuses on coach chat, day progress, a go-home decision metric, and scrollable chat history",
   "2.3.71": "Day screen adds a collapsed Add Missed Session panel for retrospective entries",
   "2.3.70": "Day screen removes manual Log Session entry and opens Forecast Evidence by default",
   "2.3.69": "Live Shift focuses on checkpoints and saves the final session automatically when ending a shift",

@@ -1,0 +1,81 @@
+{
+  "description": "Semantic examples for the four high-value coach signals: safety, mental fatigue, reassurance need, and driver capacity.",
+  "safetySignal": {
+    "none": [
+      "steady enough to keep going",
+      "just checking the plan"
+    ],
+    "caution": [
+      "getting angry with the app",
+      "not concentrating properly",
+      "bad headache starting"
+    ],
+    "stop_now": [
+      "feel dizzy",
+      "not safe to drive",
+      "falling asleep",
+      "can't focus on the road",
+      "feel ill and going home"
+    ]
+  },
+  "mentalFatigue": {
+    "mild": [
+      "bit flat",
+      "slow start",
+      "tired of waiting"
+    ],
+    "moderate": [
+      "can't get any rhythm",
+      "nothing is clicking",
+      "hard to get going",
+      "rubbish patch and losing patience"
+    ],
+    "severe": [
+      "head gone",
+      "can't think clearly",
+      "had enough",
+      "mentally done",
+      "can't be bothered anymore"
+    ]
+  },
+  "reassuranceNeed": {
+    "low": [
+      "checking the numbers",
+      "what do you think"
+    ],
+    "medium": [
+      "shall I call it",
+      "one more job or home",
+      "worth staying out"
+    ],
+    "high": [
+      "feel bad stopping",
+      "can I go home",
+      "is it ok to call it",
+      "I know I should work but I'm drained",
+      "not worth forcing it"
+    ]
+  },
+  "driverCapacity": {
+    "full": [
+      "fresh and ready",
+      "steady enough"
+    ],
+    "reduced": [
+      "tired but ok",
+      "frustrated but still working",
+      "need a reset soon"
+    ],
+    "low": [
+      "head is gone",
+      "too drained to make good decisions",
+      "struggling to stay patient"
+    ],
+    "unsafe": [
+      "not safe",
+      "too dizzy",
+      "falling asleep",
+      "can't focus"
+    ]
+  }
+}

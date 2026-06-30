@@ -1,0 +1,26 @@
+{
+  "description": "Basic/global English and broken grammar examples. Infer meaning without correcting or criticising the driver.",
+  "finish_or_pause": [
+    "I am tired",
+    "I go home",
+    "not feel good going home",
+    "need break",
+    "need food",
+    "no more today"
+  ],
+  "weak_market": [
+    "no job for long time",
+    "job no good",
+    "bad fares",
+    "too much miles",
+    "no work here",
+    "nothing come"
+  ],
+  "ask_advice": [
+    "I move area?",
+    "shall I go Birmingham",
+    "continue or home",
+    "one more job?",
+    "what now"
+  ]
+}

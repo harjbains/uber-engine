@@ -1,0 +1,27 @@
+{
+  "description": "Common misspellings and rough input examples observed or expected in fast driver notes.",
+  "wellbeing": [
+    "tierd",
+    "knackered",
+    "dizzy",
+    "not feelling good",
+    "not feeling gud",
+    "need brake"
+  ],
+  "market": [
+    "quite",
+    "quiete",
+    "ded",
+    "rubbush",
+    "no rythym",
+    "no rythem"
+  ],
+  "work": [
+    "pic",
+    "pick",
+    "drop",
+    "mils",
+    "multi stop",
+    "airpot"
+  ]
+}

@@ -1,0 +1,38 @@
+{
+  "description": "Market condition examples for interpreting driver notes.",
+  "quiet": [
+    "quiet",
+    "dead",
+    "dead out here",
+    "nothing coming",
+    "no job for long time",
+    "radar empty",
+    "not much about"
+  ],
+  "weak": [
+    "bad fares",
+    "poor jobs",
+    "job no good",
+    "cheap offers",
+    "low fares",
+    "too much miles for money"
+  ],
+  "normal": [
+    "steady",
+    "normal",
+    "some jobs coming",
+    "moving ok"
+  ],
+  "strong": [
+    "busy",
+    "back to back",
+    "surge",
+    "good fares",
+    "finally moving"
+  ],
+  "mixed": [
+    "busy but rubbish fares",
+    "jobs coming but long pickups",
+    "some good some bad"
+  ]
+}

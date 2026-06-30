@@ -1,0 +1,40 @@
+{
+  "description": "Uber work shorthand and trip-review examples. These are semantic examples, not hard keyword rules.",
+  "trip_shorthand": [
+    "5 pick 6 drop 10 pounds",
+    "3 mile pickup 9 mile drop",
+    "airport run",
+    "multi stop",
+    "dead miles",
+    "long pickup",
+    "short hop",
+    "back to back",
+    "surge",
+    "trip radar empty",
+    "radar dead",
+    "cheap job",
+    "low fare"
+  ],
+  "actions": [
+    "accepted",
+    "declined",
+    "passed",
+    "took it",
+    "let it go",
+    "calling it",
+    "one more job",
+    "going home",
+    "coming back later",
+    "moving area",
+    "heading Birmingham"
+  ],
+  "positioning": [
+    "town is dead",
+    "queue feels stale",
+    "should I move",
+    "going towards city",
+    "airport may be better",
+    "too much miles",
+    "pulled me out of area"
+  ]
+}

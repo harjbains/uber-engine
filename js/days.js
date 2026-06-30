@@ -525,6 +525,59 @@ function buildLiveShiftDetail(details) {
     : `${paceText} ${targetText}`;
 }
 
+function formatEstimatedFinish(hoursFromNow) {
+  const hours = Number(hoursFromNow || 0);
+  if (!Number.isFinite(hours) || hours <= 0) return "";
+
+  const finish = new Date(Date.now() + (hours * 3600000));
+  return finish.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function buildLiveDecisionMetric(coach) {
+  if (!coach.checkpoint) {
+    return {
+      label: "Can I go home yet?",
+      value: "Add checkpoint",
+      detail: "Enter earnings, miles and trips so the app can judge the day."
+    };
+  }
+
+  if (coach.remainingToday <= 0) {
+    return {
+      label: "Can I go home yet?",
+      value: "Target protected",
+      detail: "Today's target is covered. Continuing is optional."
+    };
+  }
+
+  if (!coach.forecastAvailable || !coach.showHourlyRate) {
+    return {
+      label: "Can I go home yet?",
+      value: "More data needed",
+      detail: "Add another checkpoint after a meaningful earning window."
+    };
+  }
+
+  if (coach.hoursToTodayTarget > 10) {
+    return {
+      label: "Can I go home yet?",
+      value: "Reassess later",
+      detail: "Current pace is not representative enough for a finish estimate."
+    };
+  }
+
+  const finishTime = formatEstimatedFinish(coach.hoursToTodayTarget);
+
+  return {
+    label: "Can I go home yet?",
+    value: finishTime ? `Est. finish ${finishTime}` : formatProductiveHours(coach.hoursToTodayTarget),
+    detail: `${formatProductiveHours(coach.hoursToTodayTarget)} to cover ${formatMoney(coach.remainingToday)}.`
+  };
+}
+
 function findNumberFromPatterns(text, patterns) {
   for (const pattern of patterns) {
     const match = text.match(pattern);
@@ -657,6 +710,135 @@ function getDriverEmotionMode(text) {
     mirror: false,
     hint: ""
   };
+}
+
+function getEnhancedDriverIntentionMode(text) {
+  const lower = String(text || "").toLowerCase();
+  const splitShift = /\b(go(?:ing)? home|i go home|going back|come back later|coming back later|back later|later session|split shift|restart later|home and come back|calling it|call it|finish(?:ing)?|ending|done for now)\b/.test(lower);
+  const pause = /\b(break|pause|reset|rest|eat|eating|food|hungry|need food|coffee|stop for a bit|take five|breather)\b/.test(lower);
+  const fatigue = /\b(tired|fatigue|drained|knackered|not feeling it|not feeling good|not feel good|not well|ill|dizzy|unwell|not safe|unsafe|falling asleep|sleepy|frustrated|fed up|can't be bothered|cant be bothered|stress|head(?:'s| is)? gone|head gone|low energy|rubbish|demoralised|demoralized)\b/.test(lower);
+  const weakMarket = /\b(poor jobs|low jobs|cheap jobs|bad fares|bad offers|weak offers|jobs offered|job no good|no job|no jobs|no job for long time|trip radar|radar empty|empty|quiet|dead|dead out here|slow|nothing|nothing coming|can't get rhythm|cant get rhythm|no rhythm|no flow|rubbish jobs|rubbish offers)\b/.test(lower)
+    || /(?:£|gbp)\s*\d+(?:\.\d+)?\s*(?:jobs?|offers?)/i.test(text || "");
+
+  if (!splitShift && !pause && !fatigue && !weakMarket) {
+    return getDriverIntentionMode(text);
+  }
+
+  const reasons = [];
+  if (splitShift) reasons.push("split shift");
+  if (pause) reasons.push("planned pause");
+  if (fatigue) reasons.push("energy or wellbeing");
+  if (weakMarket) reasons.push("weak market");
+
+  return {
+    mode: splitShift ? "split-shift" : fatigue ? "energy" : pause ? "pause" : "weak-market",
+    suppressForecast: true,
+    reason: reasons.join(", ")
+  };
+}
+
+function getEnhancedDriverEmotionMode(text) {
+  const lower = String(text || "").toLowerCase();
+  const positive = /\b(result|finally|relief|relieved|happy|excellent|brilliant|perfect|lovely|great|nice|good|saved|turned.*around|happy with that|back to back|busy|surge)\b/.test(lower);
+  const negative = /\b(frustrat|fed up|tired|drained|knackered|ill|dizzy|unwell|not safe|quiet|rubbish|poor|annoy|dead|slow|grim|struggl|nothing|not.*happen|not.*click|no rhythm|can't get rhythm|cant get rhythm|flow|head gone|can't be bothered|cant be bothered|demoralised|demoralized)\b/.test(lower);
+
+  if (positive || negative) {
+    return {
+      mood: positive ? "positive" : "negative",
+      mirror: true,
+      hint: positive
+        ? "driver sounds positive, relieved, or encouraged"
+        : "driver sounds frustrated, tired, unwell, or affected by a weak market"
+    };
+  }
+
+  return getDriverEmotionMode(text);
+}
+
+function getDriverLanguageSignals(text) {
+  const lower = String(text || "").toLowerCase();
+  const brokenEnglish = /\b(i go home|no job|job no good|too much miles|not feel good|no job for long time)\b/.test(lower);
+  const slang = /\b(knackered|fed up|dead out here|head gone|calling it|quid|pick|drop)\b/.test(lower);
+  const unsafe = /\b(not safe|unsafe|dizzy|ill|unwell|falling asleep|sleepy|can't focus|cant focus|cannot focus|too angry|seeing red)\b/.test(lower);
+  const celebration = /\b(result|happy with that|excellent|brilliant|saved|finally|back to back)\b/.test(lower);
+  const jobReview = /\b(pick|pickup|drop|drop off|airport run|multi stop|dead miles|fare|job|accepted|declined|passed)\b/.test(lower);
+  const decision = /\b(shall i|should i|move|go home|finish|calling it|one more job|break|pause|continue|stay out)\b/.test(lower);
+  const mentalFatigueSevere = /\b(head gone|can't think|cant think|can't focus|cant focus|cannot focus|fed up|can't be bothered|cant be bothered|done in|had enough|mentally done)\b/.test(lower);
+  const mentalFatigueModerate = /\b(can't get rhythm|cant get rhythm|no rhythm|not feeling it|nothing is clicking|can't get going|cant get going|drained|knackered|rubbish day|grinding me down)\b/.test(lower);
+  const reassuranceNeed = /\b(is it ok|am i ok|should i stop|can i go home|feel bad stopping|calling it|going home|not worth it|protect energy|come back later)\b/.test(lower);
+  const capacityLow = unsafe || /\b(exhausted|too tired|not right|not feeling right|not feel right)\b/.test(lower);
+
+  return {
+    driverState: unsafe
+      ? "unsafe_to_drive"
+      : /\b(ill|unwell|dizzy|not feel good|not feeling good)\b/.test(lower)
+        ? "unwell"
+        : /\b(tired|knackered|drained|sleepy|need break|need food)\b/.test(lower)
+          ? "fatigued"
+          : /\b(fed up|frustrat|head gone|can't be bothered|cant be bothered)\b/.test(lower)
+            ? "frustrated"
+            : "",
+    conversationPurpose: unsafe
+      ? "reassurance"
+      : celebration
+        ? "celebration"
+        : jobReview
+          ? "job_review"
+          : decision
+            ? "decision"
+            : /\b(rubbish|quiet|dead|nothing|bad fares|can't get rhythm|cant get rhythm)\b/.test(lower)
+              ? "venting"
+              : "",
+    languageQuality: brokenEnglish && slang
+      ? "mixed"
+      : brokenEnglish
+        ? "broken_english"
+        : slang
+          ? "slang"
+          : String(text || "").trim().split(/\s+/).length <= 4
+            ? "short_note"
+            : "clear",
+    safetySignal: unsafe ? "stop_now" : /\b(angry|rage|not concentrating|bad headache)\b/.test(lower) ? "caution" : "none",
+    mentalFatigue: mentalFatigueSevere ? "severe" : mentalFatigueModerate ? "moderate" : /\b(tired|slow|flat)\b/.test(lower) ? "mild" : "none",
+    reassuranceNeed: reassuranceNeed ? "high" : decision ? "medium" : "none",
+    driverCapacity: capacityLow ? "unsafe" : mentalFatigueSevere ? "low" : mentalFatigueModerate ? "reduced" : "full"
+  };
+}
+
+function getCoachOutcomeFromSignals(text, coach) {
+  const lower = String(text || "").toLowerCase();
+  const languageSignals = getDriverLanguageSignals(text);
+  const driverIntent = getEnhancedDriverIntentionMode(text);
+
+  if (languageSignals.driverState === "unsafe_to_drive" || languageSignals.driverState === "unwell" || languageSignals.safetySignal === "stop_now" || languageSignals.driverCapacity === "unsafe") {
+    return { outcome: "finish_shift", confidence: "high" };
+  }
+
+  if (languageSignals.driverCapacity === "low" || languageSignals.mentalFatigue === "severe") {
+    return { outcome: "take_break", confidence: "high" };
+  }
+
+  if (driverIntent.mode === "split-shift" || /\b(go home|going home|calling it|finish|done for now|end shift)\b/.test(lower)) {
+    return { outcome: "finish_shift", confidence: languageSignals.reassuranceNeed === "high" ? "high" : "medium" };
+  }
+
+  if (driverIntent.mode === "pause" || /\b(break|pause|food|eat|reset|rest)\b/.test(lower)) {
+    return { outcome: "take_break", confidence: "medium" };
+  }
+
+  if (/\b(move|reposition|area|birmingham|town|city|airport)\b/.test(lower)) {
+    return { outcome: "move_area", confidence: "medium" };
+  }
+
+  if (coach?.remainingToday <= 0) {
+    return { outcome: "finish_shift", confidence: "medium" };
+  }
+
+  if (coach?.forecastAvailable && coach.hoursToTodayTarget > 0 && coach.hoursToTodayTarget <= 1.5) {
+    return { outcome: "stay", confidence: "medium" };
+  }
+
+  return { outcome: "unknown", confidence: "low" };
 }
 
 function buildEmotionalCoachReply(text, emotion, coach) {
@@ -805,14 +987,46 @@ function getRecentCoachConversation(shift) {
     messageType: interaction.message_type || "",
     emotionalTone: interaction.emotional_tone || "",
     intent: interaction.driver_intent || "",
-    marketCondition: interaction.market_condition || ""
+    marketCondition: interaction.market_condition || "",
+    driverState: interaction.driver_state || "",
+    conversationPurpose: interaction.conversation_purpose || "",
+    languageQuality: interaction.language_quality || "",
+    safetySignal: interaction.safety_signal || "",
+    mentalFatigue: interaction.mental_fatigue || "",
+    reassuranceNeed: interaction.reassurance_need || "",
+    driverCapacity: interaction.driver_capacity || ""
   }));
+}
+
+function renderCoachHistory(shift) {
+  const interactions = Array.isArray(shift?.coach_interactions) ? shift.coach_interactions : [];
+  const recent = interactions.slice(0, 8).reverse();
+
+  if (!recent.length) {
+    return `<div class="live-coach-history__empty">No coach messages yet.</div>`;
+  }
+
+  return recent.map((interaction) => `
+    <article class="live-coach-history__item">
+      <p class="live-coach-history__driver">${escapeHtml(interaction.driver_note || "")}</p>
+      <p class="live-coach-history__coach">${escapeHtml(interaction.coach_reply || "")}</p>
+    </article>
+  `).join("");
+}
+
+function scrollCoachHistoryToLatest() {
+  window.setTimeout(() => {
+    const history = document.querySelector(".live-coach-history");
+    if (!history) return;
+    history.scrollTop = history.scrollHeight;
+  }, 0);
 }
 
 function buildCoachApiPayload(driverNote, shift, coach, summary) {
   const latestCheckpoint = coach.checkpoint;
-  const driverIntent = getDriverIntentionMode(driverNote);
-  const driverEmotion = getDriverEmotionMode(driverNote);
+  const driverIntent = getEnhancedDriverIntentionMode(driverNote);
+  const driverEmotion = getEnhancedDriverEmotionMode(driverNote);
+  const languageSignals = getDriverLanguageSignals(driverNote);
 
   return {
     driverNote,
@@ -820,7 +1034,14 @@ function buildCoachApiPayload(driverNote, shift, coach, summary) {
     cueHints: {
       emotion: driverEmotion.hint,
       intention: driverIntent.reason,
-      suppressForecast: driverIntent.suppressForecast
+      suppressForecast: driverIntent.suppressForecast,
+      driverState: languageSignals.driverState,
+      conversationPurpose: languageSignals.conversationPurpose,
+      languageQuality: languageSignals.languageQuality,
+      safetySignal: languageSignals.safetySignal,
+      mentalFatigue: languageSignals.mentalFatigue,
+      reassuranceNeed: languageSignals.reassuranceNeed,
+      driverCapacity: languageSignals.driverCapacity
     },
     shift: {
       startTime: formatShiftTime(shift.start_time),
@@ -893,15 +1114,25 @@ async function requestCoachApi(payload) {
 function buildLiveCoachDialogueReply(prompt, coach) {
   const text = String(prompt || "").trim();
   const lower = text.toLowerCase();
-  const driverIntent = getDriverIntentionMode(text);
-  const driverEmotion = getDriverEmotionMode(text);
+  const driverIntent = getEnhancedDriverIntentionMode(text);
+  const driverEmotion = getEnhancedDriverEmotionMode(text);
+  const languageSignals = getDriverLanguageSignals(text);
+  const coachOutcome = getCoachOutcomeFromSignals(text, coach);
 
   if (!text) {
-    return "Tell me what you are deciding: carry on, reposition, pause, or protect the day. I will use the shift data to answer calmly.";
+    return "Tell me what you are weighing up: stay out, move area, take a break, or finish. I will keep it practical and calm.";
   }
 
   if (driverEmotion.mood === "positive") {
     return buildEmotionalCoachReply(text, driverEmotion, coach);
+  }
+
+  if (languageSignals.driverState === "unsafe_to_drive" || languageSignals.driverState === "unwell" || languageSignals.safetySignal === "stop_now" || languageSignals.driverCapacity === "unsafe") {
+    return "Yes, call it. If you are not feeling right, do not force the shift; go home, rest, and only restart when you feel safe.";
+  }
+
+  if (languageSignals.mentalFatigue === "severe" || languageSignals.driverCapacity === "low") {
+    return "Fair enough, that sounds like your head is getting full. Take the pressure off, have a proper reset, and only make the next decision when you feel clear again.";
   }
 
   const jobReview = buildJobDecisionReview(text, coach);
@@ -932,7 +1163,11 @@ function buildLiveCoachDialogueReply(prompt, coach) {
   }
 
   if (!coach.forecastAvailable) {
-    return "Too early to judge the shift properly. Keep this checkpoint as a baseline and check again after roughly 30 minutes or another meaningful earning window.";
+    if (coachOutcome.confidence === "low") {
+      return "It is too early for the numbers to tell the whole story. I'd treat this as a feel check for now: stay calm, protect your energy, and reassess after one cleaner checkpoint.";
+    }
+
+    return "It is too early for the numbers to tell the whole story. Treat this as a feel check for now: stay calm, protect your energy, and let the next useful bit of work give us a clearer read.";
   }
 
   const targetProtected = coach.remainingToday <= 0;
@@ -941,42 +1176,42 @@ function buildLiveCoachDialogueReply(prompt, coach) {
 
   if (/(stop|finish|home|done|enough|quit|carry on|continue|stay out)/.test(lower)) {
     if (targetProtected) {
-      return `Today's target is protected. At ${paceText}, carrying on is optional; finishing now would still be a disciplined result.`;
+      return `Today's target is protected, so finishing is a perfectly fair option. If you stay out, make it for good work rather than habit.`;
     }
 
     if (coach.hoursToTodayTarget > 10) {
-      return "Current pace is not a useful guide right now. Treat this as a review window rather than a verdict: either reset and come back later, or add one cleaner checkpoint before judging the day.";
+      return "The pace is not giving us a fair read yet. If the work feels flat, reset for a bit or move with a simple plan. No need to turn one awkward patch into a verdict on the whole day.";
     }
 
-    return `You still have ${formatMoney(coach.remainingToday)} to find. At the current pace, that looks like about ${formatProductiveHours(coach.hoursToTodayTarget)}. Give the next checkpoint a clear review point rather than drifting.`;
+    return `There is still ${formatMoney(coach.remainingToday)} to find today. If you feel steady, stay out for one cleaner earning window; if the next patch is flat, move area or take a reset.`;
   }
 
   if (/(move|reposition|area|quiet|dead|slow|airport|town|city)/.test(lower)) {
     if (coach.recentHourlyRate > 0 && coach.recentHourlyRate < coach.hourlyRate * 0.65) {
-      return "Recent pace has softened compared with the shift average. A reposition or short reset is reasonable before judging the whole shift.";
+      return "Fair enough. If the area has gone flat, a short reset or a controlled move makes sense. Keep it practical: do not chase miles just because the app has gone quiet.";
     }
 
-    return `The shift is currently reading ${paceText} and ${mileText}. If the local queue feels stale, reposition with a mileage limit rather than chasing far jobs.`;
+    return `I hear you. The shift is reading ${paceText}, but the feel of the road matters too. If the local work feels stale, reposition with a mileage limit rather than chasing anything that appears.`;
   }
 
   if (/(mile|miles|per mile|fuel|distance|far)/.test(lower)) {
     if (coach.grossPerMile > 0 && coach.grossPerMile < 0.9) {
-      return `Mileage return is weak at ${mileText}. Be cautious with long pickups or jobs that pull you away from stronger areas.`;
+      return `Mileage is the thing to watch here: ${mileText} is not giving you much room. Keep the next move controlled and avoid chasing long pickups unless the fare really makes sense.`;
     }
 
-    return `Mileage is acceptable at ${mileText}. Keep watching long dead miles, but the car is not currently the main concern.`;
+    return `Mileage looks workable at ${mileText}. Keep an eye on dead miles, but the bigger decision is whether the area still feels alive.`;
   }
 
   if (/(target|week|weekly|today|recover|behind|ahead|buffer)/.test(lower)) {
     if (targetProtected) {
-      return `Today is protected and the week projects to ${formatMoney(coach.projectedWeek)}. Extra work now is about building buffer, not rescuing the target.`;
+      return `Today is protected, so extra work is about building buffer rather than rescuing the target. Stay only if the work feels worth your energy.`;
     }
 
     if (coach.hoursToTodayTarget > 10) {
       return `The target gap is still there, but current pace is not representative enough to turn into an hours plan. Reassess after the next meaningful checkpoint.`;
     }
 
-    return `The live forecast says ${formatMoney(coach.projectedDay)} today and ${formatMoney(coach.projectedWeek)} for the week. You need about ${formatProductiveHours(coach.hoursToTodayTarget)} at this pace to protect today.`;
+    return `The day is still recoverable, but keep it simple. You need about ${formatProductiveHours(coach.hoursToTodayTarget)} at this pace, so give yourself one clear checkpoint before deciding whether to stay or reset.`;
   }
 
   if (/(break|pause|tired|fatigue|hungry|stress|head|focus)/.test(lower)) {
@@ -988,10 +1223,14 @@ function buildLiveCoachDialogueReply(prompt, coach) {
       return "If focus is fading, take a planned pause and protect the next earning window. Current pace is too weak to turn into a sensible hours estimate, so reset first and reassess later.";
     }
 
-    return `If focus is fading, take a planned pause and preserve the next earning window. The numbers say about ${formatProductiveHours(coach.hoursToTodayTarget)} remains for today at current pace.`;
+    return `If focus is fading, take a proper break rather than dragging the shift. You can reassess with a clearer head and decide whether to stay out or finish.`;
   }
 
-  return `${coach.message} Evidence: current pace ${paceText}, today forecast ${formatMoney(coach.projectedDay)}, week forecast ${formatMoney(coach.projectedWeek)}, and mileage ${mileText}.`;
+  if (targetProtected) {
+    return "You have protected the day, so the next decision can be about energy rather than pressure. Stay only for worthwhile work, otherwise finishing is a disciplined call.";
+  }
+
+  return `Keep it simple from here: stay available if the area still feels alive, or move/reset if it feels stale. Current pace is around ${paceText}, so use the next checkpoint as the decision point.`;
 }
 
 function getRecentCheckpointHourlyRate(shift) {
@@ -1578,23 +1817,10 @@ function renderLiveShiftCard(summary) {
   if (!node) return;
 
   const shift = readActiveShift();
-  const forecastBlock = node.querySelector(".live-forecast-block");
-  const forecastWasOpen = forecastBlock ? forecastBlock.open : true;
 
   if (!shift) {
     node.innerHTML = `
       <section class="live-shift-panel live-shift-panel--idle">
-        <div class="live-shift-panel__header">
-          <div>
-            <h3>Live Shift Coach</h3>
-            <p>Quick checkpoints while you work.</p>
-          </div>
-          <span class="live-shift-pill">Ready</span>
-        </div>
-        <label class="live-finish-field">
-          <span>Planned Finish</span>
-          <input id="live_shift_planned_finish" type="time" inputmode="numeric">
-        </label>
         <button class="live-shift-button live-shift-button--primary" type="button" data-live-shift-action="start">
           Start Shift
         </button>
@@ -1606,66 +1832,12 @@ function renderLiveShiftCard(summary) {
 
   const coach = getLiveShiftCoach(shift, summary);
   const checkpoint = coach.checkpoint;
-  const checkpointCount = shift.checkpoints.length;
-  const plannedFinish = normaliseTimeValue(shift.planned_finish_time);
-  const plannedFinishText = plannedFinish ? ` / finish ${plannedFinish}` : "";
-  const shiftState = coach.paused ? `Shift paused${plannedFinishText}` : `Shift started ${formatShiftTime(shift.start_time)}${plannedFinishText}`;
-  const actionLabel = coach.paused ? "Resume Shift" : "Pause Shift";
+  const actionIcon = coach.paused ? "play" : "pause";
+  const actionTitle = coach.paused ? "Resume shift" : "Pause shift";
   const actionName = coach.paused ? "resume" : "pause";
-  const checkpointMeta = checkpoint ? `Last checkpoint ${formatShiftTime(checkpoint.timestamp)} (${checkpointCount})` : "No checkpoints yet";
-  const pauseMeta = coach.pauseHours > 0 ? `${formatElapsedTime(coach.pauseHours)} paused` : "";
-
   node.innerHTML = `
     <section class="live-shift-panel live-shift-panel--active live-shift-panel--${coach.tone}">
-      <div class="live-shift-panel__header">
-        <div>
-          <h3>Live Shift Coach</h3>
-          <p>${escapeHtml(shiftState)}</p>
-        </div>
-        <div class="live-shift-panel__elapsed">
-          <span>Elapsed</span>
-          <strong data-live-shift-elapsed>${formatElapsedTime(coach.elapsedHours)}</strong>
-        </div>
-        <span class="live-shift-pill live-shift-pill--${coach.tone}">${escapeHtml(coach.label)}</span>
-      </div>
-
-      ${coach.paused ? `
-        <label class="live-finish-field">
-          <span>Planned Finish</span>
-          <input id="live_shift_planned_finish" type="time" inputmode="numeric" value="${escapeHtml(plannedFinish)}">
-        </label>
-      ` : ""}
-
-      <section class="live-shift-section live-shift-section--checkpoint" aria-label="Shift checkpoint">
-        <div class="live-shift-section__title">
-          <span>Shift Checkpoint</span>
-          <b>Performance Data</b>
-        </div>
-        <form id="live_shift_form" class="live-shift-form" data-live-shift-form>
-          <label>
-            <span>Earnings</span>
-            <input id="live_checkpoint_earnings" type="number" min="0" step="0.01" inputmode="decimal" value="${checkpoint ? coach.earnings.toFixed(2) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
-          </label>
-          <label>
-            <span>Miles</span>
-            <input id="live_checkpoint_miles" type="number" min="0" step="0.1" inputmode="decimal" value="${checkpoint ? coach.miles.toFixed(1) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
-          </label>
-          <label>
-            <span>Trips</span>
-            <input id="live_checkpoint_trips" type="number" min="0" step="1" inputmode="numeric" value="${checkpoint?.trips_completed ?? ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
-          </label>
-        </form>
-      </section>
-
       <div class="live-shift-coach">
-        <div class="live-shift-coach__status">
-          <span class="live-shift-dot live-shift-dot--${coach.tone}"></span>
-          <div>
-            <strong>${escapeHtml(coach.label)}</strong>
-            <span>${escapeHtml(coach.message)}</span>
-          </div>
-        </div>
-
         <div class="live-shift-bars">
           <div>
             <span>${escapeHtml(coach.todayProgressLabel)}</span>
@@ -1676,75 +1848,64 @@ function renderLiveShiftCard(summary) {
 
         <section class="live-shift-section live-shift-section--chat" aria-label="Coach chat">
           <div class="live-shift-section__title">
-            <span>Coach Chat</span>
-            <b>Driver Notes</b>
+            <span>Coach</span>
+            <b>Chat</b>
           </div>
           <div class="live-coach-dialogue">
-          <label class="live-driver-notes">
-            <span>Ask Coach</span>
-            <textarea id="live_shift_notes" rows="2" placeholder="Ask: £5 fare, 2 pickup, 5 trip. Or: should I move, pause, carry on?">${escapeHtml(shift.driver_notes)}</textarea>
-          </label>
-          <div class="live-coach-dialogue__actions">
-            <button class="live-shift-button live-coach-dialogue__ask" type="button" data-live-shift-action="ask-coach">Ask Coach</button>
-            <button class="live-shift-button live-coach-dialogue__clear" type="button" data-live-shift-action="new-coach-message">New Message</button>
-          </div>
-          ${shift.coach_reply ? `
-            <div id="live_shift_reply" class="live-coach-dialogue__reply">
-              ${escapeHtml(shift.coach_reply)}
+            <div class="live-coach-history" aria-label="Coach conversation history">
+              ${renderCoachHistory(shift)}
             </div>
-          ` : ""}
+            <form class="live-driver-notes" data-live-coach-form>
+              <label class="sr-only" for="live_shift_notes">Message coach</label>
+              <span class="live-chat-composer">
+                <input id="live_shift_notes" type="text" autocomplete="off" placeholder="Message coach" value="${escapeHtml(shift.driver_notes)}">
+                <button class="live-chat-send" type="submit" aria-label="Send coach message">
+                  <span aria-hidden="true"></span>
+                </button>
+              </span>
+            </form>
           </div>
         </section>
 
-        <details class="live-forecast-block" aria-label="Driver Coach forecast" ${forecastWasOpen ? "open" : ""}>
-          <summary class="live-forecast-block__title">
-            <span>Forecast Evidence</span>
-            <b>${coach.forecastAvailable ? "Live" : "Building"}</b>
-          </summary>
-          <div class="live-forecast-grid">
-          <div>
-            <span>Current Pace</span>
-            <strong>${coach.showHourlyRate ? `${formatMoney(coach.hourlyRate)}/hr` : "Building data"}</strong>
+        <section class="live-shift-section live-shift-section--checkpoint" aria-label="Shift checkpoint">
+          <div class="live-shift-section__title">
+            <span>Checkpoint</span>
+            <b>Earnings / miles / trips</b>
           </div>
-          <div>
-            <span>Day Forecast</span>
-            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedDay) : "After 30m"}</strong>
-          </div>
-          <div>
-            <span>Week Forecast</span>
-            <strong>${coach.forecastAvailable ? formatMoney(coach.projectedWeek) : "After 30m"}</strong>
-          </div>
-          <div>
-            <span>Hours Left</span>
-            <strong>${coach.forecastAvailable ? (coach.remainingToday > 0 ? formatProductiveHours(coach.hoursToTodayTarget) : "Protected") : "More data"}</strong>
-          </div>
-          <div>
-            <span>Buffer</span>
-            <strong>${coach.forecastAvailable ? (coach.dayBuffer > 0 ? formatMoney(coach.dayBuffer) : formatMoney(coach.weekBuffer)) : "More data"}</strong>
-          </div>
-          <div>
-            <span>Per Mile</span>
-            <strong>${coach.showGrossPerMile ? `${formatMoney(coach.grossPerMile)}/mi` : "Add miles"}</strong>
-          </div>
-          </div>
-        </details>
-
+          <form id="live_shift_form" class="live-shift-form" data-live-shift-form>
+            <label>
+              <span>Earnings</span>
+              <input id="live_checkpoint_earnings" type="number" min="0" step="0.01" inputmode="decimal" value="${checkpoint ? coach.earnings.toFixed(2) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
+            </label>
+            <label>
+              <span>Miles</span>
+              <input id="live_checkpoint_miles" type="number" min="0" step="0.1" inputmode="decimal" value="${checkpoint ? coach.miles.toFixed(1) : ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
+            </label>
+            <label>
+              <span>Trips</span>
+              <input id="live_checkpoint_trips" type="number" min="0" step="1" inputmode="numeric" value="${checkpoint?.trips_completed ?? ""}" placeholder="0" ${coach.paused ? "disabled" : ""}>
+            </label>
+          </form>
+        </section>
       </div>
 
-      <button class="live-shift-button live-shift-button--primary" type="submit" form="live_shift_form" ${coach.paused ? "disabled" : ""}>Save Checkpoint</button>
-
-      <div class="live-shift-footer">
-        <span>${escapeHtml([checkpointMeta, pauseMeta].filter(Boolean).join(" · "))}</span>
-        <div class="live-shift-footer__actions">
-          <button class="live-shift-button" type="button" data-live-shift-action="${actionName}">${actionLabel}</button>
-          <button class="live-shift-button" type="button" data-live-shift-action="end">End Shift</button>
-        </div>
+      <div class="live-shift-controls" aria-label="Shift controls">
+        <button class="live-shift-control-button" type="submit" form="live_shift_form" title="Save checkpoint" aria-label="Save checkpoint" ${coach.paused ? "disabled" : ""}>
+          <span class="live-control-icon live-control-icon--record" aria-hidden="true"></span>
+        </button>
+        <button class="live-shift-control-button" type="button" data-live-shift-action="${actionName}" title="${actionTitle}" aria-label="${actionTitle}">
+          <span class="live-control-icon live-control-icon--${actionIcon}" aria-hidden="true"></span>
+        </button>
+        <button class="live-shift-control-button" type="button" data-live-shift-action="end" title="End shift" aria-label="End shift">
+          <span class="live-control-icon live-control-icon--stop" aria-hidden="true"></span>
+        </button>
       </div>
     </section>
   `;
 
   syncLiveShiftTimer(true);
   resizeCoachTextarea();
+  scrollCoachHistoryToLatest();
 }
 
 function buildWeeklyTargetSummary(days, settings, weekDates) {
@@ -2517,8 +2678,25 @@ function handleLiveShiftClick(event) {
 }
 
 function handleLiveShiftSubmit(event) {
+  const coachForm = event.target.closest("[data-live-coach-form]");
+  if (coachForm) {
+    event.preventDefault();
+    const sendButton = coachForm.querySelector(".live-chat-send");
+    if (sendButton) void askLiveShiftCoach(sendButton);
+    return;
+  }
+
   if (!event.target.closest("[data-live-shift-form]")) return;
   saveLiveCheckpoint(event);
+}
+
+function handleLiveShiftKeydown(event) {
+  if (event.target?.id !== "live_shift_notes") return;
+  if (event.key !== "Enter" || event.shiftKey) return;
+
+  event.preventDefault();
+  const sendButton = el(ids.liveShiftCard)?.querySelector(".live-chat-send");
+  if (sendButton) void askLiveShiftCoach(sendButton);
 }
 
 function handleLiveShiftInputFocus(event) {
@@ -2529,18 +2707,15 @@ function handleLiveShiftInputFocus(event) {
 
 function resizeCoachTextarea(textarea = document.getElementById("live_shift_notes")) {
   if (!textarea) return;
+  if (textarea.tagName !== "TEXTAREA") return;
   textarea.style.height = "auto";
-  textarea.style.height = `${Math.min(textarea.scrollHeight, 220)}px`;
+  textarea.style.height = "32px";
 }
 
 function handleLiveShiftNotesFocus(event) {
   if (event.target?.id !== "live_shift_notes") return;
-  const shift = readActiveShift();
-  if (!shift || shift.coach_draft_status !== "answered") {
-    resizeCoachTextarea(event.target);
-    return;
-  }
-  startNewCoachMessage({ focus: true });
+  resizeCoachTextarea(event.target);
+  scrollCoachHistoryToLatest();
 }
 
 function handleLiveShiftNotesInput(event) {
@@ -2588,6 +2763,7 @@ function buildCoachInteractionRecord(driverNote, coachReply, payload, source, ap
   const extractedJob = apiResult?.extractedJob || {};
   const calculatedJob = apiResult?.calculatedJob || {};
   const fallbackJob = calculateLoggedJobMetrics(driverNote);
+  const fallbackOutcome = getCoachOutcomeFromSignals(driverNote, null);
   return {
     id: `coach-${Date.now()}`,
     shift_id: payload.shift?.startTime || "",
@@ -2611,22 +2787,34 @@ function buildCoachInteractionRecord(driverNote, coachReply, payload, source, ap
     emotional_tone: extractedJob.emotion || payload.cueHints?.emotion || "",
     driver_intent: extractedJob.intent || payload.cueHints?.intention || "",
     market_condition: extractedJob.marketCondition || "",
+    primary_emotion: extractedJob.primaryEmotion || extractedJob.emotion || payload.cueHints?.emotion || "",
+    secondary_emotion: extractedJob.secondaryEmotion || "",
+    driver_state: extractedJob.driverState || payload.cueHints?.driverState || "",
+    conversation_purpose: extractedJob.conversationPurpose || payload.cueHints?.conversationPurpose || "",
+    language_quality: extractedJob.languageQuality || payload.cueHints?.languageQuality || "",
+    recommended_outcome: extractedJob.recommendedOutcome || fallbackOutcome.outcome,
+    advice_confidence: extractedJob.adviceConfidence || extractedJob.confidence || fallbackOutcome.confidence,
+    safety_signal: extractedJob.safetySignal || payload.cueHints?.safetySignal || "",
+    mental_fatigue: extractedJob.mentalFatigue || payload.cueHints?.mentalFatigue || "",
+    reassurance_need: extractedJob.reassuranceNeed || payload.cueHints?.reassuranceNeed || "",
+    driver_capacity: extractedJob.driverCapacity || payload.cueHints?.driverCapacity || "",
     source
   };
 }
 
 async function askLiveShiftCoach(button) {
-  const originalButtonText = button?.textContent || "Ask Coach";
+  const originalButtonHtml = button?.innerHTML || "";
   if (button) {
     button.disabled = true;
-    button.textContent = "Thinking...";
+    button.setAttribute("aria-busy", "true");
   }
 
   const shift = readActiveShift();
   if (!shift) {
     if (button) {
       button.disabled = false;
-      button.textContent = originalButtonText;
+      button.removeAttribute("aria-busy");
+      button.innerHTML = originalButtonHtml;
     }
     return;
   }
@@ -2638,7 +2826,8 @@ async function askLiveShiftCoach(button) {
     showStatus("Coach context is still loading.", "error");
     if (button) {
       button.disabled = false;
-      button.textContent = originalButtonText;
+      button.removeAttribute("aria-busy");
+      button.innerHTML = originalButtonHtml;
     }
     return;
   }
@@ -2667,6 +2856,7 @@ async function askLiveShiftCoach(button) {
 
   writeActiveShift({
     ...nextShift,
+    driver_notes: "",
     coach_reply: coachReply,
     coach_draft_status: "answered",
     coach_interactions: [
@@ -2675,6 +2865,7 @@ async function askLiveShiftCoach(button) {
     ].slice(0, 50)
   });
   renderWeeklyTarget(currentWeekDays);
+  scrollCoachHistoryToLatest();
   showStatus(source === "openai" ? "Coach replied." : "Coach replied locally.", "success");
 }
 
@@ -3458,7 +3649,10 @@ function bindDayEvents() {
   el(ids.saveBtn)?.addEventListener("click", saveDay);
   el(ids.liveShiftCard)?.addEventListener("click", handleLiveShiftClick);
   el(ids.liveShiftCard)?.addEventListener("submit", handleLiveShiftSubmit);
+  el(ids.liveShiftCard)?.addEventListener("keydown", handleLiveShiftKeydown);
   el(ids.liveShiftCard)?.addEventListener("focusin", handleLiveShiftInputFocus);
+  el(ids.liveShiftCard)?.addEventListener("focusin", handleLiveShiftNotesFocus);
+  el(ids.liveShiftCard)?.addEventListener("input", handleLiveShiftNotesInput);
   el(ids.list)?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-day]");
     if (!button) return;
