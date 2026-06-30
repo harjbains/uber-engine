@@ -1308,15 +1308,15 @@ input[type="date"] {
 .live-shift-controls {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
 }
 
 .live-shift-control-button {
   display: grid;
   place-items: center;
-  min-height: 42px;
-  border: 2px solid #cbd5e1;
-  border-radius: 10px;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
   background: #ffffff;
   color: #3f352d;
   cursor: pointer;
@@ -1330,13 +1330,13 @@ input[type="date"] {
 .live-control-icon {
   display: block;
   position: relative;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
 }
 
 .live-control-icon--record {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
   background: currentColor;
 }
@@ -1344,10 +1344,10 @@ input[type="date"] {
 .live-control-icon--play {
   width: 0;
   height: 0;
-  margin-left: 3px;
-  border-top: 11px solid transparent;
-  border-bottom: 11px solid transparent;
-  border-left: 17px solid currentColor;
+  margin-left: 2px;
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 13px solid currentColor;
 }
 
 .live-control-icon--pause::before,
@@ -1355,8 +1355,8 @@ input[type="date"] {
   content: "";
   position: absolute;
   top: 1px;
-  width: 7px;
-  height: 20px;
+  width: 5px;
+  height: 15px;
   border-radius: 2px;
   background: currentColor;
 }
@@ -1370,8 +1370,8 @@ input[type="date"] {
 }
 
 .live-control-icon--stop {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   border-radius: 2px;
   background: currentColor;
 }
