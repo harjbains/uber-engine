@@ -5,7 +5,11 @@
     "3 mile pickup 9 mile drop",
     "airport run",
     "multi stop",
+    "multiple stops",
     "dead miles",
+    "dead mileage back",
+    "looked good but too much dead mileage",
+    "fare seemed decent but multiple stops put me off",
     "long pickup",
     "short hop",
     "back to back",
@@ -18,6 +22,7 @@
   "actions": [
     "accepted",
     "declined",
+    "turned it down",
     "passed",
     "took it",
     "let it go",
@@ -35,6 +40,7 @@
     "going towards city",
     "airport may be better",
     "too much miles",
+    "awkward return mileage",
     "pulled me out of area"
   ]
 }

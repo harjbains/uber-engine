@@ -739,8 +739,17 @@ function getEnhancedDriverIntentionMode(text) {
 
 function getEnhancedDriverEmotionMode(text) {
   const lower = String(text || "").toLowerCase();
+  const negativeJobContext = hasNegativeJobContext(text);
   const positive = /\b(result|finally|relief|relieved|happy|excellent|brilliant|perfect|lovely|great|nice|good|saved|turned.*around|happy with that|back to back|busy|surge)\b/.test(lower);
   const negative = /\b(frustrat|fed up|tired|drained|knackered|ill|dizzy|unwell|not safe|quiet|rubbish|poor|annoy|dead|slow|grim|struggl|nothing|not.*happen|not.*click|no rhythm|can't get rhythm|cant get rhythm|flow|head gone|can't be bothered|cant be bothered|demoralised|demoralized)\b/.test(lower);
+
+  if (negativeJobContext) {
+    return {
+      mood: "negative",
+      mirror: true,
+      hint: "driver is describing a declined or unattractive job because of mileage, stops, positioning, or time of day"
+    };
+  }
 
   if (positive || negative) {
     return {
@@ -755,13 +764,40 @@ function getEnhancedDriverEmotionMode(text) {
   return getDriverEmotionMode(text);
 }
 
+function hasNegativeJobContext(text) {
+  const lower = String(text || "").toLowerCase();
+  const jobLanguage = /\b(job|offer|fare|trip|drop|pickup|mileage|miles|paid|paying)\b/.test(lower);
+  const declined = /\b(declined|rejected|passed|turned it down|turn(?:ed)? down|let it go|not taking|didn't take|didnt take)\b/.test(lower);
+  const caution = /\b(multiple stops?|multi stop|dead miles?|dead mileage|dead run|unpaid miles?|too many miles|long way back|wrong area|out of area|time of day|put me off|not worth|poor value)\b/.test(lower);
+  const contrast = /\b(seems|looked|looks|sounds|pays?|paying)\b[\s\S]{0,80}\b(good|ok|decent|fine)\b[\s\S]{0,120}\b(but|however|though|although|except)\b/.test(lower);
+
+  return jobLanguage && (declined || caution || contrast) && (caution || declined);
+}
+
+function buildNegativeJobContextReply(text) {
+  if (!hasNegativeJobContext(text)) return "";
+
+  const lower = String(text || "").toLowerCase();
+  const parts = [];
+  if (/multiple stops?|multi stop/.test(lower)) parts.push("multiple stops");
+  if (/dead miles?|dead mileage|dead run|unpaid miles?|long way back/.test(lower)) parts.push("dead mileage");
+  if (/time of day|late|evening|night/.test(lower)) parts.push("the time of day");
+  if (/out of area|wrong area|poor area/.test(lower)) parts.push("positioning");
+
+  const reason = parts.length
+    ? `${parts.slice(0, 2).join(" and ")} ${parts.length > 2 ? "also matter here" : "matter here"}`
+    : "the hidden work around the job matters here";
+
+  return `Fair enough. £13 can look alright on the face of it, but ${reason}, so turning it down makes sense. No need to overthink it; keep yourself available for something cleaner with less drag afterwards.`;
+}
+
 function getDriverLanguageSignals(text) {
   const lower = String(text || "").toLowerCase();
   const brokenEnglish = /\b(i go home|no job|job no good|too much miles|not feel good|no job for long time)\b/.test(lower);
   const slang = /\b(knackered|fed up|dead out here|head gone|calling it|quid|pick|drop)\b/.test(lower);
   const unsafe = /\b(not safe|unsafe|dizzy|ill|unwell|falling asleep|sleepy|can't focus|cant focus|cannot focus|too angry|seeing red)\b/.test(lower);
   const celebration = /\b(result|happy with that|excellent|brilliant|saved|finally|back to back)\b/.test(lower);
-  const jobReview = /\b(pick|pickup|drop|drop off|airport run|multi stop|dead miles|fare|job|accepted|declined|passed)\b/.test(lower);
+  const jobReview = /\b(pick|pickup|drop|drop off|airport run|multi stop|multiple stops|dead miles|dead mileage|fare|job|accepted|declined|passed|turned it down)\b/.test(lower);
   const decision = /\b(shall i|should i|move|go home|finish|calling it|one more job|break|pause|continue|stay out)\b/.test(lower);
   const mentalFatigueSevere = /\b(head gone|can't think|cant think|can't focus|cant focus|cannot focus|fed up|can't be bothered|cant be bothered|done in|had enough|mentally done)\b/.test(lower);
   const mentalFatigueModerate = /\b(can't get rhythm|cant get rhythm|no rhythm|not feeling it|nothing is clicking|can't get going|cant get going|drained|knackered|rubbish day|grinding me down)\b/.test(lower);
@@ -1134,6 +1170,9 @@ function buildLiveCoachDialogueReply(prompt, coach) {
   if (languageSignals.mentalFatigue === "severe" || languageSignals.driverCapacity === "low") {
     return "Fair enough, that sounds like your head is getting full. Take the pressure off, have a proper reset, and only make the next decision when you feel clear again.";
   }
+
+  const negativeJobContextReply = buildNegativeJobContextReply(text);
+  if (negativeJobContextReply) return negativeJobContextReply;
 
   const jobReview = buildJobDecisionReview(text, coach);
   if (jobReview) return jobReview;

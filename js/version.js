@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.91";
+export const VERSION = "v2.3.92";
 
 export const RELEASE_NOTES = {
+  "2.3.92": "Coach treats declined jobs with dead mileage or multiple stops as cautionary context",
   "2.3.91": "Live Shift Coach avoids timer re-renders and draft writes while dictating",
   "2.3.90": "Live Shift Coach prevents mobile dictation from triggering hidden chat submits",
   "2.3.89": "Live Shift Coach dictation uses a mobile-safe textarea and avoids touch-keyboard Enter submits",
