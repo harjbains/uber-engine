@@ -27,6 +27,7 @@ const ids = {
   miles: "day_miles",
   hours: "day_hours",
   minutes: "day_minutes",
+  endReason: "day_end_reason",
   saveBtn: "save_day",
   list: "dayList",
   weekTitle: "week_title",
@@ -63,9 +64,26 @@ const MIN_FORECAST_CHECKPOINT_GAP_HOURS = 10 / 60;
 const MAX_REASONABLE_GROSS_PER_MILE = 10;
 const EARLY_SHIFT_PROTECTION_HOURS = 1.5;
 const TARGET_LEVELS = [
-  { value: 750, label: "Floor", note: "successful week" },
-  { value: 850, label: "Target", note: "strong sustainable week" },
-  { value: 1000, label: "Stretch", note: "if the market allows" }
+  { value: 750, key: "floor", label: "Weekly Floor", shortLabel: "Floor", note: "minimum serious week" },
+  { value: 900, key: "main", label: "Main Target", shortLabel: "Main", note: "real working target" },
+  { value: 1000, key: "mortgageKiller", label: "Mortgage Killer", shortLabel: "Mortgage Killer", note: "stretch target" }
+];
+const MAIN_WEEKLY_TARGET = TARGET_LEVELS[1].value;
+const SERIOUS_HOURS_LEVELS = [
+  { value: 30, key: "minimum", label: "Minimum serious week" },
+  { value: 36, key: "strong", label: "Strong week" },
+  { value: 40, key: "mortgageKiller", label: "Mortgage Killer week" }
+];
+const SHIFT_END_REASONS = [
+  { value: "", label: "Select reason" },
+  { value: "target_hit", label: "Target hit" },
+  { value: "planned_end_time", label: "Planned end time reached" },
+  { value: "genuine_fatigue_safety", label: "Genuine fatigue / safety" },
+  { value: "family_commitment", label: "Family commitment" },
+  { value: "car_admin_issue", label: "Car/admin issue" },
+  { value: "market_clearly_dead", label: "Market clearly dead" },
+  { value: "quit_early_mood_dipped", label: "Quit early / mood dipped" },
+  { value: "other", label: "Other" }
 ];
 const SHIFT_COACH_MESSAGES = {
   start: [
@@ -1620,7 +1638,7 @@ function normaliseWorkDays(workDays, fallback = DEFAULT_TARGET_WORKDAYS) {
 
 function targetSettingsFromDbRow(row) {
   return {
-    target: row.target ?? getWeeklyTargetDefault(),
+    target: MAIN_WEEKLY_TARGET,
     dailyHoursTarget: row.daily_hours_target ?? getDailyHoursTargetDefault(),
     targetSnapshot: row.target_snapshot ?? null,
     targetSnapshotMode: row.target_snapshot_mode || "",
@@ -1651,7 +1669,7 @@ function isMissingWeeklyTargetsTable(error) {
 
 function readTargetSettings(startIso) {
   const fallback = {
-    target: getWeeklyTargetDefault(),
+    target: MAIN_WEEKLY_TARGET,
     dailyHoursTarget: getDailyHoursTargetDefault(),
     targetSnapshot: null,
     targetSnapshotMode: "",
@@ -1800,7 +1818,7 @@ function getCurrentTargetSettings(customFlags = {}) {
   ).map((node) => Number(node.dataset.targetWorkday));
 
   return {
-    target: targetInput?.dataset.manualTarget || targetInput?.value || "",
+    target: MAIN_WEEKLY_TARGET,
     dailyHoursTarget: parseClockHoursInput(
       dailyHoursTargetInput?.dataset.manualTarget || dailyHoursTargetInput?.value,
       getDailyHoursTargetDefault()
@@ -1824,6 +1842,60 @@ function shouldUseStoredTargetSnapshot(settings) {
 
 function isCompletedTargetWeek() {
   return currentWeekRange?.endIso < todayIso();
+}
+
+function normaliseEndReason(value) {
+  return String(value || "").trim();
+}
+
+function getEndReasonLabel(value) {
+  const reason = SHIFT_END_REASONS.find((item) => item.value === normaliseEndReason(value));
+  return reason?.label || "";
+}
+
+function countShiftEndReasons(days) {
+  return (days || []).reduce((counts, day) => {
+    const reason = normaliseEndReason(day.shift_end_reason || day.end_reason);
+    if (!reason) return counts;
+    counts.total += 1;
+    counts[reason] = (counts[reason] || 0) + 1;
+
+    if (reason === "quit_early_mood_dipped") counts.mood += 1;
+    if (["family_commitment", "car_admin_issue", "genuine_fatigue_safety"].includes(reason)) {
+      counts.legitimate += 1;
+    }
+    if (reason === "market_clearly_dead") counts.market += 1;
+    return counts;
+  }, {
+    total: 0,
+    mood: 0,
+    legitimate: 0,
+    market: 0
+  });
+}
+
+function buildWeeklyLadderVerdict({ earned, hoursWorked, averageHourlyRate, endReasonCounts }) {
+  const floorHit = earned >= TARGET_LEVELS[0].value;
+  const mainHit = earned >= TARGET_LEVELS[1].value;
+  const mortgageKillerHit = earned >= TARGET_LEVELS[2].value;
+  const minimumHours = hoursWorked >= SERIOUS_HOURS_LEVELS[0].value;
+  const strongHours = hoursWorked >= SERIOUS_HOURS_LEVELS[1].value;
+  const mortgageKillerHours = hoursWorked >= SERIOUS_HOURS_LEVELS[2].value;
+
+  if (mortgageKillerHit && mortgageKillerHours) return "Mortgage Killer week complete. Strong execution.";
+  if (mortgageKillerHit) return "Mortgage Killer income hit. Good result, but do not let a lucky week weaken the habit.";
+  if (mainHit && strongHours) return "Main Target achieved. Mortgage Killer stretch available.";
+  if (mainHit) return "Main Target achieved. Good result, but check the serious hours before calling the habit complete.";
+  if (floorHit) return "Floor secured. Main Target still in play.";
+  if (!minimumHours) return "Income was low because hours were low. Apply more time before judging the week.";
+  if (strongHours && !mainHit) return "Effort was there. Market underperformed.";
+  if (endReasonCounts.mood > endReasonCounts.legitimate && endReasonCounts.mood > endReasonCounts.market) {
+    return "The week was affected by early finishes. Protect the habit before judging the market.";
+  }
+  if (endReasonCounts.market > 0 && averageHourlyRate > 0 && hoursWorked >= SERIOUS_HOURS_LEVELS[0].value) {
+    return "Serious hours were there, but the market looks like it held the week back.";
+  }
+  return "Keep building. The question is whether enough serious hours went in to let the target happen.";
 }
 
 function renderTargetWorkdays(settings, weekDates) {
@@ -1950,25 +2022,26 @@ function renderLiveShiftCard(summary) {
 
 function buildWeeklyTargetSummary(days, settings, weekDates) {
   const appSettings = getSettings();
-  const targetMode = getWeeklyTargetMode(appSettings);
+  const targetMode = "ladder";
   const dynamicUplift = getDynamicUpliftPercent(appSettings);
-  const manualTarget = Number(settings.target || 0);
+  const manualTarget = MAIN_WEEKLY_TARGET;
   const dynamicTarget = calculateDynamicWeeklyTarget(
     currentHistoricalDays,
     currentWeekRange.startIso,
     dynamicUplift,
     manualTarget
   );
-  const liveTarget = targetMode === "dynamic" ? dynamicTarget : manualTarget;
-  const hasSnapshot = shouldUseStoredTargetSnapshot(settings);
+  const liveTarget = MAIN_WEEKLY_TARGET;
+  const hasSnapshot = false;
   const completedWeek = isCompletedTargetWeek();
-  const target = completedWeek ? (hasSnapshot ? settings.targetSnapshot : manualTarget) : liveTarget;
-  const displayMode = hasSnapshot
-    ? settings.targetSnapshotMode || targetMode
-    : completedWeek ? "manual" : targetMode;
+  const target = MAIN_WEEKLY_TARGET;
+  const displayMode = "ladder";
   const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
   const tripsWorked = days.reduce((sum, day) => sum + Number(day.trips || 0), 0);
   const hoursWorked = days.reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
+  const averageHourlyRate = hoursWorked > 0 ? earned / hoursWorked : 0;
+  const effectiveHourlyRate = averageHourlyRate > 0 ? averageHourlyRate : getPlanningHourlyRate(appSettings, days, currentHistoricalDays).planningRate;
+  const extraHoursRateLabel = averageHourlyRate > 0 ? "current rate" : "planning rate";
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
   const hourlyPlan = getPlanningHourlyRate(appSettings, days, currentHistoricalDays);
@@ -2032,6 +2105,34 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     ? remaining / averageTripValue
     : 0;
   const completionFocus = target > 0 && progressPercent >= 50;
+  const ladderLevels = TARGET_LEVELS.map((level) => {
+    const gap = Math.max(0, level.value - earned);
+    return {
+      ...level,
+      progressPercent: level.value > 0 ? Math.min(100, (earned / level.value) * 100) : 0,
+      gap,
+      extraHoursNeeded: gap > 0 && effectiveHourlyRate > 0 ? gap / effectiveHourlyRate : 0,
+      achieved: gap <= 0
+    };
+  });
+  const seriousHoursLevels = SERIOUS_HOURS_LEVELS.map((level) => {
+    const gap = Math.max(0, level.value - hoursWorked);
+    return {
+      ...level,
+      progressPercent: level.value > 0 ? Math.min(100, (hoursWorked / level.value) * 100) : 0,
+      gap,
+      achieved: gap <= 0
+    };
+  });
+  const endReasonCounts = countShiftEndReasons(days);
+  const weeklyVerdict = buildWeeklyLadderVerdict({
+    earned,
+    hoursWorked,
+    averageHourlyRate,
+    extraHoursRateLabel,
+    endReasonCounts,
+    ladderLevels
+  });
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
@@ -2090,6 +2191,11 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     earned,
     tripsWorked,
     hoursWorked,
+    averageHourlyRate,
+    ladderLevels,
+    seriousHoursLevels,
+    endReasonCounts,
+    weeklyVerdict,
     remaining,
     completionFocus,
     estimatedTripsRemaining,
@@ -2363,20 +2469,16 @@ function renderWeeklyTarget(days) {
   const progressNode = el(ids.targetProgressSummary);
   const statusNode = el(ids.targetStatus);
   const targetInput = el(ids.weeklyTarget);
-  if (!summaryNode || !progressNode || !statusNode || !targetInput) return;
+  if (!summaryNode || !progressNode || !statusNode) return;
 
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
   const summary = buildWeeklyTargetSummary(days, settings, weekDates);
 
-  if (summary.targetMode === "dynamic") {
-    targetInput.type = "text";
+  if (targetInput) {
+    targetInput.type = "hidden";
     targetInput.disabled = true;
-    targetInput.value = formatMoney(summary.target);
-  } else {
-    targetInput.type = "number";
-    targetInput.disabled = false;
-    targetInput.value = targetInput.dataset.manualTarget || settings.target;
+    targetInput.value = MAIN_WEEKLY_TARGET;
   }
 
   if (isCompletedTargetWeek() && !shouldUseStoredTargetSnapshot(settings) && summary.target > 0) {
@@ -2396,76 +2498,61 @@ function renderWeeklyTarget(days) {
   statusNode.textContent = summary.status;
   statusNode.className = summary.statusClass;
 
-  const targetProgressLabel = summary.completionFocus && summary.remaining > 0
-    ? "Remaining to target"
-    : summary.paceLabel;
-  const targetProgressSub = summary.completionFocus && summary.remaining > 0
-    ? `${formatMoney(summary.remaining)} to target / ${summary.estimatedTripsText} / ${summary.remainingTimeText}`
-    : `${formatMoney(summary.earned)} of ${formatMoney(summary.target)} target`;
-
   progressNode.innerHTML = `
-    <div class="target-progress-panel">
-      <div class="target-progress-meta">
-        <span>${escapeHtml(targetProgressLabel)}</span>
-        <strong>${formatNumber(summary.progressPercent, 0)}%</strong>
-      </div>
-      <div class="target-progress-track" aria-label="Weekly target progress">
-        <div class="${summary.progressClass}" style="width: ${summary.progressPercent}%"></div>
-      </div>
-      <div class="target-progress-sub">
-        ${escapeHtml(targetProgressSub)}
-      </div>
+    <div class="target-ladder-verdict">
+      <span>Weekly Verdict</span>
+      <strong>${escapeHtml(summary.weeklyVerdict)}</strong>
+      <small>Did I give the week enough serious working hours to let the target happen?</small>
     </div>
+    ${summary.ladderLevels.map((level) => `
+      <div class="target-progress-panel target-ladder-panel target-ladder-panel--${escapeHtml(level.key)}">
+        <div class="target-progress-meta">
+          <span>${escapeHtml(level.label)}</span>
+          <strong>${formatNumber(level.progressPercent, 0)}%</strong>
+        </div>
+        <div class="target-progress-track" aria-label="${escapeHtml(level.label)} progress">
+          <div class="target-progress-fill ${level.achieved ? "target-progress-fill--complete" : level.key === "mortgageKiller" ? "target-progress-fill--green" : level.key === "main" ? "target-progress-fill--amber" : "target-progress-fill--blue"}" style="width: ${level.progressPercent}%"></div>
+        </div>
+        <div class="target-progress-sub">
+          ${level.achieved
+            ? `${formatMoney(level.value)} achieved`
+            : `${formatMoney(level.gap)} left / ${formatClockHours(level.extraHoursNeeded)} at ${summary.extraHoursRateLabel}`}
+        </div>
+      </div>
+    `).join("")}
     <div class="target-progress-panel target-progress-panel--hours">
       <div class="target-progress-meta">
-        <span>Stay in the game</span>
-        <strong>${formatNumber(summary.hoursProgressPercent, 0)}%</strong>
-      </div>
-      <div class="target-progress-track" aria-label="Weekly hours progress">
-        <div class="target-progress-fill target-progress-fill--green" style="width: ${summary.hoursProgressPercent}%"></div>
+        <span>Serious Hours</span>
+        <strong>${formatClockHours(summary.hoursWorked)}</strong>
       </div>
       <div class="target-progress-sub">
-        ${formatClockHours(summary.hoursWorked)} worked, ${formatClockHours(summary.remainingHours)} still needed
+        ${summary.seriousHoursLevels.map((level) => `${level.label}: ${level.achieved ? "done" : `${formatClockHours(level.gap)} left`}`).join(" / ")}
       </div>
     </div>
   `;
 
   summaryNode.innerHTML = `
     <div class="target-summary-card target-summary-card--primary">
-      <div class="summary-label">${escapeHtml(summary.dailyTargetLabel)}</div>
-      <div class="summary-value">${formatMoney(summary.hasTodayTarget ? summary.todayTarget : summary.requiredPerDay)}</div>
-      ${summary.hasTodayTarget ? `<div class="summary-sub">${formatMoney(summary.todayEarned)} earned today</div>` : ""}
+      <div class="summary-label">Weekly Earnings</div>
+      <div class="summary-value">${formatMoney(summary.earned)}</div>
+      <div class="summary-sub">${formatClockHours(summary.hoursWorked)} serious hours</div>
     </div>
     <div class="target-summary-card target-summary-card--primary">
-      <div class="summary-label">Today Hours</div>
-      <div class="summary-value">${formatClockHours(summary.todayHoursRemaining)}</div>
-      <div class="summary-sub">${formatClockHours(summary.todayHoursWorked)} worked today</div>
+      <div class="summary-label">Avg Hourly Rate</div>
+      <div class="summary-value">${formatMoney(summary.averageHourlyRate)}</div>
+      <div class="summary-sub">${summary.hoursWorked > 0 ? "From this week" : "No hours logged yet"}</div>
     </div>
+    ${summary.ladderLevels.map((level) => `
+      <div class="target-summary-card">
+        <div class="summary-label">${escapeHtml(level.shortLabel)} Gap</div>
+        <div class="summary-value">${level.achieved ? "Done" : formatMoney(level.gap)}</div>
+        <div class="summary-sub">${level.achieved ? escapeHtml(level.note) : `${formatClockHours(level.extraHoursNeeded)} extra at ${summary.extraHoursRateLabel}`}</div>
+      </div>
+    `).join("")}
     <div class="target-summary-card">
-      <div class="summary-label">Earned</div>
-      <div class="summary-value">${formatMoney(summary.earned)}</div>
-    </div>
-    <div class="target-summary-card">
-      <div class="summary-label">Remaining</div>
-      <div class="summary-value">${formatMoney(summary.remaining)}</div>
-    </div>
-    <div class="target-summary-card">
-      <div class="summary-label">Hours Left</div>
-      <div class="summary-value">${formatClockHours(summary.remainingHours)}</div>
-    </div>
-    <div class="target-summary-card">
-      <div class="summary-label">Work Days Left</div>
-      <div class="summary-value">${formatInt(summary.remainingWorkDays)}</div>
-    </div>
-    <div class="target-summary-card">
-      <div class="summary-label">Weekly Target</div>
-      <div class="summary-value">${formatMoney(summary.target)}</div>
-      <div class="summary-sub">${summary.targetMode === "dynamic" ? "Dynamic" : "Manual"}</div>
-    </div>
-    <div class="target-summary-card">
-      <div class="summary-label">Planning Rate</div>
-      <div class="summary-value">${formatMoney(summary.planningHourlyRate)}</div>
-      <div class="summary-sub">${summary.hourlyRateSource === "actual" ? "From actuals" : "Settings rate"}</div>
+      <div class="summary-label">End Reasons</div>
+      <div class="summary-value">${formatInt(summary.endReasonCounts.total)}</div>
+      <div class="summary-sub">${formatInt(summary.endReasonCounts.mood)} mood / ${formatInt(summary.endReasonCounts.legitimate)} legit / ${formatInt(summary.endReasonCounts.market)} market</div>
     </div>
   `;
 
@@ -2927,20 +3014,23 @@ async function askLiveShiftCoach(button) {
 
 function initialiseWeeklyTarget(range) {
   const targetInput = el(ids.weeklyTarget);
-  if (!targetInput) return;
 
   const weekDates = getWeekDates(range.startIso);
   const settings = readTargetSettings(range.startIso);
 
-  targetInput.value = settings.target;
-  targetInput.dataset.manualTarget = settings.target;
+  if (targetInput) {
+    targetInput.value = MAIN_WEEKLY_TARGET;
+    targetInput.dataset.manualTarget = MAIN_WEEKLY_TARGET;
+  }
   renderTargetWorkdays(settings, weekDates);
 
-  targetInput.oninput = () => {
-    targetInput.dataset.manualTarget = targetInput.value;
-    persistCurrentTargetSettings({ targetIsCustom: true });
-    renderWeeklyTarget(currentWeekDays);
-  };
+  if (targetInput) {
+    targetInput.oninput = () => {
+      targetInput.dataset.manualTarget = MAIN_WEEKLY_TARGET;
+      persistCurrentTargetSettings({ targetIsCustom: false });
+      renderWeeklyTarget(currentWeekDays);
+    };
+  }
 
   renderWeeklyTarget(currentWeekDays);
 }
@@ -3080,12 +3170,14 @@ function clearDayForm() {
   const miles = el(ids.miles);
   const hours = el(ids.hours);
   const minutes = el(ids.minutes);
+  const endReason = el(ids.endReason);
   const date = el(ids.date);
 
   if (gross) gross.value = "";
   if (miles) miles.value = "";
   if (hours) hours.value = "";
   if (minutes) minutes.value = "0";
+  if (endReason) endReason.value = "";
   if (date) date.value = todayIso();
 }
 
@@ -3093,6 +3185,10 @@ function readWorkedHoursInput() {
   const hours = toNumber(el(ids.hours)?.value) ?? 0;
   const minutes = toNumber(el(ids.minutes)?.value) ?? 0;
   return hours + (minutes / 60);
+}
+
+function readShiftEndReasonInput() {
+  return normaliseEndReason(el(ids.endReason)?.value);
 }
 
 async function getSavedDayTotalsForDate(dateString) {
@@ -3142,6 +3238,7 @@ async function buildDayPayload(source = {}) {
   return {
     date,
     end_time: source.endTime ?? null,
+    shift_end_reason: source.shiftEndReason ?? readShiftEndReasonInput(),
     hours_worked: source.hoursWorked ?? readWorkedHoursInput(),
     gross: sessionGross,
     uber_day_total: uberDayTotal,
@@ -3209,11 +3306,23 @@ async function saveSessionPayload(payload, options = {}) {
   } = payload;
   console.log("saving session payload:", supabasePayload);
 
-  const { data, error } = await supabaseClient
+  let { data, error } = await supabaseClient
     .from("days")
     .insert([supabasePayload])
     .select()
     .single();
+
+  if (error && /shift_end_reason|end_reason|column/i.test(error.message || "")) {
+    const { shift_end_reason, ...legacyPayload } = supabasePayload;
+    console.warn("days.shift_end_reason is not available yet; saving session without end reason.");
+    const retry = await supabaseClient
+      .from("days")
+      .insert([legacyPayload])
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     console.error("Error saving session:", error);
@@ -3474,6 +3583,7 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
       ${days.map((day) => {
         const m = buildSessionMetrics(day, pricePerLitre, settings);
         const hours = Number(day.hours_worked || 0);
+        const endReasonLabel = getEndReasonLabel(day.shift_end_reason || day.end_reason);
 
         return `
           <div class="history-card">
@@ -3529,6 +3639,12 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
                 <span class="history-item__label">True Retained</span>
                 <span class="history-item__value history-item__value--strong">${escapeHtml(formatMoney(m.trueRetained))}</span>
               </div>
+              ${endReasonLabel ? `
+                <div class="history-item history-item--full">
+                  <span class="history-item__label">End Reason</span>
+                  <span class="history-item__value">${escapeHtml(endReasonLabel)}</span>
+                </div>
+              ` : ""}
             </div>
           </div>
         `;

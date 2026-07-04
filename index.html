@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.94">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.95">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -42,7 +42,7 @@
               <div class="card target-card">
                 <div class="target-card__header">
                   <div>
-                    <h2>Weekly Target</h2>
+                    <h2>Weekly Target Ladder</h2>
                     <p id="target_status" class="target-status">Set a target to track this week.</p>
                   </div>
                 </div>
@@ -50,16 +50,15 @@
                 <div class="target-plan-grid">
                   <div class="field">
                     <div class="target-gross-nav">
-                      <button id="target_prev_week" class="icon-nav-button" type="button" aria-label="Previous week's target">
+                      <button id="target_prev_week" class="icon-nav-button" type="button" aria-label="Previous week">
                         <span aria-hidden="true">&lsaquo;</span>
                       </button>
-                      <div class="target-input-pair">
-                        <div>
-                          <label for="weekly_target">Target (&pound;)</label>
-                          <input id="weekly_target" type="number" min="0" step="0.01" inputmode="decimal" placeholder="910">
-                        </div>
+                      <div class="target-ladder-hero">
+                        <span>Weekly Target Ladder</span>
+                        <strong>&pound;900 main target</strong>
+                        <small>&pound;750 floor · &pound;1,000 Mortgage Killer</small>
                       </div>
-                      <button id="target_next_week" class="icon-nav-button" type="button" aria-label="Next week's target">
+                      <button id="target_next_week" class="icon-nav-button" type="button" aria-label="Next week">
                         <span aria-hidden="true">&rsaquo;</span>
                       </button>
                     </div>
@@ -178,6 +177,21 @@
                 <option value="50">50</option>
               </select>
             </div>
+          </div>
+
+          <div class="field">
+            <label for="day_end_reason">Shift End Reason</label>
+            <select id="day_end_reason">
+              <option value="">Select reason</option>
+              <option value="target_hit">Target hit</option>
+              <option value="planned_end_time">Planned end time reached</option>
+              <option value="genuine_fatigue_safety">Genuine fatigue / safety</option>
+              <option value="family_commitment">Family commitment</option>
+              <option value="car_admin_issue">Car/admin issue</option>
+              <option value="market_clearly_dead">Market clearly dead</option>
+              <option value="quit_early_mood_dipped">Quit early / mood dipped</option>
+              <option value="other">Other</option>
+            </select>
           </div>
 
           <button id="save_day" type="button" class="btn-primary">Save Missed Session</button>
@@ -585,7 +599,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.94"></script>
+  <script type="module" src="js/app.js?v=2.3.95"></script>
 </body>
 
 </html>

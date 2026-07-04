@@ -68,6 +68,7 @@ export function buildDaySheetPayload(day) {
     id: day.id ?? "",
     date: formatDateForSheet(day.date),
     end_time: day.end_time ?? "",
+    shift_end_reason: day.shift_end_reason ?? "",
     hours_worked: day.hours_worked ?? 0,
     gross: day.gross ?? 0,
     trips: day.trips ?? 0,
