@@ -1083,7 +1083,7 @@ input[type="date"] {
 }
 
 .target-remaining-section {
-  margin: 4px 0 -2px;
+  margin: 8px 0 6px;
   padding-top: 4px;
   border-top: 1px solid #e5e7eb;
 }
