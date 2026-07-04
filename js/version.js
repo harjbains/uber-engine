@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.93";
+export const VERSION = "v2.3.94";
 
 export const RELEASE_NOTES = {
+  "2.3.94": "Live Shift Coach is archived and removed from the active Day screen",
   "2.3.93": "Live Shift Coach uses smaller media controls",
   "2.3.92": "Coach treats declined jobs with dead mileage or multiple stops as cautionary context",
   "2.3.91": "Live Shift Coach avoids timer re-renders and draft writes while dictating",

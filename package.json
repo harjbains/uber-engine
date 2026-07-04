@@ -1,6 +1,5 @@
 {
   "scripts": {
-    "start": "node server.mjs",
-    "validate:coach-vocabulary": "node scripts/validate-coach-vocabulary.mjs"
+    "start": "node server.mjs"
   }
 }

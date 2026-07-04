@@ -37,6 +37,7 @@ const ids = {
   targetWeekStrip: "target_week_strip",
   targetProgressSummary: "target_progress_summary",
   targetSummary: "target_summary",
+  liveShiftCard: "live_shift_card",
   targetStatus: "target_status",
   targetPrevWeek: "target_prev_week",
   targetNextWeek: "target_next_week",
@@ -2469,6 +2470,7 @@ function renderWeeklyTarget(days) {
     </div>
   `;
 
+  renderLiveShiftCard(summary);
 }
 
 function syncLiveShiftTimer(active) {
@@ -3703,6 +3705,12 @@ export async function saveDay() {
 
 function bindDayEvents() {
   el(ids.saveBtn)?.addEventListener("click", saveDay);
+  el(ids.liveShiftCard)?.addEventListener("click", handleLiveShiftClick);
+  el(ids.liveShiftCard)?.addEventListener("submit", handleLiveShiftSubmit);
+  el(ids.liveShiftCard)?.addEventListener("keydown", handleLiveShiftKeydown);
+  el(ids.liveShiftCard)?.addEventListener("focusin", handleLiveShiftInputFocus);
+  el(ids.liveShiftCard)?.addEventListener("focusin", handleLiveShiftNotesFocus);
+  el(ids.liveShiftCard)?.addEventListener("input", handleLiveShiftNotesInput);
   el(ids.list)?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-delete-day]");
     if (!button) return;
