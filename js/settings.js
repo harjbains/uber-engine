@@ -122,6 +122,10 @@ export function getDailyInsuranceEstimate(settings = getSettings()) {
   return toNumber(settings.insuranceMonthly, DEFAULT_SETTINGS.insuranceMonthly) / 30;
 }
 
+export function getWeeklyInsuranceEstimate(settings = getSettings()) {
+  return (toNumber(settings.insuranceMonthly, DEFAULT_SETTINGS.insuranceMonthly) * 12) / 52;
+}
+
 export function getTaxRate(settings = getSettings()) {
   return toNumber(settings.taxRatePercent, DEFAULT_SETTINGS.taxRatePercent) / 100;
 }

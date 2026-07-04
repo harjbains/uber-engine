@@ -15,11 +15,12 @@ import {
   getMpg,
   getSettings,
   getTaxRate,
+  getWeeklyInsuranceEstimate,
   getWeeklyTargetDefault,
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.52";
+} from "./settings.js?v=2.3.97";
 
 const ids = {
   date: "day_date",
@@ -3573,9 +3574,8 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
     acc.miles += m.miles;
     acc.hours += Number(day.hours_worked || 0);
     acc.estimatedFuel += m.estimatedFuel;
-    acc.insurance += m.insurance;
     acc.tax += m.tax;
-    acc.trueRetained += m.trueRetained;
+    acc.trueRetained += m.gross - m.estimatedFuel - m.tax;
     return acc;
   }, {
     sessions: 0,
@@ -3588,7 +3588,11 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
     trueRetained: 0
   });
 
+  totals.insurance = getWeeklyInsuranceEstimate(settings);
+  totals.trueRetained -= totals.insurance;
+
   if (isEv && chargingTotals) {
+    totals.trueRetained += totals.estimatedFuel;
     totals.estimatedFuel = chargingTotals.cost;
     totals.trueRetained -= chargingTotals.cost;
   }
