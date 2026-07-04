@@ -2302,6 +2302,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     tripsWorked,
     hoursWorked,
     averageHourlyRate,
+    extraHoursRateLabel,
     ladderLevels,
     seriousHoursLevels,
     endReasonCounts,
