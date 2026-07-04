@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.95";
+export const VERSION = "v2.3.96";
 
 export const RELEASE_NOTES = {
+  "2.3.96": "Weekly Target Ladder adds a working-limit check for sustainable recovery planning",
   "2.3.95": "Weekly Target Ladder adds floor, main, Mortgage Killer, serious hours, and end reasons",
   "2.3.94": "Live Shift Coach is archived and removed from the active Day screen",
   "2.3.93": "Live Shift Coach uses smaller media controls",

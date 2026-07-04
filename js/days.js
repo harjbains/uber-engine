@@ -69,6 +69,10 @@ const TARGET_LEVELS = [
   { value: 1000, key: "mortgageKiller", label: "Mortgage Killer", shortLabel: "Mortgage Killer", note: "stretch target" }
 ];
 const MAIN_WEEKLY_TARGET = TARGET_LEVELS[1].value;
+const MAX_PLANNED_DAILY_HOURS = 10;
+const NORMAL_PLANNED_DAILY_HOURS = 6;
+const PLANNING_BASE_HOURLY_RATE = 20;
+const MAX_PLANNED_DAILY_TARGET = MAX_PLANNED_DAILY_HOURS * PLANNING_BASE_HOURLY_RATE;
 const SERIOUS_HOURS_LEVELS = [
   { value: 30, key: "minimum", label: "Minimum serious week" },
   { value: 36, key: "strong", label: "Strong week" },
@@ -1622,6 +1626,46 @@ function distributeHoursByWeight(amount, dateStrings) {
   ]));
 }
 
+function distributeHoursByWeightWithCap(amount, dateStrings, cap = MAX_PLANNED_DAILY_HOURS) {
+  if (!dateStrings.length || amount <= 0) return new Map();
+
+  const allocations = new Map(dateStrings.map((dateString) => [dateString, 0]));
+  const remainingDates = [...dateStrings];
+  let remainingAmount = amount;
+
+  while (remainingDates.length && remainingAmount > 0.01) {
+    const split = distributeHoursByWeight(remainingAmount, remainingDates);
+    let cappedThisPass = false;
+
+    for (let index = remainingDates.length - 1; index >= 0; index -= 1) {
+      const dateString = remainingDates[index];
+      const nextValue = (allocations.get(dateString) || 0) + (split.get(dateString) || 0);
+
+      if (nextValue >= cap) {
+        const added = Math.max(0, cap - (allocations.get(dateString) || 0));
+        allocations.set(dateString, cap);
+        remainingAmount -= added;
+        remainingDates.splice(index, 1);
+        cappedThisPass = true;
+      }
+    }
+
+    if (!cappedThisPass) {
+      remainingDates.forEach((dateString) => {
+        const nextValue = (allocations.get(dateString) || 0) + (split.get(dateString) || 0);
+        allocations.set(dateString, Math.min(cap, nextValue));
+      });
+      break;
+    }
+  }
+
+  return allocations;
+}
+
+function capForecastValues(values, cap = MAX_PLANNED_DAILY_TARGET) {
+  return values.map((value) => Math.min(cap, Math.max(0, Number(value || 0))));
+}
+
 function targetStorageKey(startIso) {
   return `${TARGET_STORAGE_PREFIX}:${startIso}`;
 }
@@ -1898,6 +1942,58 @@ function buildWeeklyLadderVerdict({ earned, hoursWorked, averageHourlyRate, endR
   return "Keep building. The question is whether enough serious hours went in to let the target happen.";
 }
 
+function buildWorkingLimitCheck({ dateString, estimatedHours, todayTarget, averageHourlyRate, planningHourlyRate }) {
+  const dayIndex = getWeekdayIndex(dateString || todayIso());
+  const isFridayOrSaturday = dayIndex === 4 || dayIndex === 5;
+  const isSunday = dayIndex === 6;
+  const safeEstimatedHours = Math.max(0, Number(estimatedHours || 0));
+  const currentRate = Number(averageHourlyRate || 0);
+  const fallbackRate = Number(planningHourlyRate || 0);
+  const rateLabel = currentRate > 0 ? "Current average" : "Planning rate";
+  const displayRate = currentRate > 0 ? currentRate : fallbackRate;
+
+  if (safeEstimatedHours > MAX_PLANNED_DAILY_HOURS) {
+    return {
+      label: "Exceeds planning limit",
+      className: "target-summary-card--limit-danger",
+      message: "Recovery target exceeds normal working limit. Do not chase this in one day. Spread it across remaining days or accept a lower weekly result.",
+      estimatedHours: safeEstimatedHours,
+      todayTarget,
+      displayRate,
+      rateLabel,
+      maxPlannedDailyHours: MAX_PLANNED_DAILY_HOURS
+    };
+  }
+
+  if (safeEstimatedHours > NORMAL_PLANNED_DAILY_HOURS) {
+    return {
+      label: isFridayOrSaturday ? "Overtime optional" : "Extended shift",
+      className: isFridayOrSaturday ? "target-summary-card--limit-overtime" : "target-summary-card--limit-warning",
+      message: isFridayOrSaturday
+        ? "Overtime can make sense if the market is strong and you feel safe. Build in a break before judging the day."
+        : "Extended shift required. Build in a break before judging the day.",
+      estimatedHours: safeEstimatedHours,
+      todayTarget,
+      displayRate,
+      rateLabel,
+      maxPlannedDailyHours: MAX_PLANNED_DAILY_HOURS
+    };
+  }
+
+  return {
+    label: "Normal shift",
+    className: "target-summary-card--limit-normal",
+    message: isSunday
+      ? "Sunday is optional recovery time. Keep it useful, not automatic."
+      : "Normal shift can recover today's share.",
+    estimatedHours: safeEstimatedHours,
+    todayTarget,
+    displayRate,
+    rateLabel,
+    maxPlannedDailyHours: MAX_PLANNED_DAILY_HOURS
+  };
+}
+
 function renderTargetWorkdays(settings, weekDates) {
   const container = el(ids.targetWorkdays);
   if (!container) return;
@@ -2069,16 +2165,23 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const remainingHourWorkDates = remainingWorkDates;
   const futureHourWorkDates = remainingHourWorkDates.filter((dateString) => dateString > today);
   const hasTodayHourTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
-  const hourTargetsBeforeTodayWork = distributeHoursByWeight(remainingHours, remainingHourWorkDates);
+  const rawHourTargetsBeforeTodayWork = distributeHoursByWeight(remainingHours, remainingHourWorkDates);
+  const cappedHourTargetsBeforeTodayWork = distributeHoursByWeightWithCap(remainingHours, remainingHourWorkDates);
+  const rawCurrentDayRequiredHours = hasTodayHourTarget
+    ? rawHourTargetsBeforeTodayWork.get(today) || 0
+    : 0;
   const currentDayRequiredHours = hasTodayHourTarget
-    ? hourTargetsBeforeTodayWork.get(today) || 0
+    ? cappedHourTargetsBeforeTodayWork.get(today) || 0
     : 0;
   const todayHoursRemaining = currentDayRequiredHours;
   const futureHoursRemaining = Math.max(0, remainingHours - todayHoursRemaining);
-  const futureHourTargetMap = distributeHoursByWeight(futureHoursRemaining, futureHourWorkDates);
+  const futureHourTargetMap = distributeHoursByWeightWithCap(futureHoursRemaining, futureHourWorkDates);
   const futureRequiredHoursPerDay = futureHourWorkDates.length > 0
     ? futureHoursRemaining / futureHourWorkDates.length
     : 0;
+  const rawRequiredHoursPerRemainingDay = hasTodayHourTarget
+    ? rawCurrentDayRequiredHours
+    : futureRequiredHoursPerDay;
   const futureHourTargets = weekDates.map((dateString, index) => (
     index === todayIndex && hasTodayHourTarget
       ? todayHoursRemaining
@@ -2100,6 +2203,13 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   );
   const hasTodayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
   const todayTarget = hasTodayTarget ? futureForecasts[todayIndex] || 0 : 0;
+  const workingLimitCheck = buildWorkingLimitCheck({
+    dateString: hasTodayTarget ? today : remainingWorkDates[0] || today,
+    estimatedHours: rawRequiredHoursPerRemainingDay,
+    todayTarget: hasTodayTarget ? todayTarget : requiredPerDay,
+    averageHourlyRate,
+    planningHourlyRate: hourlyPlan.planningRate
+  });
   const averageTripValue = earned > 0 && tripsWorked > 0 ? earned / tripsWorked : 0;
   const estimatedTripsRemaining = remaining > 0 && averageTripValue > 0
     ? remaining / averageTripValue
@@ -2163,7 +2273,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
       ? remainingHours / remainingHourWorkDates.length
       : 0;
 
-    if (hoursPerDayPressure > 10) {
+    if (hoursPerDayPressure > MAX_PLANNED_DAILY_HOURS) {
       status = `${formatClockHours(hoursPerDayPressure)}h/day needed at ${formatMoney(hourlyPlan.planningRate)}/hr. Review the target or add work days.`;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
@@ -2196,6 +2306,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     seriousHoursLevels,
     endReasonCounts,
     weeklyVerdict,
+    workingLimitCheck,
     remaining,
     completionFocus,
     estimatedTripsRemaining,
@@ -2350,11 +2461,11 @@ function calculateWeekdayForecasts(historicalDays, amount, weekDates, workDays) 
 
   const plannedWeightTotal = plannedWeights.reduce((sum, value) => sum + value, 0);
 
-  return weekDates.map((_, index) => {
+  return capForecastValues(weekDates.map((_, index) => {
     if (!workDays.includes(index)) return 0;
     if (plannedWeightTotal <= 0 || amount <= 0) return flatForecast;
     return (plannedWeights[index] / plannedWeightTotal) * amount;
-  });
+  }));
 }
 
 function getWeekDayState(dateString, index, settings, dayTotals, today, completedForecast, futureForecast) {
@@ -2541,6 +2652,14 @@ function renderWeeklyTarget(days) {
       <div class="summary-label">Avg Hourly Rate</div>
       <div class="summary-value">${formatMoney(summary.averageHourlyRate)}</div>
       <div class="summary-sub">${summary.hoursWorked > 0 ? "From this week" : "No hours logged yet"}</div>
+    </div>
+    <div class="target-summary-card target-summary-card--working-limit ${escapeHtml(summary.workingLimitCheck.className)}">
+      <div class="summary-label">Working Limit Check</div>
+      <div class="summary-value">${escapeHtml(summary.workingLimitCheck.label)}</div>
+      <div class="summary-sub">
+        Today ${formatMoney(summary.workingLimitCheck.todayTarget)} / ${escapeHtml(summary.workingLimitCheck.rateLabel)} ${formatMoney(summary.workingLimitCheck.displayRate)}/hr / ${formatClockHours(summary.workingLimitCheck.estimatedHours)}
+      </div>
+      <div class="summary-note">${escapeHtml(summary.workingLimitCheck.message)}</div>
     </div>
     ${summary.ladderLevels.map((level) => `
       <div class="target-summary-card">

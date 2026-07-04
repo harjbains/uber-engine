@@ -1125,6 +1125,44 @@ input[type="date"] {
   font-size: 20px;
 }
 
+.target-summary-card--working-limit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+}
+
+.target-summary-card--working-limit .summary-value {
+  font-size: 18px;
+  line-height: 1.15;
+}
+
+.target-summary-card--working-limit .summary-note {
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.target-summary-card--limit-normal {
+  background: #ecfdf5;
+  border-color: #10b981;
+}
+
+.target-summary-card--limit-warning {
+  background: #fffbeb;
+  border-color: #f59e0b;
+}
+
+.target-summary-card--limit-overtime {
+  background: #eff6ff;
+  border-color: #60a5fa;
+}
+
+.target-summary-card--limit-danger {
+  background: #fef2f2;
+  border-color: #ef4444;
+}
+
 .live-shift-card {
   grid-column: 1 / -1;
   margin-top: 10px;
