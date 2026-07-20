@@ -1,4 +1,8 @@
+import { supabaseClient } from "./supabase.js";
+import { showStatus } from "./status.js";
+
 const STORAGE_PREFIX = "uberEngineCashflow";
+const CASHFLOW_MONTHS_TABLE = "cashflow_months";
 
 const DEFAULT_FIXED_TEMPLATE = [
   { id: "home_mortgage", name: "Home mortgage", category: "Home", day: 1, amount: 833, frequency: "monthly", notes: "" },
@@ -47,6 +51,10 @@ const ids = {
 
 let activeMonth = monthToInputValue(new Date());
 let selectedFixedId = "";
+let cashflowRemoteAvailable = true;
+let remoteUnavailableNotified = false;
+const monthStateCache = new Map();
+let renderSequence = 0;
 
 function el(id) {
   return document.getElementById(id);
@@ -158,25 +166,120 @@ function buildMonthFromTemplate(month) {
   };
 }
 
-function getMonthState(month = activeMonth) {
+function normaliseMonthState(month, saved) {
+  return {
+    ...buildMonthFromTemplate(month),
+    ...saved,
+    month,
+    fixedPayments: Array.isArray(saved?.fixedPayments) ? saved.fixedPayments : [],
+    spending: Array.isArray(saved?.spending) ? saved.spending : [],
+    incomeRows: Array.isArray(saved?.incomeRows) ? saved.incomeRows : DEFAULT_INCOME_ROWS
+  };
+}
+
+function getLocalMonthState(month = activeMonth) {
   const saved = readJson(monthStorageKey(month), null);
-  if (saved) {
-    return {
-      ...buildMonthFromTemplate(month),
-      ...saved,
-      fixedPayments: Array.isArray(saved.fixedPayments) ? saved.fixedPayments : [],
-      spending: Array.isArray(saved.spending) ? saved.spending : [],
-      incomeRows: Array.isArray(saved.incomeRows) ? saved.incomeRows : DEFAULT_INCOME_ROWS
-    };
-  }
+  if (saved) return normaliseMonthState(month, saved);
 
   const next = buildMonthFromTemplate(month);
   writeJson(monthStorageKey(month), next);
   return next;
 }
 
-function saveMonthState(state) {
+function saveLocalMonthState(state) {
   writeJson(monthStorageKey(state.month), state);
+  monthStateCache.set(state.month, state);
+}
+
+function isCashflowTableMissing(error) {
+  const message = String(error?.message || "");
+  return error?.code === "42P01"
+    || error?.code === "PGRST205"
+    || /cashflow_months|schema cache|does not exist|relation/i.test(message);
+}
+
+function notifyRemoteFallback(error) {
+  cashflowRemoteAvailable = false;
+  if (remoteUnavailableNotified) return;
+  remoteUnavailableNotified = true;
+  console.warn("Cashflow Supabase table is unavailable; using local browser storage.", error);
+  showStatus("Cashflow is using local storage until the database table is applied.", "info");
+}
+
+async function loadRemoteMonthState(month) {
+  if (!cashflowRemoteAvailable) return null;
+
+  const { data, error } = await supabaseClient
+    .from(CASHFLOW_MONTHS_TABLE)
+    .select("state")
+    .eq("month", month)
+    .maybeSingle();
+
+  if (error) {
+    if (isCashflowTableMissing(error)) {
+      notifyRemoteFallback(error);
+      return null;
+    }
+    throw error;
+  }
+
+  return data?.state ? normaliseMonthState(month, data.state) : null;
+}
+
+async function saveRemoteMonthState(state) {
+  if (!cashflowRemoteAvailable) return false;
+
+  const { error } = await supabaseClient
+    .from(CASHFLOW_MONTHS_TABLE)
+    .upsert({
+      month: state.month,
+      state,
+      updated_at: new Date().toISOString()
+    }, {
+      onConflict: "month"
+    });
+
+  if (error) {
+    if (isCashflowTableMissing(error)) {
+      notifyRemoteFallback(error);
+      return false;
+    }
+    throw error;
+  }
+
+  return true;
+}
+
+async function getMonthState(month = activeMonth) {
+  const cached = monthStateCache.get(month);
+  if (cached) return cached;
+
+  const localState = getLocalMonthState(month);
+
+  try {
+    const remoteState = await loadRemoteMonthState(month);
+    const state = remoteState || localState;
+    saveLocalMonthState(state);
+    if (!remoteState) await saveRemoteMonthState(state);
+    return state;
+  } catch (error) {
+    console.error("Unable to load cashflow month from Supabase:", error);
+    showStatus("Cashflow database sync failed. Local copy is still available.", "warning");
+    saveLocalMonthState(localState);
+    return localState;
+  }
+}
+
+async function saveMonthState(state) {
+  saveLocalMonthState(state);
+
+  try {
+    const savedRemote = await saveRemoteMonthState(state);
+    if (savedRemote) showStatus("Cashflow saved.", "success");
+  } catch (error) {
+    console.error("Unable to save cashflow month to Supabase:", error);
+    showStatus("Cashflow saved locally. Database sync failed.", "warning");
+  }
 }
 
 function paymentDisplayStatus(payment) {
@@ -435,8 +538,10 @@ function renderPayslip(state) {
   `;
 }
 
-function renderCashflow() {
-  const state = getMonthState();
+async function renderCashflow() {
+  const sequence = ++renderSequence;
+  const state = await getMonthState();
+  if (sequence !== renderSequence) return;
   const totals = calculateState(state);
 
   if (el(ids.monthTitle)) el(ids.monthTitle).textContent = monthLabel(state.month);
@@ -454,11 +559,11 @@ function renderCashflow() {
   renderPayslip(state);
 }
 
-function mutateMonth(mutator) {
-  const state = getMonthState();
+async function mutateMonth(mutator) {
+  const state = await getMonthState();
   mutator(state);
-  saveMonthState(state);
-  renderCashflow();
+  await saveMonthState(state);
+  await renderCashflow();
 }
 
 function updateBalance() {
