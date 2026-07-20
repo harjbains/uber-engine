@@ -3,6 +3,7 @@ import { showStatus } from "./status.js";
 
 const STORAGE_PREFIX = "uberEngineCashflow";
 const CASHFLOW_MONTHS_TABLE = "cashflow_months";
+const DEFAULT_WORKSPACE_MONTH = "2026-04";
 
 const DEFAULT_FIXED_TEMPLATE = [
   { id: "home_mortgage", name: "Home mortgage", category: "Home", day: 1, amount: 833, frequency: "monthly", notes: "" },
@@ -16,7 +17,14 @@ const DEFAULT_FIXED_TEMPLATE = [
 const DEFAULT_INCOME_ROWS = [
   { id: "pension", source: "Pension", gross: 691.25, costs: 0 },
   { id: "properties", source: "Properties", gross: 2850, costs: 1545 },
-  { id: "uber", source: "Uber", gross: 0, costs: 0 }
+  { id: "uber", source: "Uber", gross: 3585.08, costs: 747.32 }
+];
+
+const DEFAULT_SPENDING_ITEMS = [
+  { id: "property_repairs", date: "2026-04-04", description: "Property repairs", category: "Property", plannedAmount: 300, actualAmount: 120, status: "part_paid" },
+  { id: "court_fee", date: "2026-04-08", description: "Court fee", category: "Legal", plannedAmount: 415, actualAmount: 415, status: "paid" },
+  { id: "bmw_refurbishment", date: "", description: "BMW refurbishment", category: "Vehicle", plannedAmount: 600, actualAmount: "", status: "planned" },
+  { id: "groceries", date: "2026-04-12", description: "Groceries", category: "Living", plannedAmount: "", actualAmount: 62, status: "unplanned" }
 ];
 
 const ids = {
@@ -28,6 +36,7 @@ const ids = {
   updateBalance: "cashflow_update_balance",
   position: "cashflow_position",
   dailyMessage: "cashflow_daily_message",
+  editItem: "cashflow_edit_item",
   fixedSummary: "cashflow_fixed_summary",
   fixedList: "cashflow_fixed_list",
   spendingSummary: "cashflow_spending_summary",
@@ -49,7 +58,7 @@ const ids = {
   incomeCosts: "cashflow_income_costs"
 };
 
-let activeMonth = monthToInputValue(new Date());
+let activeMonth = DEFAULT_WORKSPACE_MONTH;
 let selectedFixedId = "";
 let cashflowRemoteAvailable = true;
 let remoteUnavailableNotified = false;
@@ -133,6 +142,14 @@ function monthLabel(month) {
   });
 }
 
+function formatShortDate(dateString) {
+  if (!dateString) return "\u2014";
+  return new Date(`${dateString}T00:00:00`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short"
+  });
+}
+
 function dueDateForTemplate(month, item) {
   const date = parseMonth(month);
   date.setDate(Math.min(28, Number(item.day || 1)));
@@ -147,19 +164,24 @@ function getTemplate() {
 }
 
 function buildMonthFromTemplate(month) {
+  const isAprilBriefMonth = month === DEFAULT_WORKSPACE_MONTH;
   return {
     month,
-    bankBalance: 0,
+    workspaceVersion: 2,
+    bankBalance: isAprilBriefMonth ? 3820 : 0,
     lastBalanceUpdate: "",
-    fixedPayments: getTemplate().map((item) => ({
-      ...item,
-      dueDate: dueDateForTemplate(month, item),
-      expectedAmount: Number(item.amount || 0),
-      actualDate: "",
-      actualAmount: "",
-      status: "expected"
-    })),
-    spending: [],
+    fixedPayments: getTemplate().map((item, index) => {
+      const paid = isAprilBriefMonth && index < 3;
+      return {
+        ...item,
+        dueDate: dueDateForTemplate(month, item),
+        expectedAmount: Number(item.amount || 0),
+        actualDate: paid ? dueDateForTemplate(month, item) : "",
+        actualAmount: paid ? Number(item.amount || 0) : "",
+        status: paid ? "paid" : "expected"
+      };
+    }),
+    spending: isAprilBriefMonth ? DEFAULT_SPENDING_ITEMS : [],
     incomeRows: DEFAULT_INCOME_ROWS,
     lastReviewed: todayIso(),
     nextReview: dueDateForTemplate(addMonths(month, 1), { day: 1 })
@@ -167,6 +189,10 @@ function buildMonthFromTemplate(month) {
 }
 
 function normaliseMonthState(month, saved) {
+  if (month === DEFAULT_WORKSPACE_MONTH && (!saved || saved.workspaceVersion !== 2)) {
+    return buildMonthFromTemplate(month);
+  }
+
   return {
     ...buildMonthFromTemplate(month),
     ...saved,
@@ -315,7 +341,7 @@ function isFixedUnpaid(payment) {
 }
 
 function isSpendingOutstanding(item) {
-  return ["planned", "part_paid"].includes(item.status);
+  return item.status === "planned";
 }
 
 function calculateState(state) {
@@ -366,11 +392,11 @@ function renderPosition(state, totals) {
       <strong>${formatMoney(state.bankBalance)}</strong>
     </div>
     <div class="cashflow-position-card">
-      <span>Fixed Still Expected</span>
+      <span>Fixed Costs Still To Leave</span>
       <strong>${formatMoney(totals.fixedUnpaid)}</strong>
     </div>
     <div class="cashflow-position-card">
-      <span>Planned Outstanding</span>
+      <span>Planned Expenditure Still To Leave</span>
       <strong>${formatMoney(totals.plannedOutstanding)}</strong>
     </div>
     <div class="cashflow-position-card cashflow-position-card--safe">
@@ -403,30 +429,44 @@ function renderFixedCosts(state, totals) {
   const summary = el(ids.fixedSummary);
   const list = el(ids.fixedList);
   if (summary) {
-    summary.textContent = `${formatMoney(totals.paidFixedTotal)} paid of ${formatMoney(totals.fixedTotal)} · ${totals.remainingFixedCount} remaining`;
+    summary.textContent = `${totals.paidFixedCount} of ${state.fixedPayments.length} payments cleared · ${formatMoney(totals.paidFixedTotal)} paid · ${formatMoney(totals.fixedUnpaid)} still to leave`;
   }
   if (!list) return;
 
-  list.innerHTML = state.fixedPayments
+  const rows = state.fixedPayments
     .slice()
     .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
     .map((payment) => {
       const displayStatus = paymentDisplayStatus(payment);
+      const checked = !isFixedUnpaid(payment);
       return `
-        <article class="cashflow-list-item cashflow-list-item--${escapeHtml(displayStatus)} ${payment.id === selectedFixedId ? "selected" : ""}">
-          <button type="button" data-fixed-select="${escapeHtml(payment.id)}">
-            <span>
-              <strong>${escapeHtml(payment.name)}</strong>
-              <small>${escapeHtml(payment.category)} · due ${escapeHtml(payment.dueDate)}</small>
-            </span>
-            <span>
-              <strong>${formatMoney(payment.expectedAmount)}</strong>
-              <small>${escapeHtml(statusLabel(displayStatus))}</small>
-            </span>
-          </button>
-        </article>
+        <div class="cashflow-table-row cashflow-table-row--${escapeHtml(displayStatus)}">
+          <span>${escapeHtml(formatShortDate(payment.dueDate))}</span>
+          <button type="button" class="cashflow-table-link" data-fixed-select="${escapeHtml(payment.id)}">${escapeHtml(payment.name)}</button>
+          <span>${formatMoney(payment.expectedAmount)}</span>
+          <span>${payment.actualAmount === "" ? "&mdash;" : formatMoney(payment.actualAmount)}</span>
+          <span>${escapeHtml(statusLabel(displayStatus))}</span>
+          <label class="cashflow-check">
+            <input type="checkbox" data-fixed-check="${escapeHtml(payment.id)}" ${checked ? "checked" : ""}>
+            <span class="sr-only">Mark ${escapeHtml(payment.name)} paid</span>
+          </label>
+        </div>
       `;
     }).join("");
+
+  list.innerHTML = `
+    <div class="cashflow-table cashflow-table--fixed">
+      <div class="cashflow-table-row cashflow-table-row--head">
+        <span>Due</span>
+        <span>Payment</span>
+        <span>Expected</span>
+        <span>Actual</span>
+        <span>Status</span>
+        <span>Paid</span>
+      </div>
+      ${rows}
+    </div>
+  `;
 }
 
 function renderReconcilePanel(state) {
@@ -475,28 +515,37 @@ function renderSpending(state, totals) {
     return;
   }
 
-  list.innerHTML = state.spending
+  const rows = state.spending
     .slice()
     .sort((a, b) => String(a.date || "9999-99-99").localeCompare(String(b.date || "9999-99-99")))
     .map((item) => {
       const planned = toNumber(item.plannedAmount);
       const actual = toNumber(item.actualAmount);
-      const difference = planned > 0 && actual > 0 ? planned - actual : 0;
       return `
-        <article class="cashflow-list-item cashflow-list-item--${escapeHtml(item.status)}">
-          <button type="button" data-spending-toggle="${escapeHtml(item.id)}">
-            <span>
-              <strong>${escapeHtml(item.description)}</strong>
-              <small>${escapeHtml(item.category || "General")} · ${escapeHtml(item.date || "No date")} · ${escapeHtml(statusLabel(item.status))}</small>
-            </span>
-            <span>
-              <strong>${formatMoney(actual || planned)}</strong>
-              <small>${difference ? `${formatMoney(Math.abs(difference))} ${difference > 0 ? "under" : "over"}` : ""}</small>
-            </span>
-          </button>
-        </article>
+        <div class="cashflow-table-row cashflow-table-row--${escapeHtml(item.status)}">
+          <span>${escapeHtml(formatShortDate(item.date))}</span>
+          <span>${escapeHtml(item.description)}</span>
+          <span>${escapeHtml(item.category || "General")}</span>
+          <span>${planned > 0 ? formatMoney(planned) : "&mdash;"}</span>
+          <span>${actual > 0 ? formatMoney(actual) : "&mdash;"}</span>
+          <span>${escapeHtml(statusLabel(item.status))}</span>
+        </div>
       `;
     }).join("");
+
+  list.innerHTML = `
+    <div class="cashflow-table cashflow-table--spending">
+      <div class="cashflow-table-row cashflow-table-row--head">
+        <span>Date</span>
+        <span>Description</span>
+        <span>Category</span>
+        <span>Planned</span>
+        <span>Actual</span>
+        <span>Status</span>
+      </div>
+      ${rows}
+    </div>
+  `;
 }
 
 function renderPayslip(state) {
@@ -511,29 +560,33 @@ function renderPayslip(state) {
   const net = totals.gross - totals.costs;
 
   if (title) title.textContent = `${monthLabel(state.month)} Payslip`;
-  if (netNode) netNode.textContent = `Net income available: ${formatMoney(net)}`;
+  if (netNode) {
+    netNode.innerHTML = `<span>Net income available</span><strong>${formatMoney(net)}</strong>`;
+  }
   if (!table) return;
 
   table.innerHTML = `
-    <div class="cashflow-payslip-row cashflow-payslip-row--head">
+    <div class="cashflow-table cashflow-table--payslip">
+    <div class="cashflow-table-row cashflow-table-row--head">
       <span>Income source</span>
-      <span>Gross</span>
+      <span>Gross income</span>
       <span>Costs</span>
-      <span>Net</span>
+      <span>Net income</span>
     </div>
     ${state.incomeRows.map((row) => `
-      <div class="cashflow-payslip-row">
+      <div class="cashflow-table-row">
         <span>${escapeHtml(row.source)}</span>
         <span>${formatMoney(row.gross)}</span>
         <span>${formatMoney(row.costs)}</span>
         <span>${formatMoney(toNumber(row.gross) - toNumber(row.costs))}</span>
       </div>
     `).join("")}
-    <div class="cashflow-payslip-row cashflow-payslip-row--total">
+    <div class="cashflow-table-row cashflow-table-row--total">
       <span>Total</span>
       <span>${formatMoney(totals.gross)}</span>
       <span>${formatMoney(totals.costs)}</span>
       <span>${formatMoney(net)}</span>
+    </div>
     </div>
   `;
 }
@@ -612,6 +665,29 @@ function addIncome(event) {
 }
 
 function handleFixedListClick(event) {
+  const checkbox = event.target.closest("[data-fixed-check]");
+  if (checkbox) {
+    const paymentId = checkbox.dataset.fixedCheck;
+    mutateMonth((state) => {
+      const payment = state.fixedPayments.find((item) => item.id === paymentId);
+      if (!payment) return;
+      const actualAmount = toNumber(payment.actualAmount || payment.expectedAmount);
+
+      if (checkbox.checked && isFixedUnpaid(payment)) {
+        payment.actualAmount = actualAmount;
+        payment.actualDate = todayIso();
+        payment.status = actualAmount === toNumber(payment.expectedAmount) ? "paid" : "changed";
+        state.bankBalance = Math.max(0, toNumber(state.bankBalance) - actualAmount);
+      } else if (!checkbox.checked && !isFixedUnpaid(payment)) {
+        state.bankBalance += actualAmount;
+        payment.actualAmount = "";
+        payment.actualDate = "";
+        payment.status = "expected";
+      }
+    });
+    return;
+  }
+
   const button = event.target.closest("[data-fixed-select]");
   if (!button) return;
   selectedFixedId = button.dataset.fixedSelect;
@@ -634,9 +710,16 @@ function handleReconcileClick(event) {
     if (!payment) return;
 
     if (action === "confirm") {
+      const wasUnpaid = isFixedUnpaid(payment);
+      const previousActual = toNumber(payment.actualAmount || payment.expectedAmount);
       payment.actualAmount = toNumber(document.getElementById("cashflow_actual_amount")?.value || payment.expectedAmount);
       payment.actualDate = document.getElementById("cashflow_actual_date")?.value || todayIso();
       payment.status = payment.actualAmount === toNumber(payment.expectedAmount) ? "paid" : "changed";
+      if (wasUnpaid) {
+        state.bankBalance = Math.max(0, toNumber(state.bankBalance) - payment.actualAmount);
+      } else {
+        state.bankBalance = Math.max(0, toNumber(state.bankBalance) + previousActual - payment.actualAmount);
+      }
     }
 
     if (action === "skip") {
@@ -669,9 +752,8 @@ function initQuickActions() {
     el(ids.spendingDesc)?.focus();
     if (el(ids.spendingStatus)) el(ids.spendingStatus).value = "planned";
   });
-  document.getElementById("cashflow_quick_income")?.addEventListener("click", () => {
-    document.querySelector('[data-cashflow-panel="payslip_panel"]')?.click();
-    el(ids.incomeSource)?.focus();
+  el(ids.editItem)?.addEventListener("click", () => {
+    el(ids.spendingDesc)?.focus();
   });
 }
 

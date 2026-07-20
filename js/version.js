@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.99";
+export const VERSION = "v2.4.0";
 
 export const RELEASE_NOTES = {
+  "2.4.0": "Monthly workspace is focused into Payslip and Cashflow tabs with April 2026 checklist data",
   "2.3.99": "Cashflow workspace can sync monthly state to Supabase with local fallback",
   "2.3.98": "Cashflow workspace adds monthly safe-balance control, fixed payments, ledger, and payslip view",
   "2.3.97": "Week summary treats insurance as a fixed weekly cost regardless of days worked",

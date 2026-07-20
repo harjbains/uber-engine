@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.99">
+  <link rel="stylesheet" href="css/styles.css?v=2.4.0">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -49,29 +49,52 @@
           </button>
         </div>
 
-        <div class="cashflow-bank-panel">
-          <div class="field">
-            <label for="cashflow_bank_balance">Current Bank Balance (&pound;)</label>
-            <input id="cashflow_bank_balance" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-          </div>
-          <button id="cashflow_update_balance" class="btn-secondary" type="button">Update Balance</button>
-        </div>
-
-        <div id="cashflow_position" class="cashflow-position-grid"></div>
-
         <div class="cashflow-subtabs" role="tablist" aria-label="Monthly workspace">
-          <button class="cashflow-subtab active" type="button" data-cashflow-panel="cashflow_panel">Cashflow</button>
-          <button class="cashflow-subtab" type="button" data-cashflow-panel="payslip_panel">Payslip</button>
+          <button class="cashflow-subtab active" type="button" data-cashflow-panel="payslip_panel">Payslip</button>
+          <button class="cashflow-subtab" type="button" data-cashflow-panel="cashflow_panel">Cashflow</button>
         </div>
 
-        <section id="cashflow_panel" class="cashflow-panel active">
-          <div id="cashflow_daily_message" class="cashflow-message"></div>
-
-          <div class="cashflow-actions">
-            <button id="cashflow_quick_spending" type="button" class="btn-primary">Add Spending</button>
-            <button id="cashflow_quick_planned" type="button" class="btn-secondary">Add Planned</button>
-            <button id="cashflow_quick_income" type="button" class="btn-secondary">Add Income</button>
+        <section id="payslip_panel" class="cashflow-panel active">
+          <div class="cashflow-pane__header">
+            <h3 id="cashflow_payslip_title">Monthly Payslip</h3>
+            <strong id="cashflow_payslip_net"></strong>
           </div>
+          <div id="cashflow_payslip_table" class="cashflow-payslip-table"></div>
+
+          <form id="cashflow_income_form" class="cashflow-inline-form">
+            <div class="form-row-3">
+              <div class="field">
+                <label for="cashflow_income_source">Income Source</label>
+                <input id="cashflow_income_source" type="text" placeholder="Uber">
+              </div>
+              <div class="field">
+                <label for="cashflow_income_gross">Gross (&pound;)</label>
+                <input id="cashflow_income_gross" type="number" min="0" step="0.01" inputmode="decimal">
+              </div>
+              <div class="field">
+                <label for="cashflow_income_costs">Allowable Costs (&pound;)</label>
+                <input id="cashflow_income_costs" type="number" min="0" step="0.01" inputmode="decimal">
+              </div>
+            </div>
+            <button id="cashflow_add_income" class="btn-primary" type="submit">Add Income Row</button>
+          </form>
+
+          <details class="cashflow-tax-details">
+            <summary>View calculation details</summary>
+            <p>Detailed tax information remains elsewhere in the application. This tab focuses on net monthly income available.</p>
+          </details>
+        </section>
+
+        <section id="cashflow_panel" class="cashflow-panel">
+          <div class="cashflow-bank-panel">
+            <div class="field">
+              <label for="cashflow_bank_balance">Current Bank Balance (&pound;)</label>
+              <input id="cashflow_bank_balance" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
+            </div>
+            <button id="cashflow_update_balance" class="btn-secondary" type="button">Update Balance</button>
+          </div>
+
+          <div id="cashflow_position" class="cashflow-position-grid"></div>
 
           <div class="cashflow-layout">
             <section class="cashflow-pane">
@@ -86,6 +109,11 @@
               <div class="cashflow-pane__header">
                 <h3>Spending Ledger</h3>
                 <span id="cashflow_spending_summary"></span>
+              </div>
+              <div class="cashflow-actions">
+                <button id="cashflow_quick_planned" type="button" class="btn-secondary">Add planned expenditure</button>
+                <button id="cashflow_quick_spending" type="button" class="btn-primary">Add spending</button>
+                <button id="cashflow_edit_item" type="button" class="btn-secondary">Edit item</button>
               </div>
               <form id="cashflow_spending_form" class="cashflow-inline-form">
                 <div class="form-row-2">
@@ -131,37 +159,7 @@
           </div>
 
           <div id="cashflow_reconcile_panel" class="cashflow-reconcile-panel"></div>
-        </section>
-
-        <section id="payslip_panel" class="cashflow-panel">
-          <div class="cashflow-pane__header">
-            <h3 id="cashflow_payslip_title">Monthly Payslip</h3>
-            <strong id="cashflow_payslip_net"></strong>
-          </div>
-          <div id="cashflow_payslip_table" class="cashflow-payslip-table"></div>
-
-          <form id="cashflow_income_form" class="cashflow-inline-form">
-            <div class="form-row-3">
-              <div class="field">
-                <label for="cashflow_income_source">Income Source</label>
-                <input id="cashflow_income_source" type="text" placeholder="Uber">
-              </div>
-              <div class="field">
-                <label for="cashflow_income_gross">Gross (&pound;)</label>
-                <input id="cashflow_income_gross" type="number" min="0" step="0.01" inputmode="decimal">
-              </div>
-              <div class="field">
-                <label for="cashflow_income_costs">Allowable Costs (&pound;)</label>
-                <input id="cashflow_income_costs" type="number" min="0" step="0.01" inputmode="decimal">
-              </div>
-            </div>
-            <button id="cashflow_add_income" class="btn-primary" type="submit">Add Income Row</button>
-          </form>
-
-          <details class="cashflow-tax-details">
-            <summary>View calculation details</summary>
-            <p>Tax, MTD, return preparation and audit checks remain supporting background sections. This payslip view focuses on usable net income before cashflow allocation.</p>
-          </details>
+          <div id="cashflow_daily_message" class="cashflow-message"></div>
         </section>
       </div>
     </div>
@@ -734,7 +732,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.99"></script>
+  <script type="module" src="js/app.js?v=2.4.0"></script>
 </body>
 
 </html>
