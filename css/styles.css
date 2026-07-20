@@ -1576,125 +1576,9 @@ input[type="date"] {
   text-align: right;
 }
 
-.cashflow-pane__header strong span {
-  display: block;
-  color: #64748b;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: .04em;
-}
-
-.cashflow-pane__header strong strong {
-  display: block;
-  margin-top: 2px;
-  color: #047857;
-  font-size: 24px;
-  line-height: 1;
-}
-
 .cashflow-list {
   display: grid;
   gap: 7px;
-}
-
-.cashflow-table {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-  overflow-x: auto;
-}
-
-.cashflow-table-row {
-  display: grid;
-  gap: 6px;
-  align-items: center;
-  min-width: 560px;
-  padding: 8px;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  background: #fff;
-  color: #0f172a;
-  font-size: 12px;
-  font-weight: 750;
-}
-
-.cashflow-table--fixed .cashflow-table-row {
-  grid-template-columns: .7fr 1.4fr .9fr .9fr .8fr .55fr;
-}
-
-.cashflow-table--spending .cashflow-table-row {
-  grid-template-columns: .75fr 1.35fr .9fr .9fr .9fr .8fr;
-}
-
-.cashflow-table--payslip .cashflow-table-row {
-  grid-template-columns: 1.35fr 1fr 1fr 1fr;
-}
-
-.cashflow-table-row--head,
-.cashflow-table-row--total {
-  background: #f8fafc;
-  color: #334155;
-  font-size: 11px;
-  font-weight: 900;
-  text-transform: uppercase;
-  letter-spacing: .03em;
-}
-
-.cashflow-table-row--total {
-  color: #020617;
-}
-
-.cashflow-table-row--paid,
-.cashflow-table-row--changed {
-  border-color: #86efac;
-  background: #f0fdf4;
-}
-
-.cashflow-table-row--due_today,
-.cashflow-table-row--part_paid {
-  border-color: #f59e0b;
-  background: #fffbeb;
-}
-
-.cashflow-table-row--due_soon,
-.cashflow-table-row--planned {
-  border-color: #93c5fd;
-  background: #eff6ff;
-}
-
-.cashflow-table-row--overdue,
-.cashflow-table-row--unplanned {
-  border-color: #fca5a5;
-  background: #fef2f2;
-}
-
-.cashflow-table-link {
-  display: inline;
-  width: fit-content;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: #0f172a;
-  font: inherit;
-  font-weight: 900;
-  text-align: left;
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 2px;
-}
-
-.cashflow-check {
-  display: flex;
-  justify-content: center;
-  margin: 0;
-}
-
-.cashflow-check input {
-  width: 22px;
-  height: 22px;
-  margin: 0;
-  accent-color: #111827;
-  appearance: auto;
 }
 
 .cashflow-list-item {
@@ -1796,6 +1680,25 @@ input[type="date"] {
   display: grid;
   gap: 4px;
   margin: 10px 0;
+}
+
+.cashflow-payslip-row {
+  display: grid;
+  grid-template-columns: 1.3fr .9fr .9fr .9fr;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cashflow-payslip-row--head,
+.cashflow-payslip-row--total {
+  background: #f8fafc;
+  font-weight: 900;
 }
 
 .cashflow-tax-details {
