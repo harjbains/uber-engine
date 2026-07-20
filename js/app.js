@@ -1,10 +1,9 @@
-import { initDays } from "./days.js?v=2.3.98";
-import { initMonthly } from "./monthly.js?v=2.3.98";
-import { initFuel } from "./fuel.js?v=2.3.98";
-import { initExpenses } from "./expenses.js?v=2.3.98";
-import { initCashflow } from "./cashflow.js?v=2.3.98";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.3.98";
-import { initSettings } from "./settings.js?v=2.3.98";
+import { initDays } from "./days.js?v=2.3.97";
+import { initMonthly } from "./monthly.js?v=2.3.97";
+import { initFuel } from "./fuel.js?v=2.3.97";
+import { initExpenses } from "./expenses.js?v=2.3.97";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.3.97";
+import { initSettings } from "./settings.js?v=2.3.97";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
@@ -213,7 +212,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initCostToggle();
   initDashboardCarousel();
   initMonthCarousel();
-  initCashflow();
   initDays();
   initMonthly();
   initFuel();
