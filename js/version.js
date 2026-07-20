@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.97";
+export const VERSION = "v2.3.98";
 
 export const RELEASE_NOTES = {
+  "2.3.98": "Cashflow workspace adds monthly safe-balance control, fixed payments, ledger, and payslip view",
   "2.3.97": "Week summary treats insurance as a fixed weekly cost regardless of days worked",
   "2.3.96": "Weekly Target Ladder adds a working-limit check for sustainable recovery planning",
   "2.3.95": "Weekly Target Ladder adds floor, main, Mortgage Killer, serious hours, and end reasons",

@@ -1401,6 +1401,337 @@ input[type="date"] {
   cursor: pointer;
 }
 
+/* ================= CASHFLOW WORKSPACE ================= */
+
+.cashflow-workspace {
+  display: grid;
+  gap: 12px;
+}
+
+.cashflow-header {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 8px;
+}
+
+.cashflow-header h2 {
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.cashflow-status {
+  margin: 3px 0 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.cashflow-bank-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+
+.cashflow-bank-panel .btn-secondary {
+  min-height: 40px;
+  margin-top: 0;
+}
+
+.cashflow-position-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.cashflow-position-card {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cashflow-position-card span {
+  color: #475569;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.cashflow-position-card strong {
+  color: #020617;
+  font-size: 19px;
+  line-height: 1.1;
+}
+
+.cashflow-position-card--safe {
+  border-color: #10b981;
+  background: #ecfdf5;
+}
+
+.cashflow-position-card--safe strong {
+  color: #047857;
+  font-size: 23px;
+}
+
+.cashflow-subtabs,
+.cashflow-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cashflow-subtab {
+  flex: 1;
+  min-height: 38px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #f8fafc;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.cashflow-subtab.active {
+  border-color: #111827;
+  background: #111827;
+  color: #fff;
+}
+
+.cashflow-panel {
+  display: none;
+}
+
+.cashflow-panel.active {
+  display: block;
+}
+
+.cashflow-message {
+  display: grid;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.cashflow-message strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.cashflow-message span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cashflow-actions {
+  margin-bottom: 12px;
+}
+
+.cashflow-actions .btn-primary,
+.cashflow-actions .btn-secondary {
+  flex: 1;
+  margin-top: 0;
+}
+
+.cashflow-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.cashflow-pane {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.cashflow-pane__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.cashflow-pane__header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.cashflow-pane__header span,
+.cashflow-pane__header strong {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: right;
+}
+
+.cashflow-list {
+  display: grid;
+  gap: 7px;
+}
+
+.cashflow-list-item {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+.cashflow-list-item button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+}
+
+.cashflow-list-item strong {
+  display: block;
+  color: #0f172a;
+  font-size: 13px;
+}
+
+.cashflow-list-item small {
+  display: block;
+  margin-top: 2px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.cashflow-list-item--paid,
+.cashflow-list-item--changed {
+  border-color: #86efac;
+  background: #f0fdf4;
+}
+
+.cashflow-list-item--due_today,
+.cashflow-list-item--part_paid {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.cashflow-list-item--due_soon,
+.cashflow-list-item--planned {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.cashflow-list-item--overdue,
+.cashflow-list-item--unplanned {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.cashflow-list-item.selected {
+  outline: 2px solid #111827;
+}
+
+.cashflow-inline-form {
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cashflow-inline-form .btn-primary {
+  align-self: end;
+}
+
+.cashflow-reconcile-card {
+  margin-top: 12px;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+}
+
+.cashflow-reconcile-card p {
+  margin: 0 0 4px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cashflow-empty {
+  padding: 12px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: center;
+}
+
+.cashflow-payslip-table {
+  display: grid;
+  gap: 4px;
+  margin: 10px 0;
+}
+
+.cashflow-payslip-row {
+  display: grid;
+  grid-template-columns: 1.3fr .9fr .9fr .9fr;
+  gap: 6px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.cashflow-payslip-row--head,
+.cashflow-payslip-row--total {
+  background: #f8fafc;
+  font-weight: 900;
+}
+
+.cashflow-tax-details {
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.cashflow-tax-details summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.cashflow-tax-details p {
+  margin: 8px 0 0;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (min-width: 760px) {
+  .app-container {
+    max-width: 760px;
+  }
+
+  .cashflow-layout {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 .live-shift-button--primary {
   border-color: #020617;
   background: #020617;
