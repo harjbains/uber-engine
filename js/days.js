@@ -20,7 +20,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.99";
+} from "./settings.js?v=2.3.100";
 
 const ids = {
   date: "day_date",
@@ -2744,27 +2744,47 @@ function renderWeeklyTarget(days) {
   `;
 
   summaryNode.innerHTML = `
-    ${[
-      ["Total Online", `${formatClockHours(summary.totalOnlineHours)}h`, `Trip ${formatClockHours(summary.tripTime)}h / available ${formatClockHours(summary.availableTime)}h / lost ${formatClockHours(summary.lostTime)}h`],
-      ["Productive", `${formatClockHours(summary.hoursWorked)}h`, "Trip time + available time"],
-      ["Unproductive", `${formatClockHours(summary.lostTime)}h`, "Lost time"],
-      ["Utilisation", formatPercent(summary.utilisationPercent), "Productive ÷ total online"],
-      ["Avg / Productive Hour", formatMoney(summary.averageEarningsPerProductiveHour), `${formatMoney(BASELINE_PRODUCTIVE_HOURLY_RATE)} required pace`],
-      ["Expected Productive Hours", `${formatClockHours(summary.expectedProductiveHours)}h`, "By this point in the planned schedule"],
-      ["Hours Ahead / Behind", `${summary.hoursAheadBehind >= 0 ? "+" : "−"}${formatClockHours(Math.abs(summary.hoursAheadBehind))}h`, summary.hoursAheadBehind >= 0 ? "Ahead" : "Behind"],
-      ["Expected Earnings", formatMoney(summary.expectedEarnings), "By this point in the planned schedule"],
-      ["Earnings Ahead / Behind", `${summary.earningsAheadBehind >= 0 ? "+" : "−"}${formatMoney(Math.abs(summary.earningsAheadBehind))}`, summary.earningsAheadBehind >= 0 ? "Ahead" : "Behind"],
-      ["Productive Hours Left", `${formatClockHours(summary.requiredProductiveHours)}h`, "Remainder of week"],
-      ["Earnings Left", formatMoney(summary.requiredEarnings), "Remainder of week"],
-      ["Missing-hours Deficit", formatMoney(summary.deficitFromMissingHours), "Caused by missing productive hours"],
-      ["Below-pace Deficit", formatMoney(summary.deficitFromBelowPace), "Caused by earning below £20/hour"]
-    ].map(([label, value, note]) => `
-      <div class="target-summary-card">
-        <div class="summary-label">${escapeHtml(label)}</div>
-        <div class="summary-value">${escapeHtml(value)}</div>
-        <div class="summary-sub">${escapeHtml(note)}</div>
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.earningsAheadBehind >= 0 ? "good" : "danger"}">
+      <div class="summary-label">Weekly Earnings</div>
+      <div class="summary-value">${formatMoney(summary.earned)}</div>
+      <div class="summary-sub">
+        ${summary.earningsAheadBehind >= 0 ? "+" : "−"}${formatMoney(Math.abs(summary.earningsAheadBehind))} vs plan · ${formatMoney(summary.requiredEarnings)} left
       </div>
-    `).join("")}
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.hoursAheadBehind >= 0 ? "good" : "warning"}">
+      <div class="summary-label">Productive Hours</div>
+      <div class="summary-value">${formatClockHours(summary.hoursWorked)}h</div>
+      <div class="summary-sub">
+        ${summary.hoursAheadBehind >= 0 ? "+" : "−"}${formatClockHours(Math.abs(summary.hoursAheadBehind))}h vs plan · ${formatClockHours(summary.requiredProductiveHours)}h left
+      </div>
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--info">
+      <div class="summary-label">Total Online</div>
+      <div class="summary-value">${formatClockHours(summary.totalOnlineHours)}h</div>
+      <div class="summary-sub">Trip ${formatClockHours(summary.tripTime)}h · available ${formatClockHours(summary.availableTime)}h · lost ${formatClockHours(summary.lostTime)}h</div>
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.utilisationPercent >= 80 ? "good" : summary.utilisationPercent >= 60 ? "warning" : "neutral"}">
+      <div class="summary-label">Utilisation</div>
+      <div class="summary-value">${formatPercent(summary.utilisationPercent)}</div>
+      <div class="summary-sub">${formatClockHours(summary.lostTime)}h unproductive</div>
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.averageEarningsPerProductiveHour >= BASELINE_PRODUCTIVE_HOURLY_RATE ? "good" : summary.hoursWorked > 0 ? "danger" : "neutral"}">
+      <div class="summary-label">Earnings Pace</div>
+      <div class="summary-value">${formatMoney(summary.averageEarningsPerProductiveHour)}/hr</div>
+      <div class="summary-sub">${formatMoney(BASELINE_PRODUCTIVE_HOURLY_RATE)}/hr required</div>
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--plan">
+      <div class="summary-label">Expected Now</div>
+      <div class="summary-value">${formatMoney(summary.expectedEarnings)}</div>
+      <div class="summary-sub">${formatClockHours(summary.expectedProductiveHours)} productive hours by now</div>
+    </div>
+    ${(summary.deficitFromMissingHours > 0 || summary.deficitFromBelowPace > 0) ? `
+      <div class="target-deficit-summary">
+        <strong>Why you are behind</strong>
+        <span>${formatMoney(summary.deficitFromMissingHours)} from missing hours</span>
+        <span>${formatMoney(summary.deficitFromBelowPace)} from earning below £20/hr</span>
+      </div>
+    ` : ""}
     <div class="target-recovery-message ${summary.hoursDeficit > 0 ? "target-recovery-message--needed" : ""}">
       ${summary.hoursDeficit > 0
         ? `Recovery needed: ${formatClockHours(summary.recoveryHoursPerRemainingDay)} additional productive hour${Math.abs(summary.recoveryHoursPerRemainingDay - 1) < 0.05 ? "" : "s"} per remaining working day.`

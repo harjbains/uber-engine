@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.99";
+export const VERSION = "v2.3.100";
 
 export const RELEASE_NOTES = {
+  "2.3.100": "Weekly performance is simplified into colour-coded headline cards",
   "2.3.99": "Weekly progress adds productive-time tracking, planned-schedule pace, recovery guidance, and earnings-deficit attribution",
   "2.3.98": "Weekly tracking now uses one £1,000 earnings target with a matching 50-hour progress bar",
   "2.3.97": "Week summary treats insurance as a fixed weekly cost regardless of days worked",

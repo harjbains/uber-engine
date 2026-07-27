@@ -1083,6 +1083,72 @@ input[type="date"] {
   font-size: 16px;
 }
 
+.target-headline-card {
+  min-height: 72px;
+  border-width: 0;
+  box-shadow: inset 0 0 0 1px rgb(15 23 42 / 8%);
+}
+
+.target-headline-card .summary-label {
+  color: inherit;
+  font-weight: 900;
+}
+
+.target-headline-card .summary-value {
+  margin-top: 2px;
+  color: inherit;
+  font-size: 21px;
+}
+
+.target-headline-card .summary-sub {
+  color: inherit;
+  opacity: 0.82;
+}
+
+.target-summary-grid .target-headline-card--good {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.target-summary-grid .target-headline-card--warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.target-summary-grid .target-headline-card--danger {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.target-summary-grid .target-headline-card--info {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.target-summary-grid .target-headline-card--plan {
+  background: #ede9fe;
+  color: #5b21b6;
+}
+
+.target-summary-grid .target-headline-card--neutral {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.target-deficit-summary {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 9px 10px;
+  border-radius: 9px;
+  background: #fff1f2;
+  color: #9f1239;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .target-ladder-verdict {
   grid-column: 1 / -1;
   display: grid;
@@ -2551,6 +2617,11 @@ input[type="date"] {
 
   .session-time-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .target-deficit-summary {
+    grid-template-columns: 1fr;
+    gap: 4px;
   }
 
   .day-finance-card--third,
