@@ -20,14 +20,15 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.97";
+} from "./settings.js?v=2.3.99";
 
 const ids = {
   date: "day_date",
   gross: "day_gross",
   miles: "day_miles",
-  hours: "day_hours",
-  minutes: "day_minutes",
+  tripTime: "day_trip_time",
+  availableTime: "day_available_time",
+  lostTime: "day_lost_time",
   endReason: "day_end_reason",
   saveBtn: "save_day",
   list: "dayList",
@@ -65,19 +66,17 @@ const MIN_FORECAST_CHECKPOINT_GAP_HOURS = 10 / 60;
 const MAX_REASONABLE_GROSS_PER_MILE = 10;
 const EARLY_SHIFT_PROTECTION_HOURS = 1.5;
 const TARGET_LEVELS = [
-  { value: 750, key: "floor", label: "Weekly Floor", shortLabel: "Floor", note: "minimum serious week" },
-  { value: 900, key: "main", label: "Main Target", shortLabel: "Main", note: "real working target" },
-  { value: 1000, key: "mortgageKiller", label: "Mortgage Killer", shortLabel: "Mortgage Killer", note: "stretch target" }
+  { value: 1000, key: "main", label: "Earnings Target", shortLabel: "Main", note: "weekly target" }
 ];
-const MAIN_WEEKLY_TARGET = TARGET_LEVELS[1].value;
+const MAIN_WEEKLY_TARGET = TARGET_LEVELS[0].value;
+const WEEKLY_HOURS_TARGET = 50;
+const BASELINE_PRODUCTIVE_HOURLY_RATE = MAIN_WEEKLY_TARGET / WEEKLY_HOURS_TARGET;
 const MAX_PLANNED_DAILY_HOURS = 10;
 const NORMAL_PLANNED_DAILY_HOURS = 6;
 const PLANNING_BASE_HOURLY_RATE = 20;
 const MAX_PLANNED_DAILY_TARGET = MAX_PLANNED_DAILY_HOURS * PLANNING_BASE_HOURLY_RATE;
 const SERIOUS_HOURS_LEVELS = [
-  { value: 30, key: "minimum", label: "Minimum serious week" },
-  { value: 36, key: "strong", label: "Strong week" },
-  { value: 40, key: "mortgageKiller", label: "Mortgage Killer week" }
+  { value: WEEKLY_HOURS_TARGET, key: "main", label: "Hours Target" }
 ];
 const SHIFT_END_REASONS = [
   { value: "", label: "Select reason" },
@@ -1121,9 +1120,7 @@ function buildCoachApiPayload(driverNote, shift, coach, summary) {
     },
     weekly: {
       weeklyEarned: summary.earned,
-      floorTarget: TARGET_LEVELS[0].value,
-      mainTarget: TARGET_LEVELS[1].value,
-      stretchTarget: TARGET_LEVELS[2].value,
+      mainTarget: MAIN_WEEKLY_TARGET,
       selectedTarget: summary.target,
       targetRemaining: summary.remaining,
       daysRemaining: summary.remainingWorkDays,
@@ -1920,27 +1917,19 @@ function countShiftEndReasons(days) {
 }
 
 function buildWeeklyLadderVerdict({ earned, hoursWorked, averageHourlyRate, endReasonCounts }) {
-  const floorHit = earned >= TARGET_LEVELS[0].value;
-  const mainHit = earned >= TARGET_LEVELS[1].value;
-  const mortgageKillerHit = earned >= TARGET_LEVELS[2].value;
-  const minimumHours = hoursWorked >= SERIOUS_HOURS_LEVELS[0].value;
-  const strongHours = hoursWorked >= SERIOUS_HOURS_LEVELS[1].value;
-  const mortgageKillerHours = hoursWorked >= SERIOUS_HOURS_LEVELS[2].value;
+  const targetHit = earned >= MAIN_WEEKLY_TARGET;
+  const hoursHit = hoursWorked >= WEEKLY_HOURS_TARGET;
 
-  if (mortgageKillerHit && mortgageKillerHours) return "Mortgage Killer week complete. Strong execution.";
-  if (mortgageKillerHit) return "Mortgage Killer income hit. Good result, but do not let a lucky week weaken the habit.";
-  if (mainHit && strongHours) return "Main Target achieved. Mortgage Killer stretch available.";
-  if (mainHit) return "Main Target achieved. Good result, but check the serious hours before calling the habit complete.";
-  if (floorHit) return "Floor secured. Main Target still in play.";
-  if (!minimumHours) return "Income was low because hours were low. Apply more time before judging the week.";
-  if (strongHours && !mainHit) return "Effort was there. Market underperformed.";
+  if (targetHit && hoursHit) return "Weekly earnings and hours targets complete. Strong execution.";
+  if (targetHit) return "Earnings target achieved. Check the hours target before calling the weekly plan complete.";
+  if (hoursHit) return "The 50 hours were there. The market underperformed against the earnings target.";
   if (endReasonCounts.mood > endReasonCounts.legitimate && endReasonCounts.mood > endReasonCounts.market) {
     return "The week was affected by early finishes. Protect the habit before judging the market.";
   }
-  if (endReasonCounts.market > 0 && averageHourlyRate > 0 && hoursWorked >= SERIOUS_HOURS_LEVELS[0].value) {
+  if (endReasonCounts.market > 0 && averageHourlyRate > 0) {
     return "Serious hours were there, but the market looks like it held the week back.";
   }
-  return "Keep building. The question is whether enough serious hours went in to let the target happen.";
+  return "Keep building toward £1,000 and 50 hours.";
 }
 
 function buildWorkingLimitCheck({ dateString, estimatedHours, todayTarget, averageHourlyRate, planningHourlyRate }) {
@@ -2119,7 +2108,7 @@ function renderLiveShiftCard(summary) {
 
 function buildWeeklyTargetSummary(days, settings, weekDates) {
   const appSettings = getSettings();
-  const targetMode = "ladder";
+  const targetMode = "fixed";
   const dynamicUplift = getDynamicUpliftPercent(appSettings);
   const manualTarget = MAIN_WEEKLY_TARGET;
   const dynamicTarget = calculateDynamicWeeklyTarget(
@@ -2132,22 +2121,85 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const hasSnapshot = false;
   const completedWeek = isCompletedTargetWeek();
   const target = MAIN_WEEKLY_TARGET;
-  const displayMode = "ladder";
+  const displayMode = "fixed";
   const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
   const tripsWorked = days.reduce((sum, day) => sum + Number(day.trips || 0), 0);
-  const hoursWorked = days.reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
+  const timeTotals = days.reduce((totals, day) => {
+    const savedProductiveHours = Number(day.hours_worked || 0);
+    const tripTime = Number(day.trip_time || 0);
+    const availableTime = Number(day.available_time || 0);
+    const lostTime = Number(day.lost_time || 0);
+    const hasTimeBreakdown = tripTime > 0 || availableTime > 0 || lostTime > 0;
+    const productiveHours = hasTimeBreakdown ? tripTime + availableTime : savedProductiveHours;
+
+    totals.tripTime += tripTime;
+    totals.availableTime += hasTimeBreakdown ? availableTime : savedProductiveHours;
+    totals.lostTime += lostTime;
+    totals.productiveHours += productiveHours;
+    totals.totalOnlineHours += productiveHours + lostTime;
+    return totals;
+  }, {
+    tripTime: 0,
+    availableTime: 0,
+    lostTime: 0,
+    productiveHours: 0,
+    totalOnlineHours: 0
+  });
+  const hoursWorked = timeTotals.productiveHours;
   const averageHourlyRate = hoursWorked > 0 ? earned / hoursWorked : 0;
-  const effectiveHourlyRate = averageHourlyRate > 0 ? averageHourlyRate : getPlanningHourlyRate(appSettings, days, currentHistoricalDays).planningRate;
-  const extraHoursRateLabel = averageHourlyRate > 0 ? "current rate" : "planning rate";
+  const effectiveHourlyRate = BASELINE_PRODUCTIVE_HOURLY_RATE;
+  const extraHoursRateLabel = "£20 productive pace";
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
-  const hourlyPlan = getPlanningHourlyRate(appSettings, days, currentHistoricalDays);
+  const observedHourlyRate = calculateGrossHourlyRate(days);
+  const hourlyPlan = {
+    desiredRate: BASELINE_PRODUCTIVE_HOURLY_RATE,
+    observedRate: observedHourlyRate,
+    planningRate: BASELINE_PRODUCTIVE_HOURLY_RATE,
+    source: "weekly-target-baseline"
+  };
   const initialHoursEstimate = target > 0 ? target / hourlyPlan.planningRate : 0;
   const remainingHours = remaining > 0 ? remaining / hourlyPlan.planningRate : 0;
   const forecastTotalHours = hoursWorked + remainingHours;
   const today = todayIso();
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
-  const hoursProgressPercent = forecastTotalHours > 0 ? Math.min(100, (hoursWorked / forecastTotalHours) * 100) : 0;
+  const hoursProgressPercent = Math.min(100, (hoursWorked / WEEKLY_HOURS_TARGET) * 100);
+  const utilisationPercent = timeTotals.totalOnlineHours > 0
+    ? (hoursWorked / timeTotals.totalOnlineHours) * 100
+    : 0;
+  const averageEarningsPerProductiveHour = hoursWorked > 0 ? earned / hoursWorked : 0;
+  const plannedDayCount = settings.workDays.length;
+  const selectedWeekStart = weekDates[0] || "";
+  const selectedWeekEnd = weekDates[weekDates.length - 1] || "";
+  let expectedScheduleRatio = 0;
+
+  if (plannedDayCount > 0 && selectedWeekEnd < today) {
+    expectedScheduleRatio = 1;
+  } else if (plannedDayCount > 0 && selectedWeekStart <= today && selectedWeekEnd >= today) {
+    const now = new Date();
+    const todayFraction = Math.min(1, Math.max(0, (now.getHours() + (now.getMinutes() / 60)) / 24));
+    const elapsedPlannedDays = weekDates.reduce((total, dateString, index) => {
+      if (!settings.workDays.includes(index)) return total;
+      if (dateString < today) return total + 1;
+      if (dateString === today) return total + todayFraction;
+      return total;
+    }, 0);
+    expectedScheduleRatio = Math.min(1, elapsedPlannedDays / plannedDayCount);
+  }
+
+  const expectedProductiveHours = WEEKLY_HOURS_TARGET * expectedScheduleRatio;
+  const expectedEarnings = MAIN_WEEKLY_TARGET * expectedScheduleRatio;
+  const hoursAheadBehind = hoursWorked - expectedProductiveHours;
+  const earningsAheadBehind = earned - expectedEarnings;
+  const requiredProductiveHours = Math.max(0, WEEKLY_HOURS_TARGET - hoursWorked);
+  const requiredEarnings = Math.max(0, MAIN_WEEKLY_TARGET - earned);
+  const hoursDeficit = Math.max(0, expectedProductiveHours - hoursWorked);
+  const earningsDeficit = Math.max(0, expectedEarnings - earned);
+  const deficitFromMissingHours = Math.min(
+    earningsDeficit,
+    hoursDeficit * BASELINE_PRODUCTIVE_HOURLY_RATE
+  );
+  const deficitFromBelowPace = Math.max(0, earningsDeficit - deficitFromMissingHours);
 
   const remainingWorkDates = weekDates.filter((dateString, index) => {
     if (!settings.workDays.includes(index)) return false;
@@ -2163,6 +2215,9 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     .filter((day) => day.date === today)
     .reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
   const remainingWorkDays = remainingWorkDates.length;
+  const recoveryHoursPerRemainingDay = remainingWorkDays > 0
+    ? hoursDeficit / remainingWorkDays
+    : hoursDeficit;
   const remainingHourWorkDates = remainingWorkDates;
   const futureHourWorkDates = remainingHourWorkDates.filter((dateString) => dateString > today);
   const hasTodayHourTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
@@ -2244,6 +2299,23 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     endReasonCounts,
     ladderLevels
   });
+  let nowMessage = "Stay on the planned schedule today.";
+  let whyMessage = "Keeping productive time on schedule protects the £1,000 weekly target.";
+
+  if (hoursDeficit > 0) {
+    const productiveShiftHours = Math.max(
+      recoveryHoursPerRemainingDay,
+      requiredProductiveHours / Math.max(1, remainingWorkDays)
+    );
+    nowMessage = `Complete a ${formatClockHours(productiveShiftHours)}-hour productive shift today.`;
+    whyMessage = `This closes the productive-hours gap and supports the £20-per-hour pace needed for £1,000.`;
+  } else if (deficitFromBelowPace > 0) {
+    nowMessage = "Prioritise work that restores at least £20 per productive hour.";
+    whyMessage = `${formatMoney(deficitFromBelowPace)} of the current earnings gap comes from running below the required pace.`;
+  } else if (earningsAheadBehind >= 0 && hoursAheadBehind >= 0) {
+    nowMessage = "Hold the current productive pace.";
+    whyMessage = "Both productive hours and earnings are on or ahead of the planned path to £1,000.";
+  }
 
   let status = "Set a target to track this week.";
   let statusClass = "target-status";
@@ -2302,6 +2374,24 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     earned,
     tripsWorked,
     hoursWorked,
+    tripTime: timeTotals.tripTime,
+    availableTime: timeTotals.availableTime,
+    lostTime: timeTotals.lostTime,
+    totalOnlineHours: timeTotals.totalOnlineHours,
+    utilisationPercent,
+    averageEarningsPerProductiveHour,
+    expectedProductiveHours,
+    expectedEarnings,
+    hoursAheadBehind,
+    earningsAheadBehind,
+    requiredProductiveHours,
+    requiredEarnings,
+    hoursDeficit,
+    recoveryHoursPerRemainingDay,
+    deficitFromMissingHours,
+    deficitFromBelowPace,
+    nowMessage,
+    whyMessage,
     averageHourlyRate,
     extraHoursRateLabel,
     ladderLevels,
@@ -2366,7 +2456,14 @@ function buildDayHourTotals(days) {
     const date = day.date;
     if (!date) return totals;
 
-    totals[date] = (totals[date] || 0) + Number(day.hours_worked || 0);
+    const tripTime = Number(day.trip_time || 0);
+    const availableTime = Number(day.available_time || 0);
+    const lostTime = Number(day.lost_time || 0);
+    const hasBreakdown = tripTime > 0 || availableTime > 0 || lostTime > 0;
+    const productiveHours = hasBreakdown
+      ? tripTime + availableTime
+      : Number(day.hours_worked || 0);
+    totals[date] = (totals[date] || 0) + productiveHours;
     return totals;
   }, {});
 }
@@ -2374,7 +2471,11 @@ function buildDayHourTotals(days) {
 function calculateGrossHourlyRate(days) {
   const totals = days.reduce((acc, day) => ({
     gross: acc.gross + Number(day.gross || 0),
-    hours: acc.hours + Number(day.hours_worked || 0)
+    hours: acc.hours + (
+      Number(day.trip_time || 0) + Number(day.available_time || 0) > 0
+        ? Number(day.trip_time || 0) + Number(day.available_time || 0)
+        : Number(day.hours_worked || 0)
+    )
   }), {
     gross: 0,
     hours: 0
@@ -2612,68 +2713,62 @@ function renderWeeklyTarget(days) {
   statusNode.className = summary.statusClass;
 
   progressNode.innerHTML = `
-    <div class="target-ladder-verdict">
-      <span>Weekly Verdict</span>
-      <strong>${escapeHtml(summary.weeklyVerdict)}</strong>
-      <small>Did I give the week enough serious working hours to let the target happen?</small>
-    </div>
-    ${summary.ladderLevels.map((level) => `
-      <div class="target-progress-panel target-ladder-panel target-ladder-panel--${escapeHtml(level.key)}">
-        <div class="target-progress-meta">
-          <span>${escapeHtml(level.label)}</span>
-          <strong>${formatNumber(level.progressPercent, 0)}%</strong>
-        </div>
-        <div class="target-progress-track" aria-label="${escapeHtml(level.label)} progress">
-          <div class="target-progress-fill ${level.achieved ? "target-progress-fill--complete" : level.key === "mortgageKiller" ? "target-progress-fill--green" : level.key === "main" ? "target-progress-fill--amber" : "target-progress-fill--blue"}" style="width: ${level.progressPercent}%"></div>
-        </div>
-        <div class="target-progress-sub">
-          ${level.achieved
-            ? `${formatMoney(level.value)} achieved`
-            : `${formatMoney(level.gap)} left / ${formatClockHours(level.extraHoursNeeded)} at ${summary.extraHoursRateLabel}`}
-        </div>
-      </div>
-    `).join("")}
-    <div class="target-progress-panel target-progress-panel--hours">
+    <div class="target-progress-panel target-ladder-panel target-ladder-panel--main">
       <div class="target-progress-meta">
-        <span>Serious Hours</span>
-        <strong>${formatClockHours(summary.hoursWorked)}</strong>
+        <span>Weekly Earnings</span>
+        <strong>${formatNumber(summary.progressPercent, 0)}%</strong>
+      </div>
+      <div class="target-progress-track" aria-label="Weekly Earnings progress">
+        <div class="target-progress-fill ${summary.earned >= MAIN_WEEKLY_TARGET ? "target-progress-fill--complete" : "target-progress-fill--amber"}" style="width: ${summary.progressPercent}%"></div>
       </div>
       <div class="target-progress-sub">
-        ${summary.seriousHoursLevels.map((level) => `${level.label}: ${level.achieved ? "done" : `${formatClockHours(level.gap)} left`}`).join(" / ")}
+        ${formatMoney(summary.earned)} of ${formatMoney(MAIN_WEEKLY_TARGET)} / ${summary.requiredEarnings > 0 ? `${formatMoney(summary.requiredEarnings)} remaining` : "target achieved"}
       </div>
+    </div>
+    <div class="target-progress-panel target-progress-panel--hours">
+      <div class="target-progress-meta">
+        <span>Productive Hours</span>
+        <strong>${formatNumber(summary.hoursProgressPercent, 0)}%</strong>
+      </div>
+      <div class="target-progress-track" aria-label="Productive Hours progress">
+        <div class="target-progress-fill ${summary.hoursWorked >= WEEKLY_HOURS_TARGET ? "target-progress-fill--complete" : "target-progress-fill--blue"}" style="width: ${summary.hoursProgressPercent}%"></div>
+      </div>
+      <div class="target-progress-sub">
+        ${formatClockHours(summary.hoursWorked)} of ${formatClockHours(WEEKLY_HOURS_TARGET)} hours / ${summary.requiredProductiveHours > 0 ? `${formatClockHours(summary.requiredProductiveHours)} hours remaining` : "target achieved"}
+      </div>
+    </div>
+    <div class="target-action-panel">
+      <div><strong>Now:</strong> ${escapeHtml(summary.nowMessage)}</div>
+      <div><strong>Why:</strong> ${escapeHtml(summary.whyMessage)}</div>
     </div>
   `;
 
   summaryNode.innerHTML = `
-    <div class="target-summary-card target-summary-card--primary">
-      <div class="summary-label">Weekly Earnings</div>
-      <div class="summary-value">${formatMoney(summary.earned)}</div>
-      <div class="summary-sub">${formatClockHours(summary.hoursWorked)} serious hours</div>
-    </div>
-    <div class="target-summary-card target-summary-card--primary">
-      <div class="summary-label">Avg Hourly Rate</div>
-      <div class="summary-value">${formatMoney(summary.averageHourlyRate)}</div>
-      <div class="summary-sub">${summary.hoursWorked > 0 ? "From this week" : "No hours logged yet"}</div>
-    </div>
-    <div class="target-summary-card target-summary-card--working-limit ${escapeHtml(summary.workingLimitCheck.className)}">
-      <div class="summary-label">Working Limit Check</div>
-      <div class="summary-value">${escapeHtml(summary.workingLimitCheck.label)}</div>
-      <div class="summary-sub">
-        Today ${formatMoney(summary.workingLimitCheck.todayTarget)} / ${escapeHtml(summary.workingLimitCheck.rateLabel)} ${formatMoney(summary.workingLimitCheck.displayRate)}/hr / ${formatClockHours(summary.workingLimitCheck.estimatedHours)}
-      </div>
-      <div class="summary-note">${escapeHtml(summary.workingLimitCheck.message)}</div>
-    </div>
-    ${summary.ladderLevels.map((level) => `
+    ${[
+      ["Total Online", `${formatClockHours(summary.totalOnlineHours)}h`, `Trip ${formatClockHours(summary.tripTime)}h / available ${formatClockHours(summary.availableTime)}h / lost ${formatClockHours(summary.lostTime)}h`],
+      ["Productive", `${formatClockHours(summary.hoursWorked)}h`, "Trip time + available time"],
+      ["Unproductive", `${formatClockHours(summary.lostTime)}h`, "Lost time"],
+      ["Utilisation", formatPercent(summary.utilisationPercent), "Productive ÷ total online"],
+      ["Avg / Productive Hour", formatMoney(summary.averageEarningsPerProductiveHour), `${formatMoney(BASELINE_PRODUCTIVE_HOURLY_RATE)} required pace`],
+      ["Expected Productive Hours", `${formatClockHours(summary.expectedProductiveHours)}h`, "By this point in the planned schedule"],
+      ["Hours Ahead / Behind", `${summary.hoursAheadBehind >= 0 ? "+" : "−"}${formatClockHours(Math.abs(summary.hoursAheadBehind))}h`, summary.hoursAheadBehind >= 0 ? "Ahead" : "Behind"],
+      ["Expected Earnings", formatMoney(summary.expectedEarnings), "By this point in the planned schedule"],
+      ["Earnings Ahead / Behind", `${summary.earningsAheadBehind >= 0 ? "+" : "−"}${formatMoney(Math.abs(summary.earningsAheadBehind))}`, summary.earningsAheadBehind >= 0 ? "Ahead" : "Behind"],
+      ["Productive Hours Left", `${formatClockHours(summary.requiredProductiveHours)}h`, "Remainder of week"],
+      ["Earnings Left", formatMoney(summary.requiredEarnings), "Remainder of week"],
+      ["Missing-hours Deficit", formatMoney(summary.deficitFromMissingHours), "Caused by missing productive hours"],
+      ["Below-pace Deficit", formatMoney(summary.deficitFromBelowPace), "Caused by earning below £20/hour"]
+    ].map(([label, value, note]) => `
       <div class="target-summary-card">
-        <div class="summary-label">${escapeHtml(level.shortLabel)} Gap</div>
-        <div class="summary-value">${level.achieved ? "Done" : formatMoney(level.gap)}</div>
-        <div class="summary-sub">${level.achieved ? escapeHtml(level.note) : `${formatClockHours(level.extraHoursNeeded)} extra at ${summary.extraHoursRateLabel}`}</div>
+        <div class="summary-label">${escapeHtml(label)}</div>
+        <div class="summary-value">${escapeHtml(value)}</div>
+        <div class="summary-sub">${escapeHtml(note)}</div>
       </div>
     `).join("")}
-    <div class="target-summary-card">
-      <div class="summary-label">End Reasons</div>
-      <div class="summary-value">${formatInt(summary.endReasonCounts.total)}</div>
-      <div class="summary-sub">${formatInt(summary.endReasonCounts.mood)} mood / ${formatInt(summary.endReasonCounts.legitimate)} legit / ${formatInt(summary.endReasonCounts.market)} market</div>
+    <div class="target-recovery-message ${summary.hoursDeficit > 0 ? "target-recovery-message--needed" : ""}">
+      ${summary.hoursDeficit > 0
+        ? `Recovery needed: ${formatClockHours(summary.recoveryHoursPerRemainingDay)} additional productive hour${Math.abs(summary.recoveryHoursPerRemainingDay - 1) < 0.05 ? "" : "s"} per remaining working day.`
+        : "No productive-hours recovery is currently needed."}
     </div>
   `;
 
@@ -3289,23 +3384,37 @@ function populateWorkDateOptions() {
 function clearDayForm() {
   const gross = el(ids.gross);
   const miles = el(ids.miles);
-  const hours = el(ids.hours);
-  const minutes = el(ids.minutes);
+  const tripTime = el(ids.tripTime);
+  const availableTime = el(ids.availableTime);
+  const lostTime = el(ids.lostTime);
   const endReason = el(ids.endReason);
   const date = el(ids.date);
 
   if (gross) gross.value = "";
   if (miles) miles.value = "";
-  if (hours) hours.value = "";
-  if (minutes) minutes.value = "0";
+  if (tripTime) tripTime.value = "";
+  if (availableTime) availableTime.value = "";
+  if (lostTime) lostTime.value = "";
   if (endReason) endReason.value = "";
   if (date) date.value = todayIso();
 }
 
 function readWorkedHoursInput() {
-  const hours = toNumber(el(ids.hours)?.value) ?? 0;
-  const minutes = toNumber(el(ids.minutes)?.value) ?? 0;
-  return hours + (minutes / 60);
+  return readTimeBreakdownInput().productiveHours;
+}
+
+function readTimeBreakdownInput() {
+  const tripTime = toNumber(el(ids.tripTime)?.value) ?? 0;
+  const availableTime = toNumber(el(ids.availableTime)?.value) ?? 0;
+  const lostTime = toNumber(el(ids.lostTime)?.value) ?? 0;
+
+  return {
+    tripTime,
+    availableTime,
+    lostTime,
+    productiveHours: tripTime + availableTime,
+    totalOnlineHours: tripTime + availableTime + lostTime
+  };
 }
 
 function readShiftEndReasonInput() {
@@ -3355,12 +3464,20 @@ async function buildDayPayload(source = {}) {
   const tripsDayTotal = hasTripsDayTotal ? Number(source.tripsDayTotal || 0) : null;
   const existingTrips = savedTotals.trips;
   const sessionTrips = hasTripsDayTotal ? Math.max(0, tripsDayTotal - existingTrips) : 0;
+  const enteredTime = readTimeBreakdownInput();
+  const tripTime = source.tripTime ?? enteredTime.tripTime;
+  const availableTime = source.availableTime ?? enteredTime.availableTime;
+  const lostTime = source.lostTime ?? enteredTime.lostTime;
+  const productiveHours = source.hoursWorked ?? (tripTime + availableTime);
 
   return {
     date,
     end_time: source.endTime ?? null,
     shift_end_reason: source.shiftEndReason ?? readShiftEndReasonInput(),
-    hours_worked: source.hoursWorked ?? readWorkedHoursInput(),
+    trip_time: tripTime,
+    available_time: availableTime,
+    lost_time: lostTime,
+    hours_worked: productiveHours,
     gross: sessionGross,
     uber_day_total: uberDayTotal,
     existing_day_gross: existingGross,
@@ -3392,6 +3509,9 @@ async function buildLiveShiftDayPayload(shift) {
 function validateDay(payload) {
   if (!payload.date) return "Please select a work date.";
   if (payload.hours_worked < 0) return "Hours worked must be zero or greater.";
+  if (payload.trip_time < 0 || payload.available_time < 0 || payload.lost_time < 0) {
+    return "Trip, available and lost time must be zero or greater.";
+  }
   if (payload.uber_day_total < 0) return "Uber day total must be zero or greater.";
   if (payload.uber_day_total < payload.existing_day_gross) {
     return `Uber day total is below saved sessions for this date (${formatMoney(payload.existing_day_gross)}).`;
@@ -3433,9 +3553,15 @@ async function saveSessionPayload(payload, options = {}) {
     .select()
     .single();
 
-  if (error && /shift_end_reason|end_reason|column/i.test(error.message || "")) {
-    const { shift_end_reason, ...legacyPayload } = supabasePayload;
-    console.warn("days.shift_end_reason is not available yet; saving session without end reason.");
+  if (error && /shift_end_reason|end_reason|trip_time|available_time|lost_time|column/i.test(error.message || "")) {
+    const {
+      shift_end_reason,
+      trip_time,
+      available_time,
+      lost_time,
+      ...legacyPayload
+    } = supabasePayload;
+    console.warn("New days columns are not available yet; saving the compatible session fields.");
     const retry = await supabaseClient
       .from("days")
       .insert([legacyPayload])
@@ -3706,7 +3832,14 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
     <div class="history-grid">
       ${days.map((day) => {
         const m = buildSessionMetrics(day, pricePerLitre, settings);
-        const hours = Number(day.hours_worked || 0);
+        const savedHours = Number(day.hours_worked || 0);
+        const tripTime = Number(day.trip_time || 0);
+        const savedAvailableTime = Number(day.available_time || 0);
+        const lostTime = Number(day.lost_time || 0);
+        const hasTimeBreakdown = tripTime > 0 || savedAvailableTime > 0 || lostTime > 0;
+        const availableTime = hasTimeBreakdown ? savedAvailableTime : savedHours;
+        const hours = hasTimeBreakdown ? tripTime + availableTime : savedHours;
+        const totalOnlineHours = hours + lostTime;
         const endReasonLabel = getEndReasonLabel(day.shift_end_reason || day.end_reason);
 
         return `
@@ -3740,13 +3873,23 @@ function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
               </div>
 
               <div class="history-item history-item--third">
-                <span class="history-item__label">Hours</span>
+                <span class="history-item__label">Productive</span>
                 <span class="history-item__value">${escapeHtml(formatClockHours(hours))}</span>
               </div>
 
               <div class="history-item history-item--third">
-                <span class="history-item__label">Per Hour</span>
+                <span class="history-item__label">Per Productive Hour</span>
                 <span class="history-item__value">${escapeHtml(formatMoney(hours > 0 ? m.gross / hours : 0))}</span>
+              </div>
+
+              <div class="history-item history-item--third">
+                <span class="history-item__label">Trip / Available / Lost</span>
+                <span class="history-item__value">${escapeHtml(`${formatClockHours(tripTime)} / ${formatClockHours(availableTime)} / ${formatClockHours(lostTime)}`)}</span>
+              </div>
+
+              <div class="history-item history-item--third">
+                <span class="history-item__label">Total Online</span>
+                <span class="history-item__value">${escapeHtml(formatClockHours(totalOnlineHours))}</span>
               </div>
 
               <div class="history-item history-item--half">

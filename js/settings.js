@@ -3,7 +3,7 @@ export const SETTINGS_UPDATED_EVENT = "uberEngineSettingsUpdated";
 const STORAGE_KEY = "uberEngineSettings";
 
 const DEFAULT_SETTINGS = {
-  weeklyTarget: 750,
+  weeklyTarget: 1000,
   dailyHoursTarget: 7,
   desiredHourlyRate: 20,
   weeklyTargetMode: "manual",

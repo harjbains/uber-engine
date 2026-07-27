@@ -1,6 +1,8 @@
-export const VERSION = "v2.3.97";
+export const VERSION = "v2.3.99";
 
 export const RELEASE_NOTES = {
+  "2.3.99": "Weekly progress adds productive-time tracking, planned-schedule pace, recovery guidance, and earnings-deficit attribution",
+  "2.3.98": "Weekly tracking now uses one £1,000 earnings target with a matching 50-hour progress bar",
   "2.3.97": "Week summary treats insurance as a fixed weekly cost regardless of days worked",
   "2.3.96": "Weekly Target Ladder adds a working-limit check for sustainable recovery planning",
   "2.3.95": "Weekly Target Ladder adds floor, main, Mortgage Killer, serious hours, and end reasons",

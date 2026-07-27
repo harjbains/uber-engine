@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.97">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.99">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -42,7 +42,7 @@
               <div class="card target-card">
                 <div class="target-card__header">
                   <div>
-                    <h2>Weekly Target Ladder</h2>
+                    <h2>Weekly Target</h2>
                     <p id="target_status" class="target-status">Set a target to track this week.</p>
                   </div>
                 </div>
@@ -54,9 +54,9 @@
                         <span aria-hidden="true">&lsaquo;</span>
                       </button>
                       <div class="target-ladder-hero">
-                        <span>Weekly Target Ladder</span>
-                        <strong>&pound;900 main target</strong>
-                        <small>&pound;750 floor · &pound;1,000 Mortgage Killer</small>
+                        <span>Weekly Target</span>
+                        <strong>&pound;1,000 main target</strong>
+                        <small>Approx. 50 working hours</small>
                       </div>
                       <button id="target_next_week" class="icon-nav-button" type="button" aria-label="Next week">
                         <span aria-hidden="true">&rsaquo;</span>
@@ -103,7 +103,7 @@
 
                 <div id="target_progress_summary" class="target-progress-grid"></div>
                 <div class="target-remaining-section">
-                  <h3>Remaining</h3>
+                  <h3>Weekly Performance</h3>
                 </div>
                 <div id="target_summary" class="target-summary-grid"></div>
               </div>
@@ -160,22 +160,20 @@
             </div>
           </div>
 
-          <div class="form-row-2 session-time-row">
+          <div class="form-row-3 session-time-row">
             <div class="field">
-              <label for="day_hours">Hours</label>
-              <input id="day_hours" type="number" min="0" step="1" inputmode="numeric" placeholder="3">
+              <label for="day_trip_time">Trip Time (hrs)</label>
+              <input id="day_trip_time" type="number" min="0" step="0.1" inputmode="decimal" placeholder="3.0">
             </div>
 
             <div class="field">
-              <label for="day_minutes">Mins</label>
-              <select id="day_minutes">
-                <option value="0">00</option>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="30">30</option>
-                <option value="40">40</option>
-                <option value="50">50</option>
-              </select>
+              <label for="day_available_time">Available Time (hrs)</label>
+              <input id="day_available_time" type="number" min="0" step="0.1" inputmode="decimal" placeholder="2.0">
+            </div>
+
+            <div class="field">
+              <label for="day_lost_time">Lost Time (hrs)</label>
+              <input id="day_lost_time" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0">
             </div>
           </div>
 
@@ -599,7 +597,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.97"></script>
+  <script type="module" src="js/app.js?v=2.3.99"></script>
 </body>
 
 </html>
