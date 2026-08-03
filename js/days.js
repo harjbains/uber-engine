@@ -20,7 +20,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.100";
+} from "./settings.js?v=2.3.101";
 
 const ids = {
   date: "day_date",
@@ -41,6 +41,8 @@ const ids = {
   targetProgressSummary: "target_progress_summary",
   targetSummary: "target_summary",
   targetStatus: "target_status",
+  targetHeroValue: "target_hero_value",
+  targetHeroHours: "target_hero_hours",
   targetPrevWeek: "target_prev_week",
   targetNextWeek: "target_next_week",
   prevWeek: "prev_week",
@@ -65,19 +67,11 @@ const MIN_FORECAST_ELAPSED_HOURS = 0.5;
 const MIN_FORECAST_CHECKPOINT_GAP_HOURS = 10 / 60;
 const MAX_REASONABLE_GROSS_PER_MILE = 10;
 const EARLY_SHIFT_PROTECTION_HOURS = 1.5;
-const TARGET_LEVELS = [
-  { value: 1000, key: "main", label: "Earnings Target", shortLabel: "Main", note: "weekly target" }
-];
-const MAIN_WEEKLY_TARGET = TARGET_LEVELS[0].value;
-const WEEKLY_HOURS_TARGET = 50;
-const BASELINE_PRODUCTIVE_HOURLY_RATE = MAIN_WEEKLY_TARGET / WEEKLY_HOURS_TARGET;
+const BASELINE_PRODUCTIVE_HOURLY_RATE = 20;
 const MAX_PLANNED_DAILY_HOURS = 10;
 const NORMAL_PLANNED_DAILY_HOURS = 6;
 const PLANNING_BASE_HOURLY_RATE = 20;
 const MAX_PLANNED_DAILY_TARGET = MAX_PLANNED_DAILY_HOURS * PLANNING_BASE_HOURLY_RATE;
-const SERIOUS_HOURS_LEVELS = [
-  { value: WEEKLY_HOURS_TARGET, key: "main", label: "Hours Target" }
-];
 const SHIFT_END_REASONS = [
   { value: "", label: "Select reason" },
   { value: "target_hit", label: "Target hit" },
@@ -1120,7 +1114,7 @@ function buildCoachApiPayload(driverNote, shift, coach, summary) {
     },
     weekly: {
       weeklyEarned: summary.earned,
-      mainTarget: MAIN_WEEKLY_TARGET,
+      mainTarget: summary.target,
       selectedTarget: summary.target,
       targetRemaining: summary.remaining,
       daysRemaining: summary.remainingWorkDays,
@@ -1680,7 +1674,7 @@ function normaliseWorkDays(workDays, fallback = DEFAULT_TARGET_WORKDAYS) {
 
 function targetSettingsFromDbRow(row) {
   return {
-    target: MAIN_WEEKLY_TARGET,
+    target: Number(row.target || getWeeklyTargetDefault()),
     dailyHoursTarget: row.daily_hours_target ?? getDailyHoursTargetDefault(),
     targetSnapshot: row.target_snapshot ?? null,
     targetSnapshotMode: row.target_snapshot_mode || "",
@@ -1711,7 +1705,7 @@ function isMissingWeeklyTargetsTable(error) {
 
 function readTargetSettings(startIso) {
   const fallback = {
-    target: MAIN_WEEKLY_TARGET,
+    target: getWeeklyTargetDefault(),
     dailyHoursTarget: getDailyHoursTargetDefault(),
     targetSnapshot: null,
     targetSnapshotMode: "",
@@ -1853,14 +1847,13 @@ function getCurrentTargetSettings(customFlags = {}) {
     currentWeekRange = getSelectedWeekRange();
   }
 
-  const targetInput = el(ids.weeklyTarget);
   const dailyHoursTargetInput = el(ids.dailyHoursTarget);
   const checkedDays = Array.from(
     document.querySelectorAll("[data-target-workday]:checked")
   ).map((node) => Number(node.dataset.targetWorkday));
 
   return {
-    target: MAIN_WEEKLY_TARGET,
+    target: getWeeklyTargetDefault(),
     dailyHoursTarget: parseClockHoursInput(
       dailyHoursTargetInput?.dataset.manualTarget || dailyHoursTargetInput?.value,
       getDailyHoursTargetDefault()
@@ -1916,20 +1909,20 @@ function countShiftEndReasons(days) {
   });
 }
 
-function buildWeeklyLadderVerdict({ earned, hoursWorked, averageHourlyRate, endReasonCounts }) {
-  const targetHit = earned >= MAIN_WEEKLY_TARGET;
-  const hoursHit = hoursWorked >= WEEKLY_HOURS_TARGET;
+function buildWeeklyLadderVerdict({ earned, hoursWorked, averageHourlyRate, endReasonCounts, target, hoursTarget }) {
+  const targetHit = earned >= target;
+  const hoursHit = hoursWorked >= hoursTarget;
 
   if (targetHit && hoursHit) return "Weekly earnings and hours targets complete. Strong execution.";
   if (targetHit) return "Earnings target achieved. Check the hours target before calling the weekly plan complete.";
-  if (hoursHit) return "The 50 hours were there. The market underperformed against the earnings target.";
+  if (hoursHit) return `The ${formatClockHours(hoursTarget)} hours were there. The market underperformed against the earnings target.`;
   if (endReasonCounts.mood > endReasonCounts.legitimate && endReasonCounts.mood > endReasonCounts.market) {
     return "The week was affected by early finishes. Protect the habit before judging the market.";
   }
   if (endReasonCounts.market > 0 && averageHourlyRate > 0) {
     return "Serious hours were there, but the market looks like it held the week back.";
   }
-  return "Keep building toward £1,000 and 50 hours.";
+  return `Keep building toward ${formatMoney(target)} and ${formatClockHours(hoursTarget)} hours.`;
 }
 
 function buildWorkingLimitCheck({ dateString, estimatedHours, todayTarget, averageHourlyRate, planningHourlyRate }) {
@@ -2108,20 +2101,22 @@ function renderLiveShiftCard(summary) {
 
 function buildWeeklyTargetSummary(days, settings, weekDates) {
   const appSettings = getSettings();
-  const targetMode = "fixed";
+  const targetMode = "settings";
   const dynamicUplift = getDynamicUpliftPercent(appSettings);
-  const manualTarget = MAIN_WEEKLY_TARGET;
+  const manualTarget = Math.max(0, getWeeklyTargetDefault(appSettings));
   const dynamicTarget = calculateDynamicWeeklyTarget(
     currentHistoricalDays,
     currentWeekRange.startIso,
     dynamicUplift,
     manualTarget
   );
-  const liveTarget = MAIN_WEEKLY_TARGET;
-  const hasSnapshot = false;
+  const liveTarget = manualTarget;
+  const hasSnapshot = shouldUseStoredTargetSnapshot(settings);
   const completedWeek = isCompletedTargetWeek();
-  const target = MAIN_WEEKLY_TARGET;
-  const displayMode = "fixed";
+  const target = hasSnapshot ? Number(settings.targetSnapshot || manualTarget) : manualTarget;
+  const displayMode = "settings";
+  const baselineProductiveHourlyRate = BASELINE_PRODUCTIVE_HOURLY_RATE;
+  const weeklyHoursTarget = target > 0 ? target / baselineProductiveHourlyRate : 0;
   const earned = days.reduce((sum, day) => sum + Number(day.gross || 0), 0);
   const tripsWorked = days.reduce((sum, day) => sum + Number(day.trips || 0), 0);
   const timeTotals = days.reduce((totals, day) => {
@@ -2147,15 +2142,15 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   });
   const hoursWorked = timeTotals.productiveHours;
   const averageHourlyRate = hoursWorked > 0 ? earned / hoursWorked : 0;
-  const effectiveHourlyRate = BASELINE_PRODUCTIVE_HOURLY_RATE;
-  const extraHoursRateLabel = "£20 productive pace";
+  const effectiveHourlyRate = baselineProductiveHourlyRate;
+  const extraHoursRateLabel = `${formatMoney(baselineProductiveHourlyRate)} productive pace`;
   const remaining = Math.max(0, target - earned);
   const plannedWorkDays = settings.workDays.length;
   const observedHourlyRate = calculateGrossHourlyRate(days);
   const hourlyPlan = {
-    desiredRate: BASELINE_PRODUCTIVE_HOURLY_RATE,
+    desiredRate: baselineProductiveHourlyRate,
     observedRate: observedHourlyRate,
-    planningRate: BASELINE_PRODUCTIVE_HOURLY_RATE,
+    planningRate: baselineProductiveHourlyRate,
     source: "weekly-target-baseline"
   };
   const initialHoursEstimate = target > 0 ? target / hourlyPlan.planningRate : 0;
@@ -2163,7 +2158,9 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const forecastTotalHours = hoursWorked + remainingHours;
   const today = todayIso();
   const progressPercent = target > 0 ? Math.min(100, (earned / target) * 100) : 0;
-  const hoursProgressPercent = Math.min(100, (hoursWorked / WEEKLY_HOURS_TARGET) * 100);
+  const hoursProgressPercent = weeklyHoursTarget > 0
+    ? Math.min(100, (hoursWorked / weeklyHoursTarget) * 100)
+    : 0;
   const utilisationPercent = timeTotals.totalOnlineHours > 0
     ? (hoursWorked / timeTotals.totalOnlineHours) * 100
     : 0;
@@ -2187,17 +2184,17 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     expectedScheduleRatio = Math.min(1, elapsedPlannedDays / plannedDayCount);
   }
 
-  const expectedProductiveHours = WEEKLY_HOURS_TARGET * expectedScheduleRatio;
-  const expectedEarnings = MAIN_WEEKLY_TARGET * expectedScheduleRatio;
+  const expectedProductiveHours = weeklyHoursTarget * expectedScheduleRatio;
+  const expectedEarnings = target * expectedScheduleRatio;
   const hoursAheadBehind = hoursWorked - expectedProductiveHours;
   const earningsAheadBehind = earned - expectedEarnings;
-  const requiredProductiveHours = Math.max(0, WEEKLY_HOURS_TARGET - hoursWorked);
-  const requiredEarnings = Math.max(0, MAIN_WEEKLY_TARGET - earned);
+  const requiredProductiveHours = Math.max(0, weeklyHoursTarget - hoursWorked);
+  const requiredEarnings = Math.max(0, target - earned);
   const hoursDeficit = Math.max(0, expectedProductiveHours - hoursWorked);
   const earningsDeficit = Math.max(0, expectedEarnings - earned);
   const deficitFromMissingHours = Math.min(
     earningsDeficit,
-    hoursDeficit * BASELINE_PRODUCTIVE_HOURLY_RATE
+    hoursDeficit * baselineProductiveHourlyRate
   );
   const deficitFromBelowPace = Math.max(0, earningsDeficit - deficitFromMissingHours);
 
@@ -2271,7 +2268,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     ? remaining / averageTripValue
     : 0;
   const completionFocus = target > 0 && progressPercent >= 50;
-  const ladderLevels = TARGET_LEVELS.map((level) => {
+  const ladderLevels = [{ value: target, key: "main", label: "Earnings Target", shortLabel: "Main", note: "weekly target" }].map((level) => {
     const gap = Math.max(0, level.value - earned);
     return {
       ...level,
@@ -2281,7 +2278,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
       achieved: gap <= 0
     };
   });
-  const seriousHoursLevels = SERIOUS_HOURS_LEVELS.map((level) => {
+  const seriousHoursLevels = [{ value: weeklyHoursTarget, key: "main", label: "Hours Target" }].map((level) => {
     const gap = Math.max(0, level.value - hoursWorked);
     return {
       ...level,
@@ -2297,10 +2294,12 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     averageHourlyRate,
     extraHoursRateLabel,
     endReasonCounts,
-    ladderLevels
+    ladderLevels,
+    target,
+    hoursTarget: weeklyHoursTarget
   });
   let nowMessage = "Stay on the planned schedule today.";
-  let whyMessage = "Keeping productive time on schedule protects the £1,000 weekly target.";
+  let whyMessage = `Keeping productive time on schedule protects the ${formatMoney(target)} weekly target.`;
 
   if (hoursDeficit > 0) {
     const productiveShiftHours = Math.max(
@@ -2308,13 +2307,13 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
       requiredProductiveHours / Math.max(1, remainingWorkDays)
     );
     nowMessage = `Complete a ${formatClockHours(productiveShiftHours)}-hour productive shift today.`;
-    whyMessage = `This closes the productive-hours gap and supports the £20-per-hour pace needed for £1,000.`;
+    whyMessage = `This closes the productive-hours gap and supports the ${formatMoney(baselineProductiveHourlyRate)}-per-hour pace needed for ${formatMoney(target)}.`;
   } else if (deficitFromBelowPace > 0) {
-    nowMessage = "Prioritise work that restores at least £20 per productive hour.";
+    nowMessage = `Prioritise work that restores at least ${formatMoney(baselineProductiveHourlyRate)} per productive hour.`;
     whyMessage = `${formatMoney(deficitFromBelowPace)} of the current earnings gap comes from running below the required pace.`;
   } else if (earningsAheadBehind >= 0 && hoursAheadBehind >= 0) {
     nowMessage = "Hold the current productive pace.";
-    whyMessage = "Both productive hours and earnings are on or ahead of the planned path to £1,000.";
+    whyMessage = `Both productive hours and earnings are on or ahead of the planned path to ${formatMoney(target)}.`;
   }
 
   let status = "Set a target to track this week.";
@@ -2380,6 +2379,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     totalOnlineHours: timeTotals.totalOnlineHours,
     utilisationPercent,
     averageEarningsPerProductiveHour,
+    baselineProductiveHourlyRate,
     expectedProductiveHours,
     expectedEarnings,
     hoursAheadBehind,
@@ -2405,7 +2405,8 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     estimatedTripsText: formatTripWindow(estimatedTripsRemaining),
     remainingTimeText: formatTimeWindow(remainingHours),
     initialHoursEstimate,
-    weeklyHoursTarget: forecastTotalHours,
+    weeklyHoursTarget,
+    forecastTotalHours,
     remainingHours,
     planningHourlyRate: hourlyPlan.planningRate,
     desiredHourlyRate: hourlyPlan.desiredRate,
@@ -2683,6 +2684,8 @@ function renderWeeklyTarget(days) {
   const progressNode = el(ids.targetProgressSummary);
   const statusNode = el(ids.targetStatus);
   const targetInput = el(ids.weeklyTarget);
+  const targetHeroValue = el(ids.targetHeroValue);
+  const targetHeroHours = el(ids.targetHeroHours);
   if (!summaryNode || !progressNode || !statusNode) return;
 
   const weekDates = getWeekDates(currentWeekRange.startIso);
@@ -2692,7 +2695,14 @@ function renderWeeklyTarget(days) {
   if (targetInput) {
     targetInput.type = "hidden";
     targetInput.disabled = true;
-    targetInput.value = MAIN_WEEKLY_TARGET;
+    targetInput.value = summary.target;
+  }
+
+  if (targetHeroValue) {
+    targetHeroValue.textContent = `${formatMoney(summary.target)} main target`;
+  }
+  if (targetHeroHours) {
+    targetHeroHours.textContent = `${formatClockHours(summary.weeklyHoursTarget)} productive hours at £20/hr`;
   }
 
   if (isCompletedTargetWeek() && !shouldUseStoredTargetSnapshot(settings) && summary.target > 0) {
@@ -2719,10 +2729,10 @@ function renderWeeklyTarget(days) {
         <strong>${formatNumber(summary.progressPercent, 0)}%</strong>
       </div>
       <div class="target-progress-track" aria-label="Weekly Earnings progress">
-        <div class="target-progress-fill ${summary.earned >= MAIN_WEEKLY_TARGET ? "target-progress-fill--complete" : "target-progress-fill--amber"}" style="width: ${summary.progressPercent}%"></div>
+        <div class="target-progress-fill ${summary.earned >= summary.target ? "target-progress-fill--complete" : "target-progress-fill--amber"}" style="width: ${summary.progressPercent}%"></div>
       </div>
       <div class="target-progress-sub">
-        ${formatMoney(summary.earned)} of ${formatMoney(MAIN_WEEKLY_TARGET)} / ${summary.requiredEarnings > 0 ? `${formatMoney(summary.requiredEarnings)} remaining` : "target achieved"}
+        ${formatMoney(summary.earned)} of ${formatMoney(summary.target)} / ${summary.requiredEarnings > 0 ? `${formatMoney(summary.requiredEarnings)} remaining` : "target achieved"}
       </div>
     </div>
     <div class="target-progress-panel target-progress-panel--hours">
@@ -2731,10 +2741,10 @@ function renderWeeklyTarget(days) {
         <strong>${formatNumber(summary.hoursProgressPercent, 0)}%</strong>
       </div>
       <div class="target-progress-track" aria-label="Productive Hours progress">
-        <div class="target-progress-fill ${summary.hoursWorked >= WEEKLY_HOURS_TARGET ? "target-progress-fill--complete" : "target-progress-fill--blue"}" style="width: ${summary.hoursProgressPercent}%"></div>
+        <div class="target-progress-fill ${summary.hoursWorked >= summary.weeklyHoursTarget ? "target-progress-fill--complete" : "target-progress-fill--blue"}" style="width: ${summary.hoursProgressPercent}%"></div>
       </div>
       <div class="target-progress-sub">
-        ${formatClockHours(summary.hoursWorked)} of ${formatClockHours(WEEKLY_HOURS_TARGET)} hours / ${summary.requiredProductiveHours > 0 ? `${formatClockHours(summary.requiredProductiveHours)} hours remaining` : "target achieved"}
+        ${formatClockHours(summary.hoursWorked)} of ${formatClockHours(summary.weeklyHoursTarget)} hours / ${summary.requiredProductiveHours > 0 ? `${formatClockHours(summary.requiredProductiveHours)} hours remaining` : "target achieved"}
       </div>
     </div>
     <div class="target-action-panel">
@@ -2768,10 +2778,10 @@ function renderWeeklyTarget(days) {
       <div class="summary-value">${formatPercent(summary.utilisationPercent)}</div>
       <div class="summary-sub">${formatClockHours(summary.lostTime)}h unproductive</div>
     </div>
-    <div class="target-summary-card target-headline-card target-headline-card--${summary.averageEarningsPerProductiveHour >= BASELINE_PRODUCTIVE_HOURLY_RATE ? "good" : summary.hoursWorked > 0 ? "danger" : "neutral"}">
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.averageEarningsPerProductiveHour >= summary.baselineProductiveHourlyRate ? "good" : summary.hoursWorked > 0 ? "danger" : "neutral"}">
       <div class="summary-label">Earnings Pace</div>
       <div class="summary-value">${formatMoney(summary.averageEarningsPerProductiveHour)}/hr</div>
-      <div class="summary-sub">${formatMoney(BASELINE_PRODUCTIVE_HOURLY_RATE)}/hr required</div>
+      <div class="summary-sub">${formatMoney(summary.baselineProductiveHourlyRate)}/hr required</div>
     </div>
     <div class="target-summary-card target-headline-card target-headline-card--plan">
       <div class="summary-label">Expected Now</div>
@@ -2782,7 +2792,7 @@ function renderWeeklyTarget(days) {
       <div class="target-deficit-summary">
         <strong>Why you are behind</strong>
         <span>${formatMoney(summary.deficitFromMissingHours)} from missing hours</span>
-        <span>${formatMoney(summary.deficitFromBelowPace)} from earning below £20/hr</span>
+        <span>${formatMoney(summary.deficitFromBelowPace)} from earning below ${formatMoney(summary.baselineProductiveHourlyRate)}/hr</span>
       </div>
     ` : ""}
     <div class="target-recovery-message ${summary.hoursDeficit > 0 ? "target-recovery-message--needed" : ""}">
@@ -3255,14 +3265,15 @@ function initialiseWeeklyTarget(range) {
   const settings = readTargetSettings(range.startIso);
 
   if (targetInput) {
-    targetInput.value = MAIN_WEEKLY_TARGET;
-    targetInput.dataset.manualTarget = MAIN_WEEKLY_TARGET;
+    const configuredTarget = getWeeklyTargetDefault();
+    targetInput.value = configuredTarget;
+    targetInput.dataset.manualTarget = configuredTarget;
   }
   renderTargetWorkdays(settings, weekDates);
 
   if (targetInput) {
     targetInput.oninput = () => {
-      targetInput.dataset.manualTarget = MAIN_WEEKLY_TARGET;
+      targetInput.dataset.manualTarget = getWeeklyTargetDefault();
       persistCurrentTargetSettings({ targetIsCustom: false });
       renderWeeklyTarget(currentWeekDays);
     };
