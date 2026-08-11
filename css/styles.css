@@ -979,14 +979,6 @@ input[type="date"] {
   gap: 8px;
 }
 
-.target-take-home-heading {
-  margin-top: 12px;
-}
-
-#target_profit_summary {
-  margin-bottom: 12px;
-}
-
 .target-progress-panel {
   grid-column: 1 / -1;
   display: grid;
@@ -1058,6 +1050,16 @@ input[type="date"] {
   color: #4b5563;
   font-size: 12px;
   font-weight: 700;
+}
+
+.target-summary-section-heading {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .04em;
+  text-transform: uppercase;
 }
 
 .target-action-panel,

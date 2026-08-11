@@ -21,7 +21,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.103";
+} from "./settings.js?v=2.3.104";
 
 const ids = {
   date: "day_date",
@@ -35,7 +35,6 @@ const ids = {
   list: "dayList",
   weekTitle: "week_title",
   weekSummary: "week_summary",
-  targetProfitSummary: "target_profit_summary",
   weeklyTarget: "weekly_target",
   dailyHoursTarget: "daily_hours_target",
   targetWorkdays: "target_workdays",
@@ -2412,7 +2411,6 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     netEarnedSoFar,
     projectedGrossWeek,
     projectedNetWeek,
-    netHourlyRate: hoursWorked > 0 ? netEarnedSoFar / hoursWorked : 0,
     netPayTaxRetentionRate: netPaySettings.taxRetentionRate,
     monthlyOperatingCosts: netPaySettings.monthlyOperatingCosts,
     weeklyOperatingCosts: netPaySettings.weeklyOperatingCosts,
@@ -2813,7 +2811,7 @@ function renderWeeklyTarget(days) {
     <div class="target-summary-card target-headline-card target-headline-card--${summary.netEarnedSoFar >= 0 ? "net" : "danger"}">
       <div class="summary-label">Net Earned So Far</div>
       <div class="summary-value">${formatMoney(summary.netEarnedSoFar)}</div>
-      <div class="summary-sub">After ${formatPercent(summary.netPayTaxRetentionRate * 100)} tax provision and ${formatMoney(summary.accruedWeeklyOperatingCosts)} accrued costs</div>
+      <div class="summary-sub">After ${formatPercent(summary.netPayTaxRetentionRate * 100)} tax provision and ${formatMoney(summary.accruedWeeklyOperatingCosts)} accrued operating costs</div>
     </div>
     <div class="target-summary-card target-headline-card target-headline-card--info">
       <div class="summary-label">Projected Gross Week</div>
@@ -2823,8 +2821,9 @@ function renderWeeklyTarget(days) {
     <div class="target-summary-card target-headline-card target-headline-card--${summary.projectedNetWeek >= 0 ? "net" : "danger"}">
       <div class="summary-label">Projected Net Week</div>
       <div class="summary-value">${formatMoney(summary.projectedNetWeek)}</div>
-      <div class="summary-sub">After tax provision and ${formatMoney(summary.weeklyOperatingCosts)} weekly costs</div>
+      <div class="summary-sub">After tax provision and ${formatMoney(summary.weeklyOperatingCosts)} weekly operating costs</div>
     </div>
+    <div class="target-summary-section-heading">Operational Performance</div>
     <div class="target-summary-card target-headline-card target-headline-card--${summary.hoursAheadBehind >= 0 ? "good" : "warning"}">
       <div class="summary-label">Productive Hours</div>
       <div class="summary-value">${formatClockHours(summary.hoursWorked)}h</div>
@@ -2841,11 +2840,6 @@ function renderWeeklyTarget(days) {
       <div class="summary-label">Utilisation</div>
       <div class="summary-value">${formatPercent(summary.utilisationPercent)}</div>
       <div class="summary-sub">${formatClockHours(summary.lostTime)}h unproductive</div>
-    </div>
-    <div class="target-summary-card target-headline-card target-headline-card--${summary.netHourlyRate >= 0 ? "net" : "danger"}">
-      <div class="summary-label">Net Hourly</div>
-      <div class="summary-value">${formatMoney(summary.netHourlyRate)}/hr</div>
-      <div class="summary-sub">Net earned ÷ productive hours</div>
     </div>
     ${(summary.deficitFromMissingHours > 0 || summary.deficitFromBelowPace > 0) ? `
       <div class="target-deficit-summary">
@@ -3780,8 +3774,8 @@ function getEfficiencyLabel(totals, pricePerLitre, settings, chargingTotals) {
 }
 
 function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargingTotals = null, expenses = []) {
-  const containers = [el(ids.weekSummary), el(ids.targetProfitSummary)].filter(Boolean);
-  if (!containers.length) return;
+  const container = el(ids.weekSummary);
+  if (!container) return;
   const energyLabel = vehicleEnergyLabel(settings);
   const isEv = getFuelType(settings) === "ev";
 
@@ -3824,64 +3818,22 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
     { label: "Expenses", value: totals.expenses, className: "profit-bar__segment--expenses" },
     { label: "Tax", value: totals.tax, className: "profit-bar__segment--tax" }
   ];
-  const retained = Math.max(0, totals.trueRetained);
   const deductionTotal = deductions.reduce((sum, item) => sum + Math.max(0, item.value), 0);
-  const barTotal = Math.max(totals.gross, deductionTotal + retained, 1);
   const grossHourly = totals.hours > 0 ? totals.gross / totals.hours : 0;
-  const netHourly = totals.hours > 0 ? totals.trueRetained / totals.hours : 0;
   const costPerMile = totals.miles > 0 ? deductionTotal / totals.miles : 0;
   const grossPerMile = totals.miles > 0 ? totals.gross / totals.miles : 0;
-  const retainedPercent = totals.gross > 0 ? (totals.trueRetained / totals.gross) * 100 : 0;
   const efficiencyLabel = getEfficiencyLabel(totals, pricePerLitre, settings, chargingTotals);
-  const netHourlyClass = netHourly >= 0 ? "" : " profit-metric--warning";
 
-  const markup = `
+  container.className = "profit-summary";
+  container.innerHTML = `
     <div class="profit-summary__header">
       <div>
-        <div class="profit-summary__label">Net Profit</div>
-        <div class="profit-summary__value">${formatMoney(totals.trueRetained)}</div>
-      </div>
-      <div class="profit-summary__meta">
-        <span>${formatPercent(retainedPercent, 0)} retained</span>
-        <strong>${formatMoney(totals.gross)} gross</strong>
-      </div>
-    </div>
-
-    <div class="profit-bar" aria-label="Weekly gross breakdown">
-      ${deductions.map((item) => `
-        <div
-          class="profit-bar__segment ${item.className}"
-          style="width: ${getProfitSegmentPercent(item.value, barTotal)}%"
-          title="${escapeHtml(item.label)}: ${escapeHtml(formatMoney(item.value))}"
-        ></div>
-      `).join("")}
-      <div
-        class="profit-bar__segment profit-bar__segment--retained"
-        style="width: ${getProfitSegmentPercent(retained, barTotal)}%"
-        title="True retained: ${escapeHtml(formatMoney(totals.trueRetained))}"
-      ></div>
-    </div>
-
-    <div class="profit-legend">
-      ${deductions.map((item) => `
-        <div class="profit-legend__item">
-          <span class="profit-legend__swatch ${item.className}"></span>
-          <span>${escapeHtml(item.label)}</span>
-          <strong>${formatMoney(item.value)}</strong>
-        </div>
-      `).join("")}
-      <div class="profit-legend__item">
-        <span class="profit-legend__swatch profit-bar__segment--retained"></span>
-        <span>Net</span>
-        <strong>${formatMoney(totals.trueRetained)}</strong>
+        <div class="profit-summary__label">Weekly Analytics</div>
+        <div class="profit-summary__value">${formatMoney(totals.gross)} gross</div>
       </div>
     </div>
 
     <div class="profit-metrics">
-      <div class="profit-metric${netHourlyClass}">
-        <span>Net/hr</span>
-        <strong>${formatMoney(netHourly)}</strong>
-      </div>
       <div class="profit-metric">
         <span>Gross/hr</span>
         <strong>${formatMoney(grossHourly)}</strong>
@@ -3908,11 +3860,6 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
       </div>
     </div>
   `;
-
-  containers.forEach((container) => {
-    container.className = "profit-summary";
-    container.innerHTML = markup;
-  });
 }
 
 function renderDayHistory(days, pricePerLitre, settings = getSettings()) {
