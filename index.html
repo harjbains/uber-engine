@@ -7,7 +7,7 @@
   <link rel="icon" href="favicon.ico">
   <title>Uber Engine</title>
 
-  <link rel="stylesheet" href="css/styles.css?v=2.3.101">
+  <link rel="stylesheet" href="css/styles.css?v=2.3.103">
 
   <meta http-equiv="Cache-Control" content="no-store">
   <meta http-equiv="Pragma" content="no-cache">
@@ -102,6 +102,10 @@
                 <div id="target_week_strip" class="target-week-strip" aria-label="Week so far"></div>
 
                 <div id="target_progress_summary" class="target-progress-grid"></div>
+                <div class="target-remaining-section target-take-home-heading">
+                  <h3>Weekly Take-Home</h3>
+                </div>
+                <div id="target_profit_summary" class="profit-summary"></div>
                 <div class="target-remaining-section">
                   <h3>Weekly Performance</h3>
                 </div>
@@ -571,6 +575,35 @@
         </div>
 
         <div class="settings-section">
+          <h3>Net Pay / Operating Costs</h3>
+          <p class="settings-section__note">Driver cashflow estimate only. These provisions do not alter mileage, MTD or Tax Engine calculations.</p>
+          <div class="form-row-2">
+            <div class="field">
+              <label for="settings_net_pay_tax_retention">Tax Retention (%)</label>
+              <input id="settings_net_pay_tax_retention" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="settings_net_pay_insurance_monthly">Insurance / Month (&pound;)</label>
+              <input id="settings_net_pay_insurance_monthly" type="number" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+          <div class="form-row-2">
+            <div class="field">
+              <label for="settings_net_pay_electricity_monthly">Electricity / Month (&pound;)</label>
+              <input id="settings_net_pay_electricity_monthly" type="number" min="0" step="0.01" inputmode="decimal">
+            </div>
+            <div class="field">
+              <label for="settings_net_pay_road_tax_monthly">Road Tax / Month (&pound;)</label>
+              <input id="settings_net_pay_road_tax_monthly" type="number" min="0" step="0.01" inputmode="decimal">
+            </div>
+          </div>
+          <div class="field">
+            <label for="settings_net_pay_tyres_monthly">Tyre Provision / Month (&pound;)</label>
+            <input id="settings_net_pay_tyres_monthly" type="number" min="0" step="0.01" inputmode="decimal">
+          </div>
+        </div>
+
+        <div class="settings-section">
           <h3>EV Charging</h3>
           <div class="form-row-2">
             <div class="field">
@@ -597,7 +630,7 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=2.3.101"></script>
+  <script type="module" src="js/app.js?v=2.3.103"></script>
 </body>
 
 </html>

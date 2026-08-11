@@ -13,6 +13,7 @@ import {
   getFallbackFuelPrice,
   getFuelType,
   getMpg,
+  getNetPaySettings,
   getSettings,
   getTaxRate,
   getWeeklyInsuranceEstimate,
@@ -20,7 +21,7 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.101";
+} from "./settings.js?v=2.3.103";
 
 const ids = {
   date: "day_date",
@@ -34,6 +35,7 @@ const ids = {
   list: "dayList",
   weekTitle: "week_title",
   weekSummary: "week_summary",
+  targetProfitSummary: "target_profit_summary",
   weeklyTarget: "weekly_target",
   dailyHoursTarget: "daily_hours_target",
   targetWorkdays: "target_workdays",
@@ -2099,6 +2101,24 @@ function renderLiveShiftCard(summary) {
   scrollCoachHistoryToLatest();
 }
 
+function getElapsedWeekFraction(startIso) {
+  if (!startIso) return 0;
+
+  const start = parseLocalDate(startIso).getTime();
+  const end = parseLocalDate(addDaysIso(startIso, 7)).getTime();
+  const duration = end - start;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || duration <= 0) return 0;
+
+  return Math.min(1, Math.max(0, (Date.now() - start) / duration));
+}
+
+function updateProjectedNet(summary, projectedGrossWeek) {
+  const safeProjectedGross = Math.max(0, Number(projectedGrossWeek || 0));
+  summary.projectedGrossWeek = safeProjectedGross;
+  summary.projectedNetWeek = (safeProjectedGross * (1 - summary.netPayTaxRetentionRate))
+    - summary.weeklyOperatingCosts;
+}
+
 function buildWeeklyTargetSummary(days, settings, weekDates) {
   const appSettings = getSettings();
   const targetMode = "settings";
@@ -2186,6 +2206,16 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
 
   const expectedProductiveHours = weeklyHoursTarget * expectedScheduleRatio;
   const expectedEarnings = target * expectedScheduleRatio;
+  const netPaySettings = getNetPaySettings(appSettings);
+  const elapsedWeekFraction = getElapsedWeekFraction(weekDates[0]);
+  const accruedWeeklyOperatingCosts = netPaySettings.weeklyOperatingCosts * elapsedWeekFraction;
+  const netEarnedSoFar = (earned * (1 - netPaySettings.taxRetentionRate))
+    - accruedWeeklyOperatingCosts;
+  const projectedGrossWeek = expectedScheduleRatio > 0
+    ? Math.max(earned, earned / expectedScheduleRatio)
+    : earned;
+  const projectedNetWeek = (projectedGrossWeek * (1 - netPaySettings.taxRetentionRate))
+    - netPaySettings.weeklyOperatingCosts;
   const hoursAheadBehind = hoursWorked - expectedProductiveHours;
   const earningsAheadBehind = earned - expectedEarnings;
   const requiredProductiveHours = Math.max(0, weeklyHoursTarget - hoursWorked);
@@ -2379,6 +2409,15 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     totalOnlineHours: timeTotals.totalOnlineHours,
     utilisationPercent,
     averageEarningsPerProductiveHour,
+    netEarnedSoFar,
+    projectedGrossWeek,
+    projectedNetWeek,
+    netHourlyRate: hoursWorked > 0 ? netEarnedSoFar / hoursWorked : 0,
+    netPayTaxRetentionRate: netPaySettings.taxRetentionRate,
+    monthlyOperatingCosts: netPaySettings.monthlyOperatingCosts,
+    weeklyOperatingCosts: netPaySettings.weeklyOperatingCosts,
+    accruedWeeklyOperatingCosts,
+    elapsedWeekFraction,
     baselineProductiveHourlyRate,
     expectedProductiveHours,
     expectedEarnings,
@@ -2691,6 +2730,16 @@ function renderWeeklyTarget(days) {
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
   const summary = buildWeeklyTargetSummary(days, settings, weekDates);
+  const activeShift = readActiveShift();
+  if (activeShift) {
+    const activeShiftDate = dateToIso(new Date(activeShift.start_time));
+    if (weekDates.includes(activeShiftDate)) {
+      const liveProjection = getLiveShiftCoach(activeShift, summary);
+      if (liveProjection.forecastAvailable && liveProjection.projectedWeek > 0) {
+        updateProjectedNet(summary, liveProjection.projectedWeek);
+      }
+    }
+  }
 
   if (targetInput) {
     targetInput.type = "hidden";
@@ -2755,11 +2804,26 @@ function renderWeeklyTarget(days) {
 
   summaryNode.innerHTML = `
     <div class="target-summary-card target-headline-card target-headline-card--${summary.earningsAheadBehind >= 0 ? "good" : "danger"}">
-      <div class="summary-label">Weekly Earnings</div>
+      <div class="summary-label">Gross Earned So Far</div>
       <div class="summary-value">${formatMoney(summary.earned)}</div>
       <div class="summary-sub">
         ${summary.earningsAheadBehind >= 0 ? "+" : "−"}${formatMoney(Math.abs(summary.earningsAheadBehind))} vs plan · ${formatMoney(summary.requiredEarnings)} left
       </div>
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.netEarnedSoFar >= 0 ? "net" : "danger"}">
+      <div class="summary-label">Net Earned So Far</div>
+      <div class="summary-value">${formatMoney(summary.netEarnedSoFar)}</div>
+      <div class="summary-sub">After ${formatPercent(summary.netPayTaxRetentionRate * 100)} tax provision and ${formatMoney(summary.accruedWeeklyOperatingCosts)} accrued costs</div>
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--info">
+      <div class="summary-label">Projected Gross Week</div>
+      <div class="summary-value">${formatMoney(summary.projectedGrossWeek)}</div>
+      <div class="summary-sub">Current weekly earnings projection</div>
+    </div>
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.projectedNetWeek >= 0 ? "net" : "danger"}">
+      <div class="summary-label">Projected Net Week</div>
+      <div class="summary-value">${formatMoney(summary.projectedNetWeek)}</div>
+      <div class="summary-sub">After tax provision and ${formatMoney(summary.weeklyOperatingCosts)} weekly costs</div>
     </div>
     <div class="target-summary-card target-headline-card target-headline-card--${summary.hoursAheadBehind >= 0 ? "good" : "warning"}">
       <div class="summary-label">Productive Hours</div>
@@ -2778,15 +2842,10 @@ function renderWeeklyTarget(days) {
       <div class="summary-value">${formatPercent(summary.utilisationPercent)}</div>
       <div class="summary-sub">${formatClockHours(summary.lostTime)}h unproductive</div>
     </div>
-    <div class="target-summary-card target-headline-card target-headline-card--${summary.averageEarningsPerProductiveHour >= summary.baselineProductiveHourlyRate ? "good" : summary.hoursWorked > 0 ? "danger" : "neutral"}">
-      <div class="summary-label">Earnings Pace</div>
-      <div class="summary-value">${formatMoney(summary.averageEarningsPerProductiveHour)}/hr</div>
-      <div class="summary-sub">${formatMoney(summary.baselineProductiveHourlyRate)}/hr required</div>
-    </div>
-    <div class="target-summary-card target-headline-card target-headline-card--plan">
-      <div class="summary-label">Expected Now</div>
-      <div class="summary-value">${formatMoney(summary.expectedEarnings)}</div>
-      <div class="summary-sub">${formatClockHours(summary.expectedProductiveHours)} productive hours by now</div>
+    <div class="target-summary-card target-headline-card target-headline-card--${summary.netHourlyRate >= 0 ? "net" : "danger"}">
+      <div class="summary-label">Net Hourly</div>
+      <div class="summary-value">${formatMoney(summary.netHourlyRate)}/hr</div>
+      <div class="summary-sub">Net earned ÷ productive hours</div>
     </div>
     ${(summary.deficitFromMissingHours > 0 || summary.deficitFromBelowPace > 0) ? `
       <div class="target-deficit-summary">
@@ -2799,6 +2858,9 @@ function renderWeeklyTarget(days) {
       ${summary.hoursDeficit > 0
         ? `Recovery needed: ${formatClockHours(summary.recoveryHoursPerRemainingDay)} additional productive hour${Math.abs(summary.recoveryHoursPerRemainingDay - 1) < 0.05 ? "" : "s"} per remaining working day.`
         : "No productive-hours recovery is currently needed."}
+    </div>
+    <div class="target-net-pay-note">
+      Net = gross less tax provision and estimated Uber operating costs. This does not alter Tax Engine tax calculations.
     </div>
   `;
 
@@ -3718,9 +3780,8 @@ function getEfficiencyLabel(totals, pricePerLitre, settings, chargingTotals) {
 }
 
 function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargingTotals = null, expenses = []) {
-  const container = el(ids.weekSummary);
-  if (!container) return;
-  container.className = "profit-summary";
+  const containers = [el(ids.weekSummary), el(ids.targetProfitSummary)].filter(Boolean);
+  if (!containers.length) return;
   const energyLabel = vehicleEnergyLabel(settings);
   const isEv = getFuelType(settings) === "ev";
 
@@ -3774,7 +3835,7 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
   const efficiencyLabel = getEfficiencyLabel(totals, pricePerLitre, settings, chargingTotals);
   const netHourlyClass = netHourly >= 0 ? "" : " profit-metric--warning";
 
-  container.innerHTML = `
+  const markup = `
     <div class="profit-summary__header">
       <div>
         <div class="profit-summary__label">Net Profit</div>
@@ -3847,6 +3908,11 @@ function renderWeekSummary(days, pricePerLitre, settings = getSettings(), chargi
       </div>
     </div>
   `;
+
+  containers.forEach((container) => {
+    container.className = "profit-summary";
+    container.innerHTML = markup;
+  });
 }
 
 function renderDayHistory(days, pricePerLitre, settings = getSettings()) {

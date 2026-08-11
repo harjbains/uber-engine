@@ -1,6 +1,8 @@
-export const VERSION = "v2.3.101";
+export const VERSION = "v2.3.103";
 
 export const RELEASE_NOTES = {
+  "2.3.103": "The compact weekly take-home summary now appears directly in the main Target view",
+  "2.3.102": "Weekly dashboard adds economic net pay, accrued Uber operating costs, projections, and net hourly rate",
   "2.3.101": "Weekly earnings target now follows Settings and derives productive hours at £20 per hour",
   "2.3.100": "Weekly performance is simplified into colour-coded headline cards",
   "2.3.99": "Weekly progress adds productive-time tracking, planned-schedule pace, recovery guidance, and earnings-deficit attribution",

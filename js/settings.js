@@ -14,6 +14,11 @@ const DEFAULT_SETTINGS = {
   vehicleReg: "",
   insuranceMonthly: 300,
   taxRatePercent: 20,
+  netPayTaxRetentionPercent: 25,
+  netPayInsuranceMonthly: 350,
+  netPayElectricityMonthly: 150,
+  netPayRoadTaxMonthly: 20,
+  netPayTyresMonthly: 50,
   mpg: 32.5,
   fallbackFuelPrice: 1.7,
   vehicleExpenseMethod: "mileage",
@@ -33,6 +38,11 @@ const ids = {
   vehicleReg: "settings_vehicle_reg",
   insuranceMonthly: "settings_insurance_monthly",
   taxRatePercent: "settings_tax_rate",
+  netPayTaxRetentionPercent: "settings_net_pay_tax_retention",
+  netPayInsuranceMonthly: "settings_net_pay_insurance_monthly",
+  netPayElectricityMonthly: "settings_net_pay_electricity_monthly",
+  netPayRoadTaxMonthly: "settings_net_pay_road_tax_monthly",
+  netPayTyresMonthly: "settings_net_pay_tyres_monthly",
   mpg: "settings_mpg",
   fallbackFuelPrice: "settings_fuel_price",
   vehicleExpenseMethod: "settings_vehicle_expense_method",
@@ -130,6 +140,42 @@ export function getTaxRate(settings = getSettings()) {
   return toNumber(settings.taxRatePercent, DEFAULT_SETTINGS.taxRatePercent) / 100;
 }
 
+export function getNetPaySettings(settings = getSettings()) {
+  const insuranceMonthly = Math.max(0, toNumber(
+    settings.netPayInsuranceMonthly,
+    DEFAULT_SETTINGS.netPayInsuranceMonthly
+  ));
+  const electricityMonthly = Math.max(0, toNumber(
+    settings.netPayElectricityMonthly,
+    DEFAULT_SETTINGS.netPayElectricityMonthly
+  ));
+  const roadTaxMonthly = Math.max(0, toNumber(
+    settings.netPayRoadTaxMonthly,
+    DEFAULT_SETTINGS.netPayRoadTaxMonthly
+  ));
+  const tyresMonthly = Math.max(0, toNumber(
+    settings.netPayTyresMonthly,
+    DEFAULT_SETTINGS.netPayTyresMonthly
+  ));
+  const monthlyOperatingCosts = insuranceMonthly
+    + electricityMonthly
+    + roadTaxMonthly
+    + tyresMonthly;
+
+  return {
+    taxRetentionRate: Math.min(1, Math.max(0, toNumber(
+      settings.netPayTaxRetentionPercent,
+      DEFAULT_SETTINGS.netPayTaxRetentionPercent
+    ) / 100)),
+    insuranceMonthly,
+    electricityMonthly,
+    roadTaxMonthly,
+    tyresMonthly,
+    monthlyOperatingCosts,
+    weeklyOperatingCosts: (monthlyOperatingCosts * 12) / 52
+  };
+}
+
 export function getMpg(settings = getSettings()) {
   return toNumber(settings.mpg, DEFAULT_SETTINGS.mpg);
 }
@@ -219,6 +265,11 @@ function populateSettingsForm() {
   if (el(ids.vehicleReg)) el(ids.vehicleReg).value = settings.vehicleReg;
   if (el(ids.insuranceMonthly)) el(ids.insuranceMonthly).value = settings.insuranceMonthly;
   if (el(ids.taxRatePercent)) el(ids.taxRatePercent).value = settings.taxRatePercent;
+  if (el(ids.netPayTaxRetentionPercent)) el(ids.netPayTaxRetentionPercent).value = settings.netPayTaxRetentionPercent;
+  if (el(ids.netPayInsuranceMonthly)) el(ids.netPayInsuranceMonthly).value = settings.netPayInsuranceMonthly;
+  if (el(ids.netPayElectricityMonthly)) el(ids.netPayElectricityMonthly).value = settings.netPayElectricityMonthly;
+  if (el(ids.netPayRoadTaxMonthly)) el(ids.netPayRoadTaxMonthly).value = settings.netPayRoadTaxMonthly;
+  if (el(ids.netPayTyresMonthly)) el(ids.netPayTyresMonthly).value = settings.netPayTyresMonthly;
   if (el(ids.mpg)) el(ids.mpg).value = settings.mpg;
   if (el(ids.fallbackFuelPrice)) el(ids.fallbackFuelPrice).value = settings.fallbackFuelPrice;
   if (el(ids.vehicleExpenseMethod)) el(ids.vehicleExpenseMethod).value = getVehicleExpenseMethod(settings);
@@ -244,6 +295,26 @@ function readSettingsForm() {
     vehicleReg: el(ids.vehicleReg)?.value?.trim().toUpperCase() || "",
     insuranceMonthly: toNumber(el(ids.insuranceMonthly)?.value, DEFAULT_SETTINGS.insuranceMonthly),
     taxRatePercent: toNumber(el(ids.taxRatePercent)?.value, DEFAULT_SETTINGS.taxRatePercent),
+    netPayTaxRetentionPercent: toNumber(
+      el(ids.netPayTaxRetentionPercent)?.value,
+      DEFAULT_SETTINGS.netPayTaxRetentionPercent
+    ),
+    netPayInsuranceMonthly: toNumber(
+      el(ids.netPayInsuranceMonthly)?.value,
+      DEFAULT_SETTINGS.netPayInsuranceMonthly
+    ),
+    netPayElectricityMonthly: toNumber(
+      el(ids.netPayElectricityMonthly)?.value,
+      DEFAULT_SETTINGS.netPayElectricityMonthly
+    ),
+    netPayRoadTaxMonthly: toNumber(
+      el(ids.netPayRoadTaxMonthly)?.value,
+      DEFAULT_SETTINGS.netPayRoadTaxMonthly
+    ),
+    netPayTyresMonthly: toNumber(
+      el(ids.netPayTyresMonthly)?.value,
+      DEFAULT_SETTINGS.netPayTyresMonthly
+    ),
     mpg: toNumber(el(ids.mpg)?.value, DEFAULT_SETTINGS.mpg),
     fallbackFuelPrice: toNumber(el(ids.fallbackFuelPrice)?.value, DEFAULT_SETTINGS.fallbackFuelPrice),
     vehicleExpenseMethod: el(ids.vehicleExpenseMethod)?.value === "actual" ? "actual" : "mileage",

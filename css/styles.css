@@ -979,6 +979,14 @@ input[type="date"] {
   gap: 8px;
 }
 
+.target-take-home-heading {
+  margin-top: 12px;
+}
+
+#target_profit_summary {
+  margin-bottom: 12px;
+}
+
 .target-progress-panel {
   grid-column: 1 / -1;
   display: grid;
@@ -1135,6 +1143,11 @@ input[type="date"] {
   color: #334155;
 }
 
+.target-summary-grid .target-headline-card--net {
+  background: #ccfbf1;
+  color: #115e59;
+}
+
 .target-deficit-summary {
   grid-column: 1 / -1;
   display: grid;
@@ -1147,6 +1160,17 @@ input[type="date"] {
   color: #9f1239;
   font-size: 11px;
   font-weight: 800;
+}
+
+.target-net-pay-note {
+  grid-column: 1 / -1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #475569;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.4;
 }
 
 .target-ladder-verdict {
@@ -2702,6 +2726,14 @@ input[type="date"] {
 .settings-section h3 {
   margin: 0 0 8px;
   font-size: 16px;
+}
+
+.settings-section__note {
+  margin: -2px 0 10px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.4;
 }
 
 .settings-actions {
