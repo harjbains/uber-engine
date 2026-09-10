@@ -116,9 +116,11 @@ export function readControlRequest(readValue = (key) => localStorage.getItem(key
     const parsed = JSON.parse(raw);
     const action = String(parsed?.action || "");
     if (action !== "start" && action !== "pause" && action !== "resume" && action !== "end") return null;
+    const miles = parsed.miles;
+    if (miles !== undefined && miles !== null && miles !== "" && !Number.isFinite(Number(miles))) return null;
     return {
       action,
-      miles: parsed.miles === undefined || parsed.miles === null || parsed.miles === "" ? null : Number(parsed.miles),
+      miles: miles === undefined || miles === null || miles === "" ? null : Number(miles),
       requestedAt: Number(parsed.requestedAt) || Date.now()
     };
   } catch (error) {
