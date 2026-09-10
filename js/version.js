@@ -1,6 +1,8 @@
-export const VERSION = "v2.3.104";
+export const VERSION = "v2.3.106";
 
 export const RELEASE_NOTES = {
+  "2.3.106": "Shift progress is published to the Map Engine so the map bar reflects today's earnings target without revealing figures",
+  "2.3.105": "Weekly targets now rebalance dynamically across Working days using historical weekday strength",
   "2.3.104": "Weekly financial position is simplified to four authoritative gross and net figures",
   "2.3.103": "The compact weekly take-home summary now appears directly in the main Target view",
   "2.3.102": "Weekly dashboard adds economic net pay, accrued Uber operating costs, projections, and net hourly rate",

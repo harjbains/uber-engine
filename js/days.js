@@ -21,7 +21,8 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.104";
+} from "./settings.js?v=2.3.106";
+import { publishShiftProgress } from "./shiftProgress.js?v=2.3.106";
 
 const ids = {
   date: "day_date",
@@ -40,6 +41,7 @@ const ids = {
   targetWorkdays: "target_workdays",
   targetWeekStrip: "target_week_strip",
   targetProgressSummary: "target_progress_summary",
+  targetDynamicForecast: "target_dynamic_forecast",
   targetSummary: "target_summary",
   targetStatus: "target_status",
   targetHeroValue: "target_hero_value",
@@ -58,8 +60,10 @@ const WEEKLY_TARGETS_TABLE = "weekly_targets";
 const TARGET_STORAGE_PREFIX = "uberEngineWeeklyTarget";
 const DEFAULT_TARGET_WORKDAYS = [0, 1, 2, 3, 4, 5];
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const WEEKDAY_FORECAST_WEIGHTS = [0.9, 0.95, 1, 1, 1.2, 1.25, 0.75];
+const WEEKDAY_LONG_LABELS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const WEEKDAY_FORECAST_WEIGHTS = [22.64, 21.42, 21.79, 23.16, 23.00, 26.14, 25.87];
 const WEEKDAY_HOUR_WEIGHTS = [1, 1, 1, 1, 1.15, 1.25, 0.9];
+const DAY_PLAN_STATES = ["working", "undecided", "not-working"];
 const LIVE_SHIFT_ACTIVE_KEY = "uberEngineLiveShiftActive";
 const LIVE_SHIFT_HISTORY_KEY = "uberEngineLiveShiftHistory";
 const LIVE_SHIFT_COMPLETED_KEY = "uberEngineLiveShiftCompleted";
@@ -72,7 +76,6 @@ const BASELINE_PRODUCTIVE_HOURLY_RATE = 20;
 const MAX_PLANNED_DAILY_HOURS = 10;
 const NORMAL_PLANNED_DAILY_HOURS = 6;
 const PLANNING_BASE_HOURLY_RATE = 20;
-const MAX_PLANNED_DAILY_TARGET = MAX_PLANNED_DAILY_HOURS * PLANNING_BASE_HOURLY_RATE;
 const SHIFT_END_REASONS = [
   { value: "", label: "Select reason" },
   { value: "target_hit", label: "Target hit" },
@@ -1655,25 +1658,66 @@ function distributeHoursByWeightWithCap(amount, dateStrings, cap = MAX_PLANNED_D
   return allocations;
 }
 
-function capForecastValues(values, cap = MAX_PLANNED_DAILY_TARGET) {
-  return values.map((value) => Math.min(cap, Math.max(0, Number(value || 0))));
-}
-
 function targetStorageKey(startIso) {
   return `${TARGET_STORAGE_PREFIX}:${startIso}`;
 }
 
 function normaliseWorkDays(workDays, fallback = DEFAULT_TARGET_WORKDAYS) {
-  const values = Array.isArray(workDays)
-    ? workDays
-        .map((value) => Number(value))
-        .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6)
-    : fallback;
+  if (!Array.isArray(workDays)) return [...fallback];
 
-  return values.length ? [...new Set(values)] : [...fallback];
+  const values = workDays
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value >= 0 && value <= 6);
+  return [...new Set(values)];
 }
 
-function targetSettingsFromDbRow(row) {
+function normaliseDayStates(dayStates, workDays = DEFAULT_TARGET_WORKDAYS) {
+  const plannedDays = normaliseWorkDays(workDays);
+
+  return WEEKDAY_LABELS.map((_, index) => {
+    const state = Array.isArray(dayStates) ? dayStates[index] : "";
+    if (DAY_PLAN_STATES.includes(state)) return state;
+    return plannedDays.includes(index) ? "working" : "not-working";
+  });
+}
+
+function getWorkingDayIndexes(dayStates) {
+  return normaliseDayStates(dayStates).reduce((indexes, state, index) => {
+    if (state === "working") indexes.push(index);
+    return indexes;
+  }, []);
+}
+
+function encodeDayStatesForStorage(dayStates, workDays) {
+  const states = normaliseDayStates(dayStates, workDays);
+  return [
+    ...getWorkingDayIndexes(states),
+    ...states.reduce((indexes, state, index) => {
+      if (state === "undecided") indexes.push(index + 10);
+      return indexes;
+    }, [])
+  ];
+}
+
+function dayStatesFromStoredWorkDays(storedWorkDays, cachedDayStates, workDays) {
+  const encodedValues = Array.isArray(storedWorkDays)
+    ? storedWorkDays.map((value) => Number(value))
+    : [];
+  const undecidedIndexes = encodedValues
+    .filter((value) => Number.isInteger(value) && value >= 10 && value <= 16)
+    .map((value) => value - 10);
+
+  if (!undecidedIndexes.length) return normaliseDayStates(cachedDayStates, workDays);
+
+  return WEEKDAY_LABELS.map((_, index) => (
+    workDays.includes(index)
+      ? "working"
+      : undecidedIndexes.includes(index) ? "undecided" : "not-working"
+  ));
+}
+
+function targetSettingsFromDbRow(row, cachedSettings = {}) {
+  const workDays = normaliseWorkDays(row.work_days);
   return {
     target: Number(row.target || getWeeklyTargetDefault()),
     dailyHoursTarget: row.daily_hours_target ?? getDailyHoursTargetDefault(),
@@ -1681,7 +1725,8 @@ function targetSettingsFromDbRow(row) {
     targetSnapshotMode: row.target_snapshot_mode || "",
     targetIsCustom: row.target_is_custom === true,
     hoursTargetIsCustom: row.hours_target_is_custom === true,
-    workDays: normaliseWorkDays(row.work_days)
+    workDays,
+    dayStates: dayStatesFromStoredWorkDays(row.work_days, cachedSettings.dayStates, workDays)
   };
 }
 
@@ -1694,7 +1739,7 @@ function targetSettingsToDbRow(startIso, settings = {}) {
     target_snapshot_mode: settings.targetSnapshotMode || null,
     target_is_custom: settings.targetIsCustom === true,
     hours_target_is_custom: settings.hoursTargetIsCustom === true,
-    work_days: normaliseWorkDays(settings.workDays),
+    work_days: encodeDayStatesForStorage(settings.dayStates, settings.workDays),
     updated_at: new Date().toISOString()
   };
 }
@@ -1710,7 +1755,8 @@ function readTargetSettings(startIso) {
     dailyHoursTarget: getDailyHoursTargetDefault(),
     targetSnapshot: null,
     targetSnapshotMode: "",
-    workDays: [...DEFAULT_TARGET_WORKDAYS]
+    workDays: [...DEFAULT_TARGET_WORKDAYS],
+    dayStates: normaliseDayStates(null, DEFAULT_TARGET_WORKDAYS)
   };
 
   try {
@@ -1719,6 +1765,7 @@ function readTargetSettings(startIso) {
 
     const parsed = JSON.parse(raw);
     const workDays = normaliseWorkDays(parsed.workDays, fallback.workDays);
+    const dayStates = normaliseDayStates(parsed.dayStates, workDays);
 
     const storedTarget = parsed.target ?? fallback.target;
     const storedHoursTarget = parsed.dailyHoursTarget ?? fallback.dailyHoursTarget;
@@ -1731,7 +1778,8 @@ function readTargetSettings(startIso) {
       targetSnapshotMode: parsed.targetSnapshotMode || "",
       targetIsCustom: parsed.targetIsCustom === true,
       hoursTargetIsCustom: parsed.hoursTargetIsCustom === true,
-      workDays
+      workDays: getWorkingDayIndexes(dayStates),
+      dayStates
     };
   } catch (error) {
     console.warn("Unable to read weekly target settings:", error);
@@ -1795,7 +1843,7 @@ async function loadTargetSettingsFromDb(startIso) {
     return settings;
   }
 
-  const settings = targetSettingsFromDbRow(data);
+  const settings = targetSettingsFromDbRow(data, readRawTargetSettings(startIso));
   writeTargetSettingsCache(startIso, settings);
   return readTargetSettings(startIso);
 }
@@ -1849,9 +1897,10 @@ function getCurrentTargetSettings(customFlags = {}) {
   }
 
   const dailyHoursTargetInput = el(ids.dailyHoursTarget);
-  const checkedDays = Array.from(
-    document.querySelectorAll("[data-target-workday]:checked")
-  ).map((node) => Number(node.dataset.targetWorkday));
+  const dayStates = WEEKDAY_LABELS.map((_, index) => (
+    document.querySelector(`[data-target-workday="${index}"]`)?.dataset.dayState
+      || readTargetSettings(currentWeekRange.startIso).dayStates[index]
+  ));
 
   return {
     target: getWeeklyTargetDefault(),
@@ -1859,7 +1908,8 @@ function getCurrentTargetSettings(customFlags = {}) {
       dailyHoursTargetInput?.dataset.manualTarget || dailyHoursTargetInput?.value,
       getDailyHoursTargetDefault()
     ),
-    workDays: checkedDays
+    workDays: getWorkingDayIndexes(dayStates),
+    dayStates: normaliseDayStates(dayStates)
   };
 }
 
@@ -1982,21 +2032,43 @@ function renderTargetWorkdays(settings, weekDates) {
   const container = el(ids.targetWorkdays);
   if (!container) return;
 
+  const dayStates = normaliseDayStates(settings.dayStates, settings.workDays);
+  const today = todayIso();
+
   container.innerHTML = WEEKDAY_LABELS.map((label, index) => {
-    const checked = settings.workDays.includes(index) ? "checked" : "";
+    const state = dayStates[index];
     const dateLabel = formatDateLabel(weekDates[index]);
+    const isPast = weekDates[index] < today;
+    const stateLabel = state === "working" ? "Working" : state === "undecided" ? "Undecided" : "Not working";
 
     return `
-      <label class="target-day-toggle" title="${escapeHtml(dateLabel)}">
-        <input type="checkbox" data-target-workday="${index}" ${checked}>
-        <span>${label}</span>
-      </label>
+      <button
+        class="target-day-toggle target-day-toggle--${state}"
+        type="button"
+        data-target-workday="${index}"
+        data-day-state="${state}"
+        title="${escapeHtml(dateLabel)}: ${stateLabel}"
+        aria-label="${escapeHtml(dateLabel)}: ${stateLabel}"
+        ${isPast ? "disabled" : ""}
+      >
+        <strong>${label}</strong>
+        <span>${stateLabel}</span>
+      </button>
     `;
   }).join("");
 
-  container.querySelectorAll("[data-target-workday]").forEach((input) => {
-    input.addEventListener("change", () => {
-      persistCurrentTargetSettings();
+  container.querySelectorAll("[data-target-workday]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const index = Number(button.dataset.targetWorkday);
+      const nextStates = [...dayStates];
+      const currentStateIndex = DAY_PLAN_STATES.indexOf(nextStates[index]);
+      nextStates[index] = DAY_PLAN_STATES[(currentStateIndex + 1) % DAY_PLAN_STATES.length];
+      updateTargetSettings(currentWeekRange.startIso, {
+        ...getCurrentTargetSettings(),
+        dayStates: nextStates,
+        workDays: getWorkingDayIndexes(nextStates)
+      });
+      renderTargetWorkdays(readTargetSettings(currentWeekRange.startIso), weekDates);
       renderWeeklyTarget(currentWeekDays);
     });
   });
@@ -2164,7 +2236,9 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const effectiveHourlyRate = baselineProductiveHourlyRate;
   const extraHoursRateLabel = `${formatMoney(baselineProductiveHourlyRate)} productive pace`;
   const remaining = Math.max(0, target - earned);
-  const plannedWorkDays = settings.workDays.length;
+  const dayStates = normaliseDayStates(settings.dayStates, settings.workDays);
+  const workingDayIndexes = getWorkingDayIndexes(dayStates);
+  const plannedWorkDays = workingDayIndexes.length;
   const observedHourlyRate = calculateGrossHourlyRate(days);
   const hourlyPlan = {
     desiredRate: baselineProductiveHourlyRate,
@@ -2184,7 +2258,7 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     ? (hoursWorked / timeTotals.totalOnlineHours) * 100
     : 0;
   const averageEarningsPerProductiveHour = hoursWorked > 0 ? earned / hoursWorked : 0;
-  const plannedDayCount = settings.workDays.length;
+  const plannedDayCount = workingDayIndexes.length;
   const selectedWeekStart = weekDates[0] || "";
   const selectedWeekEnd = weekDates[weekDates.length - 1] || "";
   let expectedScheduleRatio = 0;
@@ -2194,13 +2268,19 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   } else if (plannedDayCount > 0 && selectedWeekStart <= today && selectedWeekEnd >= today) {
     const now = new Date();
     const todayFraction = Math.min(1, Math.max(0, (now.getHours() + (now.getMinutes() / 60)) / 24));
-    const elapsedPlannedDays = weekDates.reduce((total, dateString, index) => {
-      if (!settings.workDays.includes(index)) return total;
-      if (dateString < today) return total + 1;
-      if (dateString === today) return total + todayFraction;
+    const totalPlannedWeight = workingDayIndexes.reduce(
+      (total, index) => total + WEEKDAY_FORECAST_WEIGHTS[index],
+      0
+    );
+    const elapsedPlannedWeight = weekDates.reduce((total, dateString, index) => {
+      if (!workingDayIndexes.includes(index)) return total;
+      if (dateString < today) return total + WEEKDAY_FORECAST_WEIGHTS[index];
+      if (dateString === today) return total + (WEEKDAY_FORECAST_WEIGHTS[index] * todayFraction);
       return total;
     }, 0);
-    expectedScheduleRatio = Math.min(1, elapsedPlannedDays / plannedDayCount);
+    expectedScheduleRatio = totalPlannedWeight > 0
+      ? Math.min(1, elapsedPlannedWeight / totalPlannedWeight)
+      : 0;
   }
 
   const expectedProductiveHours = weeklyHoursTarget * expectedScheduleRatio;
@@ -2228,25 +2308,26 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const deficitFromBelowPace = Math.max(0, earningsDeficit - deficitFromMissingHours);
 
   const remainingWorkDates = weekDates.filter((dateString, index) => {
-    if (!settings.workDays.includes(index)) return false;
+    if (!workingDayIndexes.includes(index)) return false;
     if (dateString < today) return false;
     return true;
   });
+  const reserveWorkDates = weekDates.filter((dateString, index) => (
+    dayStates[index] === "undecided" && dateString >= today
+  ));
 
   const todayEarned = days
     .filter((day) => day.date === today)
     .reduce((sum, day) => sum + Number(day.gross || 0), 0);
   const todayIndex = weekDates.indexOf(today);
-  const todayHoursWorked = days
-    .filter((day) => day.date === today)
-    .reduce((sum, day) => sum + Number(day.hours_worked || 0), 0);
+  const todayHoursWorked = buildDayHourTotals(days)[today] || 0;
   const remainingWorkDays = remainingWorkDates.length;
   const recoveryHoursPerRemainingDay = remainingWorkDays > 0
     ? hoursDeficit / remainingWorkDays
     : hoursDeficit;
   const remainingHourWorkDates = remainingWorkDates;
   const futureHourWorkDates = remainingHourWorkDates.filter((dateString) => dateString > today);
-  const hasTodayHourTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
+  const hasTodayHourTarget = todayIndex >= 0 && workingDayIndexes.includes(todayIndex);
   const rawHourTargetsBeforeTodayWork = distributeHoursByWeight(remainingHours, remainingHourWorkDates);
   const cappedHourTargetsBeforeTodayWork = distributeHoursByWeightWithCap(remainingHours, remainingHourWorkDates);
   const rawCurrentDayRequiredHours = hasTodayHourTarget
@@ -2276,15 +2357,28 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   const requiredPerDay = remainingWorkDays > 0 ? remaining / remainingWorkDays : 0;
   const dailyPressure = requiredPerDay - baseDailyTarget;
   const remainingWorkDayIndexes = remainingWorkDates.map((dateString) => weekDates.indexOf(dateString));
-  const completedForecasts = calculateWeekdayForecasts(currentHistoricalDays, target, weekDates, settings.workDays);
-  const futureForecasts = calculateWeekdayForecasts(
-    currentHistoricalDays,
-    remaining,
+  const completedForecasts = calculateWeekdayForecasts(target, weekDates, workingDayIndexes);
+  const hasTodayTarget = todayIndex >= 0 && workingDayIndexes.includes(todayIndex);
+  const remainingBeforeToday = Math.max(0, target - (earned - todayEarned));
+  const todayBaselineForecasts = calculateWeekdayForecasts(
+    remainingBeforeToday,
     weekDates,
     remainingWorkDayIndexes
   );
-  const hasTodayTarget = todayIndex >= 0 && settings.workDays.includes(todayIndex);
+  const todayBaselineTarget = hasTodayTarget ? todayBaselineForecasts[todayIndex] || 0 : 0;
+  const todayTargetAchieved = hasTodayTarget && todayBaselineTarget > 0 && todayEarned >= todayBaselineTarget;
+  const todayFinished = hasTodayTarget
+    && days.some((day) => day.date === today && day.end_time)
+    && !readActiveShift();
+  const forecastWorkDayIndexes = todayTargetAchieved || todayFinished
+    ? remainingWorkDayIndexes.filter((index) => index !== todayIndex)
+    : remainingWorkDayIndexes;
+  const futureForecasts = calculateWeekdayForecasts(remaining, weekDates, forecastWorkDayIndexes);
+  const forecastWorkDates = forecastWorkDayIndexes.map((index) => weekDates[index]);
   const todayTarget = hasTodayTarget ? futureForecasts[todayIndex] || 0 : 0;
+  const todayHourlyRate = todayHoursWorked > 0 ? todayEarned / todayHoursWorked : 0;
+  const currentMarketStrong = todayIndex >= 0
+    && todayHourlyRate >= WEEKDAY_FORECAST_WEIGHTS[todayIndex];
   const workingLimitCheck = buildWorkingLimitCheck({
     dateString: hasTodayTarget ? today : remainingWorkDates[0] || today,
     estimatedHours: rawRequiredHoursPerRemainingDay,
@@ -2330,19 +2424,21 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   let nowMessage = "Stay on the planned schedule today.";
   let whyMessage = `Keeping productive time on schedule protects the ${formatMoney(target)} weekly target.`;
 
-  if (hoursDeficit > 0) {
-    const productiveShiftHours = Math.max(
-      recoveryHoursPerRemainingDay,
-      requiredProductiveHours / Math.max(1, remainingWorkDays)
-    );
-    nowMessage = `Complete a ${formatClockHours(productiveShiftHours)}-hour productive shift today.`;
-    whyMessage = `This closes the productive-hours gap and supports the ${formatMoney(baselineProductiveHourlyRate)}-per-hour pace needed for ${formatMoney(target)}.`;
-  } else if (deficitFromBelowPace > 0) {
-    nowMessage = `Prioritise work that restores at least ${formatMoney(baselineProductiveHourlyRate)} per productive hour.`;
-    whyMessage = `${formatMoney(deficitFromBelowPace)} of the current earnings gap comes from running below the required pace.`;
-  } else if (earningsAheadBehind >= 0 && hoursAheadBehind >= 0) {
-    nowMessage = "Hold the current productive pace.";
-    whyMessage = `Both productive hours and earnings are on or ahead of the planned path to ${formatMoney(target)}.`;
+  if (remaining <= 0) {
+    nowMessage = "Weekly target achieved.";
+    whyMessage = `${formatMoney(earned)} gross has covered the ${formatMoney(target)} weekly target.`;
+  } else if (todayTargetAchieved) {
+    nowMessage = currentMarketStrong ? "Today's target is achieved; continuing is optional." : "Today's target is achieved; protect the weekly plan.";
+    whyMessage = `${formatMoney(remaining)} has already been redistributed across the remaining Working days.`;
+  } else if (todayTarget > 0) {
+    nowMessage = `Earn ${formatMoney(todayTarget)} more today.`;
+    whyMessage = `That is today's weighted share of the ${formatMoney(remaining)} remaining weekly target.`;
+  } else if (forecastWorkDates.length > 0) {
+    nowMessage = `Prepare for ${formatMoney(futureForecasts[weekDates.indexOf(forecastWorkDates[0])] || 0)} on ${WEEKDAY_LONG_LABELS[weekDates.indexOf(forecastWorkDates[0])]}.`;
+    whyMessage = `The remaining ${formatMoney(remaining)} is weighted across the Working days still available.`;
+  } else if (reserveWorkDates.length > 0) {
+    nowMessage = "Move a reserve day to Working.";
+    whyMessage = `${formatMoney(remaining)} remains, but Undecided days do not receive firm targets.`;
   }
 
   let status = "Set a target to track this week.";
@@ -2351,46 +2447,58 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
   let paceLabel = "Ready when you are";
 
   if (target > 0 && plannedWorkDays === 0) {
-    status = "Choose at least one planned work day.";
+    status = reserveWorkDates.length
+      ? "Move at least one reserve day to Working to create firm targets."
+      : "Choose at least one remaining day as Working.";
     statusClass = "target-status target-status--warning";
     progressClass = "target-progress-fill target-progress-fill--red";
     paceLabel = "Pick your work days";
   } else if (target > 0 && remaining <= 0) {
-    status = `Target reached. You are ${formatMoney(Math.abs(target - earned))} ahead.`;
+    status = "WEEKLY TARGET ACHIEVED";
     statusClass = "target-status target-status--good";
     progressClass = "target-progress-fill target-progress-fill--complete";
     paceLabel = "Nice work";
-  } else if (target > 0 && remainingWorkDays === 0) {
+  } else if (todayTargetAchieved) {
+    status = currentMarketStrong
+      ? "TARGET ACHIEVED — STRONG MARKET — CONTINUE OPTIONAL"
+      : "TARGET ACHIEVED — WEEKLY TARGET ON TRACK";
+    statusClass = "target-status target-status--good";
+    progressClass = "target-progress-fill target-progress-fill--green";
+    paceLabel = "Today is protected";
+  } else if (target > 0 && forecastWorkDayIndexes.length === 0) {
     status = `${formatMoney(remaining)} remains after the planned work days.`;
     statusClass = "target-status target-status--warning";
     progressClass = "target-progress-fill target-progress-fill--red";
     paceLabel = "Review the plan";
   } else if (target > 0) {
-    const paceTolerance = Math.max(10, baseDailyTarget * 0.08);
+    const paceTolerance = Math.max(20, expectedEarnings * 0.05);
     const targetPhrase = todayTarget > 0
       ? `${formatMoney(todayTarget)} and ${formatClockHours(todayHoursRemaining)}h from here keeps today moving.`
       : `${formatMoney(requiredPerDay)} and ${formatClockHours(requiredHoursPerRemainingDay)}h per remaining work day keeps it reachable.`;
     const hoursPerDayPressure = remainingHourWorkDates.length > 0
       ? remainingHours / remainingHourWorkDates.length
       : 0;
+    const planStatus = earningsAheadBehind < -paceTolerance
+      ? "BEHIND PLAN"
+      : Math.abs(earningsAheadBehind) <= paceTolerance ? "ON PLAN" : "AHEAD OF PLAN";
 
     if (hoursPerDayPressure > MAX_PLANNED_DAILY_HOURS) {
-      status = `${formatClockHours(hoursPerDayPressure)}h/day needed at ${formatMoney(hourlyPlan.planningRate)}/hr. Review the target or add work days.`;
+      status = `${planStatus} — ${formatClockHours(hoursPerDayPressure)}h/day needed at ${formatMoney(hourlyPlan.planningRate)}/hr. Review the target or add work days.`;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
       paceLabel = "Ambitious week";
-    } else if (dailyPressure > paceTolerance) {
-      status = targetPhrase;
+    } else if (earningsAheadBehind < -paceTolerance) {
+      status = `BEHIND PLAN — ${targetPhrase}`;
       statusClass = "target-status target-status--warning";
       progressClass = "target-progress-fill target-progress-fill--red";
       paceLabel = "A steady push from here";
-    } else if (dailyPressure > 0) {
-      status = targetPhrase;
+    } else if (Math.abs(earningsAheadBehind) <= paceTolerance) {
+      status = `ON PLAN — ${targetPhrase}`;
       statusClass = "target-status target-status--caution";
       progressClass = "target-progress-fill target-progress-fill--amber";
       paceLabel = "Within reach";
     } else {
-      status = targetPhrase;
+      status = `AHEAD OF PLAN — ${targetPhrase}`;
       statusClass = "target-status target-status--good";
       progressClass = "target-progress-fill target-progress-fill--green";
       paceLabel = "Nicely on track";
@@ -2458,8 +2566,15 @@ function buildWeeklyTargetSummary(days, settings, weekDates) {
     plannedWorkDays,
     remainingWorkDays,
     remainingWorkDates,
+    reserveWorkDates,
+    forecastWorkDates,
+    dayStates,
     requiredPerDay,
     todayTarget,
+    todayBaselineTarget,
+    todayTargetAchieved,
+    todayFinished,
+    currentMarketStrong,
     completedForecasts,
     futureForecasts,
     baseDailyTarget,
@@ -2565,53 +2680,49 @@ function calculateDynamicWeeklyTarget(days, startIso, upliftPercent, fallbackTar
   return baseTarget * (1 + (upliftPercent / 100));
 }
 
-function calculateWeekdayForecasts(historicalDays, amount, weekDates, workDays) {
-  const totalsByDate = buildDayTotals(historicalDays);
-  const weekdayTotals = Array.from({ length: 7 }, () => []);
+function calculateWeekdayForecasts(amount, weekDates, workDays) {
+  const allocations = weekDates.map(() => 0);
+  const selectedIndexes = workDays.filter((index) => index >= 0 && index < weekDates.length);
+  const totalPence = Math.max(0, Math.round(Number(amount || 0) * 100));
+  if (!selectedIndexes.length || totalPence <= 0) return allocations;
 
-  Object.entries(totalsByDate).forEach(([dateString, total]) => {
-    if (total > 0) {
-      weekdayTotals[getWeekdayIndex(dateString)].push(total);
-    }
-  });
-
-  const weekdayAverages = weekdayTotals.map((totals) => {
-    if (!totals.length) return 0;
-    return totals.reduce((sum, total) => sum + total, 0) / totals.length;
-  });
-
-  const plannedCount = workDays.length || 1;
-  const flatForecast = amount > 0 ? amount / plannedCount : 0;
-  const plannedHistoricalAverages = weekdayAverages.filter((value, index) => (
-    workDays.includes(index) && value > 0
-  ));
-  const averageHistoricalWeekday = plannedHistoricalAverages.length
-    ? plannedHistoricalAverages.reduce((sum, value) => sum + value, 0) / plannedHistoricalAverages.length
-    : 0;
-  const plannedWeights = weekDates.map((_, index) => {
-    if (!workDays.includes(index)) return 0;
-    if (averageHistoricalWeekday > 0 && weekdayAverages[index] > 0) {
-      return (weekdayAverages[index] / averageHistoricalWeekday) * WEEKDAY_FORECAST_WEIGHTS[index];
-    }
-    return WEEKDAY_FORECAST_WEIGHTS[index];
-  });
-
-  if (workDays.includes(4) && workDays.includes(5) && plannedWeights[5] <= plannedWeights[4]) {
-    plannedWeights[5] = plannedWeights[4] * (WEEKDAY_FORECAST_WEIGHTS[5] / WEEKDAY_FORECAST_WEIGHTS[4]);
-  }
-
-  const plannedWeightTotal = plannedWeights.reduce((sum, value) => sum + value, 0);
-
-  return capForecastValues(weekDates.map((_, index) => {
-    if (!workDays.includes(index)) return 0;
-    if (plannedWeightTotal <= 0 || amount <= 0) return flatForecast;
-    return (plannedWeights[index] / plannedWeightTotal) * amount;
+  const totalWeight = selectedIndexes.reduce(
+    (sum, index) => sum + WEEKDAY_FORECAST_WEIGHTS[index],
+    0
+  );
+  const rawShares = selectedIndexes.map((index) => ({
+    index,
+    rawPence: (totalPence * WEEKDAY_FORECAST_WEIGHTS[index]) / totalWeight
   }));
+  let allocatedPence = 0;
+
+  rawShares.forEach(({ index, rawPence }) => {
+    const pence = Math.floor(rawPence);
+    allocations[index] = pence;
+    allocatedPence += pence;
+  });
+
+  rawShares
+    .sort((a, b) => (b.rawPence - Math.floor(b.rawPence)) - (a.rawPence - Math.floor(a.rawPence)))
+    .slice(0, totalPence - allocatedPence)
+    .forEach(({ index }) => {
+      allocations[index] += 1;
+    });
+
+  return allocations.map((pence) => pence / 100);
 }
 
 function getWeekDayState(dateString, index, settings, dayTotals, today, completedForecast, futureForecast) {
-  const isPlanned = settings.workDays.includes(index);
+  const planState = normaliseDayStates(settings.dayStates, settings.workDays)[index];
+  const isPlanned = planState === "working";
   const total = dayTotals[dateString] || 0;
+
+  if (planState === "undecided" && dateString >= today && total <= 0) {
+    return {
+      className: "target-week-day target-week-day--reserve",
+      amount: "RESERVE"
+    };
+  }
 
   if (!isPlanned && total <= 0) {
     return {
@@ -2648,9 +2759,17 @@ function getWeekDayState(dateString, index, settings, dayTotals, today, complete
 }
 
 function getHourDayState(dateString, index, settings, hourTotals, today, futureHoursTarget) {
-  const isPlanned = settings.workDays.includes(index);
+  const planState = normaliseDayStates(settings.dayStates, settings.workDays)[index];
+  const isPlanned = planState === "working";
   const hours = hourTotals[dateString] || 0;
   const safeFutureHoursTarget = Math.max(0, Number(futureHoursTarget || 0));
+
+  if (planState === "undecided" && dateString >= today && hours <= 0) {
+    return {
+      className: "target-week-day target-week-day--reserve",
+      amount: ""
+    };
+  }
 
   if (!isPlanned && hours <= 0) {
     return {
@@ -2714,6 +2833,60 @@ function renderTargetWeekStrip(days, settings, weekDates, summary) {
   `;
 }
 
+function renderDynamicTargetForecast(summary, weekDates) {
+  const container = el(ids.targetDynamicForecast);
+  if (!container) return;
+
+  const today = todayIso();
+  const remainingIndexes = weekDates
+    .map((dateString, index) => ({ dateString, index }))
+    .filter(({ dateString }) => dateString >= today);
+  const workingLabels = summary.forecastWorkDates
+    .map((dateString) => WEEKDAY_LABELS[weekDates.indexOf(dateString)])
+    .filter(Boolean);
+
+  container.innerHTML = `
+    <section class="dynamic-target-card" aria-label="Dynamic weekly target forecast">
+      <div class="dynamic-target-card__headline">
+        <div>
+          <span>Remaining to ${formatMoney(summary.target)}</span>
+          <strong>${formatMoney(summary.remaining)}</strong>
+        </div>
+        <div>
+          <span>Forecast working days</span>
+          <strong>${workingLabels.length ? workingLabels.join(" / ") : "None selected"}</strong>
+        </div>
+      </div>
+      <div class="dynamic-target-list">
+        ${remainingIndexes.map(({ dateString, index }) => {
+          const state = summary.dayStates[index];
+          const isToday = dateString === today;
+          const value = summary.futureForecasts[index] || 0;
+          const targetText = state === "working"
+            ? (isToday && summary.todayTargetAchieved
+                ? "Achieved"
+                : isToday && summary.todayFinished ? "Finished" : formatMoney(value))
+            : state === "undecided" ? "Reserve" : formatMoney(0);
+          const stateText = state === "working"
+            ? (isToday && summary.todayFinished ? "Finished" : "Working")
+            : state === "undecided" ? "Undecided" : "Not working";
+
+          return `
+            <div class="dynamic-target-row dynamic-target-row--${state}">
+              <div>
+                <strong>${WEEKDAY_LONG_LABELS[index]}${isToday ? " · Today" : ""}</strong>
+                <span>${stateText} · ${formatMoney(WEEKDAY_FORECAST_WEIGHTS[index])}/committed hr weight</span>
+              </div>
+              <b>${targetText}</b>
+            </div>
+          `;
+        }).join("")}
+      </div>
+      <p>Targets use historical weekday strength as relative weighting and rebalance whenever earnings or workday plans change.</p>
+    </section>
+  `;
+}
+
 function renderWeeklyTarget(days) {
   if (!currentWeekRange) return;
 
@@ -2723,11 +2896,19 @@ function renderWeeklyTarget(days) {
   const targetInput = el(ids.weeklyTarget);
   const targetHeroValue = el(ids.targetHeroValue);
   const targetHeroHours = el(ids.targetHeroHours);
-  if (!summaryNode || !progressNode || !statusNode) return;
+if (!summaryNode || !progressNode || !statusNode) return;
 
   const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
   const summary = buildWeeklyTargetSummary(days, settings, weekDates);
+  const todayGoal = summary.hasTodayTarget
+    ? (summary.todayEarned || 0) + (summary.todayTarget || 0)
+    : summary.requiredPerDay || 0;
+  publishShiftProgress({
+    earned: summary.todayEarned || 0,
+    goal: todayGoal,
+    active: Boolean(summary.hasTodayTarget) && todayGoal > 0
+  });
   const activeShift = readActiveShift();
   if (activeShift) {
     const activeShiftDate = dateToIso(new Date(activeShift.start_time));
@@ -2799,6 +2980,8 @@ function renderWeeklyTarget(days) {
       <div><strong>Why:</strong> ${escapeHtml(summary.whyMessage)}</div>
     </div>
   `;
+
+  renderDynamicTargetForecast(summary, weekDates);
 
   summaryNode.innerHTML = `
     <div class="target-summary-card target-headline-card target-headline-card--${summary.earningsAheadBehind >= 0 ? "good" : "danger"}">
