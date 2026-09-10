@@ -21,8 +21,8 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.106";
-import { publishShiftProgress } from "./shiftProgress.js?v=2.3.106";
+} from "./settings.js?v=2.3.107";
+import { publishShiftState, readSyncTotalRequest, clearSyncTotalRequest, SHIFT_SYNC_REQUEST_KEY } from "./shiftProgress.js?v=2.3.107";
 
 const ids = {
   date: "day_date",
@@ -2898,16 +2898,25 @@ function renderWeeklyTarget(days) {
   const targetHeroHours = el(ids.targetHeroHours);
 if (!summaryNode || !progressNode || !statusNode) return;
 
-  const weekDates = getWeekDates(currentWeekRange.startIso);
+const weekDates = getWeekDates(currentWeekRange.startIso);
   const settings = getCurrentTargetSettings();
   const summary = buildWeeklyTargetSummary(days, settings, weekDates);
   const todayGoal = summary.hasTodayTarget
     ? (summary.todayEarned || 0) + (summary.todayTarget || 0)
     : summary.requiredPerDay || 0;
-  publishShiftProgress({
-    earned: summary.todayEarned || 0,
-    goal: todayGoal,
-    active: Boolean(summary.hasTodayTarget) && todayGoal > 0
+  publishShiftState({
+    date: todayIso(),
+    shiftActive: Boolean(summary.hasTodayTarget) && todayGoal > 0,
+    paused: false,
+    dailyTarget: todayGoal,
+    todayEarnings: summary.todayEarned || 0,
+    activeMinutes: Math.round((summary.todayHoursWorked || 0) * 60),
+    hourlyRate: (summary.todayHourlyRate || 0) > 0 ? summary.todayHourlyRate : (summary.observedHourlyRate || 0),
+    targetRate: summary.baselineProductiveHourlyRate || summary.planningHourlyRate || 20,
+    weeklyTarget: summary.target || 0,
+    weeklyEarnings: summary.earned || 0,
+    weeklyMinutes: Math.round((summary.hoursWorked || 0) * 60),
+    weeklyRemaining: summary.requiredEarnings || 0
   });
   const activeShift = readActiveShift();
   if (activeShift) {
@@ -4350,6 +4359,128 @@ export function initDays() {
   populateWorkDateOptions();
   bindDayEvents();
   loadWeekDays();
+  applySyncTotalRequest();
+  window.addEventListener("storage", (event) => {
+    if (event.key === SHIFT_SYNC_REQUEST_KEY) applySyncTotalRequest();
+  });
+}
+
+async function applySyncTotalRequest() {
+  const request = readSyncTotalRequest();
+  if (!request) return;
+
+  const today = todayIso();
+  if (request.date !== today) {
+    console.warn("Ignoring a Map Engine total sync for a non-today date:", request.date);
+    clearSyncTotalRequest();
+    return;
+  }
+
+  const total = Number(request.total);
+  if (!Number.isFinite(total) || total < 0) {
+    showStatus("Ignored an invalid today total from the Map Engine.", "error", false);
+    clearSyncTotalRequest();
+    return;
+  }
+
+  try {
+    await replaceTodayDayGross(today, Math.round(total * 100) / 100);
+    clearSyncTotalRequest();
+    showStatus("Today's running total updated from the Map Engine.", "success", false);
+    await loadWeekDays();
+  } catch (err) {
+    console.error("Unable to apply the Map Engine today total:", err);
+    showStatus("Map Engine total could not be applied yet.", "error", false);
+  }
+}
+
+async function replaceTodayDayGross(dateString, gross) {
+  const { data: existing, error } = await supabaseClient
+    .from("days")
+    .select("*")
+    .eq("date", dateString);
+
+  if (error) {
+    throw new Error(`Unable to read today's sessions: ${error.message || "database error"}`);
+  }
+
+  const rows = existing || [];
+  const totals = rows.reduce((acc, day) => ({
+    tripTime: acc.tripTime + Number(day.trip_time || 0),
+    availableTime: acc.availableTime + Number(day.available_time || 0),
+    lostTime: acc.lostTime + Number(day.lost_time || 0),
+    hoursWorked: acc.hoursWorked + Number(day.hours_worked || 0),
+    trips: acc.trips + Number(day.trips || 0),
+    businessMiles: acc.businessMiles + Number(day.business_miles || 0)
+  }), { tripTime: 0, availableTime: 0, lostTime: 0, hoursWorked: 0, trips: 0, businessMiles: 0 });
+
+  const lastEndTime = rows
+    .map((day) => day.end_time)
+    .filter(Boolean)
+    .sort()
+    .pop() || null;
+  const lastEndReason = rows
+    .map((day) => day.shift_end_reason)
+    .filter(Boolean)
+    .pop() || null;
+
+  if (rows.length > 0) {
+    const { error: deleteError } = await supabaseClient
+      .from("days")
+      .delete()
+      .eq("date", dateString);
+    if (deleteError) {
+      throw new Error(`Unable to replace today's sessions: ${deleteError.message || "database error"}`);
+    }
+  }
+
+  const payload = {
+    date: dateString,
+    end_time: lastEndTime,
+    shift_end_reason: lastEndReason,
+    trip_time: totals.tripTime,
+    available_time: totals.availableTime,
+    lost_time: totals.lostTime,
+    hours_worked: totals.hoursWorked,
+    gross,
+    uber_day_total: gross,
+    existing_day_gross: 0,
+    business_miles_day_total: totals.businessMiles,
+    existing_day_miles: 0,
+    trips_day_total: totals.trips,
+    existing_day_trips: 0,
+    trips: totals.trips,
+    business_miles: totals.businessMiles
+  };
+
+  const { data, error: insertError } = await supabaseClient
+    .from("days")
+    .insert([payload])
+    .select()
+    .single();
+
+  if (insertError && /shift_end_reason|end_reason|trip_time|available_time|lost_time|column/i.test(insertError.message || "")) {
+    const {
+      shift_end_reason: _unusedReason,
+      trip_time: _unusedTrip,
+      available_time: _unusedAvail,
+      lost_time: _unusedLost,
+      ...legacyPayload
+    } = payload;
+    const retry = await supabaseClient
+      .from("days")
+      .insert([legacyPayload])
+      .select()
+      .single();
+    if (retry.error) {
+      throw new Error(`Unable to insert the synced total: ${retry.error.message || "database error"}`);
+    }
+    return;
+  }
+
+  if (insertError) {
+    throw new Error(`Unable to insert the synced total: ${insertError.message || "database error"}`);
+  }
 }
 
 

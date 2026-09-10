@@ -1,9 +1,9 @@
-import { initDays } from "./days.js?v=2.3.106";
-import { initMonthly } from "./monthly.js?v=2.3.106";
-import { initFuel } from "./fuel.js?v=2.3.106";
-import { initExpenses } from "./expenses.js?v=2.3.106";
-import { VERSION, getReleaseNotes } from "./version.js?v=2.3.106";
-import { initSettings } from "./settings.js?v=2.3.106";
+import { initDays } from "./days.js?v=2.3.107";
+import { initMonthly } from "./monthly.js?v=2.3.107";
+import { initFuel } from "./fuel.js?v=2.3.107";
+import { initExpenses } from "./expenses.js?v=2.3.107";
+import { VERSION, getReleaseNotes } from "./version.js?v=2.3.107";
+import { initSettings } from "./settings.js?v=2.3.107";
 
 function initTabs() {
   const buttons = document.querySelectorAll(".tab-button");
