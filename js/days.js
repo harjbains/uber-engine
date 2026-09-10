@@ -21,8 +21,8 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.107";
-import { publishShiftState, readSyncTotalRequest, clearSyncTotalRequest, SHIFT_SYNC_REQUEST_KEY } from "./shiftProgress.js?v=2.3.107";
+} from "./settings.js?v=2.3.108";
+import { publishShiftState, readSyncTotalRequest, clearSyncTotalRequest, SHIFT_SYNC_REQUEST_KEY } from "./shiftProgress.js?v=2.3.108";
 
 const ids = {
   date: "day_date",
@@ -4390,14 +4390,14 @@ async function applySyncTotalRequest() {
     await loadWeekDays();
   } catch (err) {
     console.error("Unable to apply the Map Engine today total:", err);
-    showStatus("Map Engine total could not be applied yet.", "error", false);
+    showStatus(`Map Engine total could not be applied yet: ${err.message || "unknown error"}`, "error", false);
   }
 }
 
 async function replaceTodayDayGross(dateString, gross) {
   const { data: existing, error } = await supabaseClient
     .from("days")
-    .select("*")
+    .select("id,end_time,shift_end_reason,trip_time,available_time,lost_time,hours_worked,trips,business_miles")
     .eq("date", dateString);
 
   if (error) {
@@ -4425,10 +4425,11 @@ async function replaceTodayDayGross(dateString, gross) {
     .pop() || null;
 
   if (rows.length > 0) {
+    const ids = rows.map((day) => day.id).filter(Boolean);
     const { error: deleteError } = await supabaseClient
       .from("days")
       .delete()
-      .eq("date", dateString);
+      .in("id", ids);
     if (deleteError) {
       throw new Error(`Unable to replace today's sessions: ${deleteError.message || "database error"}`);
     }
@@ -4443,12 +4444,6 @@ async function replaceTodayDayGross(dateString, gross) {
     lost_time: totals.lostTime,
     hours_worked: totals.hoursWorked,
     gross,
-    uber_day_total: gross,
-    existing_day_gross: 0,
-    business_miles_day_total: totals.businessMiles,
-    existing_day_miles: 0,
-    trips_day_total: totals.trips,
-    existing_day_trips: 0,
     trips: totals.trips,
     business_miles: totals.businessMiles
   };
