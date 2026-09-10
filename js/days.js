@@ -22,7 +22,7 @@ import {
   formatClockHours,
   parseClockHoursInput
 } from "./settings.js?v=2.3.109";
-import { publishShiftState, readSyncTotalRequest, clearSyncTotalRequest, SHIFT_SYNC_REQUEST_KEY } from "./shiftProgress.js?v=2.3.109";
+import { publishShiftState, readSyncTotalRequest, clearSyncTotalRequest, readControlRequest, clearControlRequest, SHIFT_SYNC_REQUEST_KEY, SHIFT_CONTROL_REQUEST_KEY } from "./shiftProgress.js?v=2.3.109";
 
 const ids = {
   date: "day_date",
@@ -2904,10 +2904,12 @@ const weekDates = getWeekDates(currentWeekRange.startIso);
   const todayGoal = summary.hasTodayTarget
     ? (summary.todayEarned || 0) + (summary.todayTarget || 0)
     : summary.requiredPerDay || 0;
+const activeShift = readActiveShift();
   publishShiftState({
     date: todayIso(),
     shiftActive: Boolean(summary.hasTodayTarget) && todayGoal > 0,
-    paused: false,
+    paused: isLiveShiftPaused(activeShift),
+    hasActiveShift: Boolean(activeShift),
     dailyTarget: todayGoal,
     todayEarnings: summary.todayEarned || 0,
     activeMinutes: Math.round((summary.todayHoursWorked || 0) * 60),
@@ -2918,7 +2920,6 @@ const weekDates = getWeekDates(currentWeekRange.startIso);
     weeklyMinutes: Math.round((summary.hoursWorked || 0) * 60),
     weeklyRemaining: summary.requiredEarnings || 0
   });
-  const activeShift = readActiveShift();
   if (activeShift) {
     const activeShiftDate = dateToIso(new Date(activeShift.start_time));
     if (weekDates.includes(activeShiftDate)) {
@@ -4360,8 +4361,10 @@ export function initDays() {
   bindDayEvents();
   loadWeekDays();
   applySyncTotalRequest();
+  applyControlRequest();
   window.addEventListener("storage", (event) => {
     if (event.key === SHIFT_SYNC_REQUEST_KEY) applySyncTotalRequest();
+    if (event.key === SHIFT_CONTROL_REQUEST_KEY) applyControlRequest();
   });
 }
 
@@ -4394,7 +4397,124 @@ async function applySyncTotalRequest() {
   }
 }
 
-async function replaceTodayDayGross(dateString, gross) {
+async function applyControlRequest() {
+  const request = readControlRequest();
+  if (!request) return;
+
+  switch (request.action) {
+    case "start":
+      if (readActiveShift()) {
+        clearControlRequest();
+        return;
+      }
+      startLiveShift();
+      clearControlRequest();
+      break;
+
+    case "pause":
+      if (readActiveShift()) pauseLiveShift();
+      clearControlRequest();
+      break;
+
+    case "resume":
+      if (readActiveShift()) resumeLiveShift();
+      clearControlRequest();
+      break;
+
+    case "end":
+      await endLiveShiftFromMapEngine(request.miles);
+      clearControlRequest();
+      break;
+
+    default:
+      clearControlRequest();
+  }
+}
+
+async function endLiveShiftFromMapEngine(milesValue) {
+  const shift = readActiveShift();
+  if (!shift) {
+    showStatus("No live shift is active to end.", "error", false);
+    return;
+  }
+
+  const miles = Number(milesValue);
+  if (!Number.isFinite(miles) || miles < 0) {
+    showStatus("Enter today's business miles as zero or more.", "error", false);
+    return;
+  }
+
+  const today = todayIso();
+  let gross = Number(readPublishedTodayEarnings());
+  if (!Number.isFinite(gross) || gross < 0) gross = 0;
+
+  try {
+    const savedTotals = await getSavedDayTotalsForDate(today);
+    gross = Math.max(gross, savedTotals.gross);
+    await replaceTodayDayGross(today, Math.round(gross * 100) / 100, {
+      businessMilesTotal: Math.round(miles * 10) / 10,
+      endTime: formatShiftTime(new Date())
+    });
+
+    try {
+      const sheetPayload = buildDaySheetPayload({
+        date: today,
+        gross,
+        business_miles: miles,
+        trips: savedTotals.trips,
+        end_time: formatShiftTime(new Date())
+      });
+      await sendToGoogleSheets("day", sheetPayload);
+    } catch (sheetError) {
+      console.error("Google Sheets sync failed after ending the shift from the Map Engine:", sheetError);
+      showStatus("Shift ended and saved, but Google Sheets sync failed.", "error", false);
+    }
+  } catch (err) {
+    console.error("Unable to end the shift from the Map Engine:", err);
+    showStatus(`Unable to finish the shift: ${err.message || "unknown error"}`, "error", false);
+    return;
+  }
+
+  const now = new Date().toISOString();
+  const pauses = isLiveShiftPaused(shift)
+    ? [
+        ...getPauseIntervals(shift),
+        {
+          start_time: shift.paused_at,
+          end_time: now
+        }
+      ]
+    : getPauseIntervals(shift);
+
+  const completedShift = {
+    ...shift,
+    paused_at: "",
+    pauses,
+    end_time: now
+  };
+
+  archiveLiveShift(completedShift);
+  clearActiveShift();
+  clearDayForm();
+  await loadWeekDays();
+  await loadMonthSummary();
+  renderWeeklyTarget(currentWeekDays);
+  showStatus("Shift ended from the Map Engine. Session saved.", "success", false);
+}
+
+function readPublishedTodayEarnings() {
+  try {
+    const raw = localStorage.getItem("uberEngine.shift.state");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const value = Number(parsed.todayEarnings);
+    return Number.isFinite(value) ? value : null;
+  } catch (error) {
+    return null;
+  }
+}
+
+async function replaceTodayDayGross(dateString, gross, options = {}) {
   const { data: existing, error } = await supabaseClient
     .from("days")
     .select("*")
@@ -4437,7 +4557,7 @@ async function replaceTodayDayGross(dateString, gross) {
 
   const payload = {
     date: dateString,
-    end_time: lastEndTime,
+    end_time: options.endTime ?? lastEndTime,
     shift_end_reason: lastEndReason,
     trip_time: totals.tripTime,
     available_time: totals.availableTime,
@@ -4445,7 +4565,7 @@ async function replaceTodayDayGross(dateString, gross) {
     hours_worked: totals.hoursWorked,
     gross,
     trips: totals.trips,
-    business_miles: totals.businessMiles
+    business_miles: options.businessMilesTotal ?? totals.businessMiles
   };
 
   const insertDay = async (row) => {

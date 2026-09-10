@@ -3,6 +3,7 @@ const SHIFT_ACTIVE_KEY = "uberEngine.shift.active";
 const SHIFT_UPDATED_KEY = "uberEngine.shift.updatedAt";
 const SHIFT_STATE_KEY = "uberEngine.shift.state";
 export const SHIFT_SYNC_REQUEST_KEY = "uberEngine.shift.syncRequest";
+export const SHIFT_CONTROL_REQUEST_KEY = "uberEngine.shift.controlRequest";
 
 function clampFraction(value) {
   const number = Number(value);
@@ -32,6 +33,7 @@ export function publishShiftState(state = {}, now = Date.now()) {
     date: String(state.date || ""),
     shiftActive: active,
     paused: Boolean(state.paused),
+    hasActiveShift: Boolean(state.hasActiveShift),
     dailyTarget,
     todayEarnings,
     dailyProgress: Math.round(dailyProgress * 1000) / 1000,
@@ -93,5 +95,41 @@ export function clearSyncTotalRequest() {
     localStorage.removeItem(SHIFT_SYNC_REQUEST_KEY);
   } catch (error) {
     console.warn("Unable to clear sync request:", error);
+  }
+}
+
+export function buildControlRequest(action, { miles } = {}, now = Date.now()) {
+  const request = {
+    action,
+    requestedAt: now
+  };
+  if (miles !== undefined && miles !== null && miles !== "") {
+    request.miles = Math.max(0, Number(miles) || 0);
+  }
+  return JSON.stringify(request);
+}
+
+export function readControlRequest(readValue = (key) => localStorage.getItem(key)) {
+  try {
+    const raw = readValue(SHIFT_CONTROL_REQUEST_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const action = String(parsed?.action || "");
+    if (action !== "start" && action !== "pause" && action !== "resume" && action !== "end") return null;
+    return {
+      action,
+      miles: parsed.miles === undefined || parsed.miles === null || parsed.miles === "" ? null : Number(parsed.miles),
+      requestedAt: Number(parsed.requestedAt) || Date.now()
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+export function clearControlRequest() {
+  try {
+    localStorage.removeItem(SHIFT_CONTROL_REQUEST_KEY);
+  } catch (error) {
+    console.warn("Unable to clear control request:", error);
   }
 }
