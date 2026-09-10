@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.108";
+export const VERSION = "v2.3.109";
 
 export const RELEASE_NOTES = {
+  "2.3.109": "Map Engine today-total sync now reads the live day rows via a column-safe select so it also works on the older session schema",
   "2.3.108": "Fixes the Map Engine today-total sync so the reflected total saves correctly against the real session columns",
   "2.3.107": "Shift dashboard state and today's running total now sync bidirectionally with the Map Engine without reloading",
   "2.3.106": "Shift progress is published to the Map Engine so the map bar reflects today's earnings target without revealing figures",

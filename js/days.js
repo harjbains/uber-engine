@@ -21,8 +21,8 @@ import {
   getWeeklyTargetMode,
   formatClockHours,
   parseClockHoursInput
-} from "./settings.js?v=2.3.108";
-import { publishShiftState, readSyncTotalRequest, clearSyncTotalRequest, SHIFT_SYNC_REQUEST_KEY } from "./shiftProgress.js?v=2.3.108";
+} from "./settings.js?v=2.3.109";
+import { publishShiftState, readSyncTotalRequest, clearSyncTotalRequest, SHIFT_SYNC_REQUEST_KEY } from "./shiftProgress.js?v=2.3.109";
 
 const ids = {
   date: "day_date",
@@ -4397,7 +4397,7 @@ async function applySyncTotalRequest() {
 async function replaceTodayDayGross(dateString, gross) {
   const { data: existing, error } = await supabaseClient
     .from("days")
-    .select("id,end_time,shift_end_reason,trip_time,available_time,lost_time,hours_worked,trips,business_miles")
+    .select("*")
     .eq("date", dateString);
 
   if (error) {
@@ -4448,33 +4448,30 @@ async function replaceTodayDayGross(dateString, gross) {
     business_miles: totals.businessMiles
   };
 
-  const { data, error: insertError } = await supabaseClient
-    .from("days")
-    .insert([payload])
-    .select()
-    .single();
-
-  if (insertError && /shift_end_reason|end_reason|trip_time|available_time|lost_time|column/i.test(insertError.message || "")) {
-    const {
-      shift_end_reason: _unusedReason,
-      trip_time: _unusedTrip,
-      available_time: _unusedAvail,
-      lost_time: _unusedLost,
-      ...legacyPayload
-    } = payload;
-    const retry = await supabaseClient
+  const insertDay = async (row) => {
+    const { data, error: insertError } = await supabaseClient
       .from("days")
-      .insert([legacyPayload])
+      .insert([row])
       .select()
       .single();
-    if (retry.error) {
-      throw new Error(`Unable to insert the synced total: ${retry.error.message || "database error"}`);
-    }
-    return;
-  }
+    if (insertError) throw new Error(`Unable to insert the synced total: ${insertError.message || "database error"}`);
+    return data;
+  };
 
-  if (insertError) {
-    throw new Error(`Unable to insert the synced total: ${insertError.message || "database error"}`);
+  try {
+    return await insertDay(payload);
+  } catch (err) {
+    if (/shift_end_reason|end_reason|trip_time|available_time|lost_time|column/i.test(err.message || "")) {
+      const {
+        shift_end_reason: _unusedReason,
+        trip_time: _unusedTrip,
+        available_time: _unusedAvail,
+        lost_time: _unusedLost,
+        ...legacyPayload
+      } = payload;
+      return await insertDay(legacyPayload);
+    }
+    throw err;
   }
 }
 
