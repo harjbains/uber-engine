@@ -23,7 +23,7 @@ export function publishShiftState(state = {}, now = Date.now()) {
   const active = Boolean(state.shiftActive) && dailyTarget > 0;
   const dailyProgress = dailyTarget > 0 ? clampFraction(todayEarnings / dailyTarget) : 0;
   const remaining = dailyTarget > 0 ? Math.max(0, Math.round(dailyTarget - todayEarnings)) : 0;
-  const targetUnitsRemaining = dailyTarget > 0 ? Math.round(remaining / 5) : 0;
+  const ridesRemaining = dailyTarget > 0 ? Math.round(remaining / 5) : 0;
   const weeklyTarget = Math.round(Number(state.weeklyTarget) || 0);
   const weeklyEarnings = Math.round((Number(state.weeklyEarnings) || 0) * 100) / 100;
   const weeklyProgress = weeklyTarget > 0 ? clampFraction(weeklyEarnings / weeklyTarget) : 0;
@@ -38,7 +38,7 @@ export function publishShiftState(state = {}, now = Date.now()) {
     todayEarnings,
     dailyProgress: Math.round(dailyProgress * 1000) / 1000,
     remaining,
-    targetUnitsRemaining,
+    ridesRemaining,
     activeMinutes: Math.max(0, Math.round(Number(state.activeMinutes) || 0)),
     hourlyRate: Math.round((Number(state.hourlyRate) || 0) * 100) / 100,
     targetRate: Math.round((Number(state.targetRate) || 0) * 100) / 100,

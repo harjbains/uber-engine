@@ -1,6 +1,7 @@
-export const VERSION = "v2.3.110";
+export const VERSION = "v2.3.111";
 
 export const RELEASE_NOTES = {
+  "2.3.111": "Remaining target is now published as rides (each roughly £5) so the Map Engine dashboard reads rides remaining and the donut gains an inner hours ring",
   "2.3.110": "The Map Engine can now start, pause, resume and end the live shift, entering today's business miles at the end, via the shared shift control channel",
   "2.3.109": "Map Engine today-total sync now reads the live day rows via a column-safe select so it also works on the older session schema",
   "2.3.108": "Fixes the Map Engine today-total sync so the reflected total saves correctly against the real session columns",
