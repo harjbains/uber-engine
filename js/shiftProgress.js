@@ -1,137 +1,96 @@
-const SHIFT_PROGRESS_KEY = "uberEngine.shift.progress";
-const SHIFT_ACTIVE_KEY = "uberEngine.shift.active";
-const SHIFT_UPDATED_KEY = "uberEngine.shift.updatedAt";
-const SHIFT_STATE_KEY = "uberEngine.shift.state";
+const keys = {
+  progress: "uberEngine.shift.progress",
+  active: "uberEngine.shift.active",
+  updatedAt: "uberEngine.shift.updatedAt",
+  state: "uberEngine.shift.state"
+};
+
 export const SHIFT_SYNC_REQUEST_KEY = "uberEngine.shift.syncRequest";
 export const SHIFT_CONTROL_REQUEST_KEY = "uberEngine.shift.controlRequest";
+export const SHIFT_MILEAGE_REQUEST_KEY = "uberEngine.shift.mileageRequest";
 
-function clampFraction(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) return 0;
-  return Math.min(1, Math.max(0, number));
-}
-
-function roundToFive(value) {
-  const number = Number(value) || 0;
-  if (number <= 0) return 0;
-  return Math.max(5, Math.round(number / 5) * 5);
-}
+const number = (value, fallback = 0) =>
+  Number.isFinite(Number(value)) ? Number(value) : fallback;
+const pounds = (value) => Math.round(Math.max(0, number(value)) * 100) / 100;
+const fraction = (value) => Math.min(1, Math.max(0, number(value)));
 
 export function publishShiftState(state = {}, now = Date.now()) {
-  const todayEarnings = Math.round((Number(state.todayEarnings) || 0) * 100) / 100;
-  const dailyTarget = roundToFive(Number(state.dailyTarget) || 0);
-  const active = Boolean(state.shiftActive) && dailyTarget > 0;
-  const dailyProgress = dailyTarget > 0 ? clampFraction(todayEarnings / dailyTarget) : 0;
-  const remaining = dailyTarget > 0 ? Math.max(0, Math.round(dailyTarget - todayEarnings)) : 0;
-  const ridesRemaining = dailyTarget > 0 ? Math.round(remaining / 5) : 0;
-  const weeklyTarget = Math.round(Number(state.weeklyTarget) || 0);
-  const weeklyEarnings = Math.round((Number(state.weeklyEarnings) || 0) * 100) / 100;
-  const weeklyProgress = weeklyTarget > 0 ? clampFraction(weeklyEarnings / weeklyTarget) : 0;
+  const dailyTarget = pounds(state.dailyTarget);
+  const todayEarnings = pounds(state.todayEarnings);
+  const weeklyTarget = pounds(state.weeklyTarget);
+  const weeklyEarnings = pounds(state.weeklyEarnings);
+  const remaining = Math.max(0, dailyTarget - todayEarnings);
+  const weeklyRemaining = Math.max(0, weeklyTarget - weeklyEarnings);
+  const ridesRemaining = Math.max(0, Math.ceil(remaining / 5));
 
-  const statePayload = {
-    version: 1,
+  const payload = {
+    version: 2,
     date: String(state.date || ""),
-    shiftActive: active,
-    paused: Boolean(state.paused),
+    shiftActive: Boolean(state.shiftActive),
+    paused: false,
     hasActiveShift: Boolean(state.hasActiveShift),
     dailyTarget,
     todayEarnings,
-    dailyProgress: Math.round(dailyProgress * 1000) / 1000,
+    dailyProgress: dailyTarget > 0 ? fraction(todayEarnings / dailyTarget) : 0,
     remaining,
     ridesRemaining,
-    activeMinutes: Math.max(0, Math.round(Number(state.activeMinutes) || 0)),
-    hourlyRate: Math.round((Number(state.hourlyRate) || 0) * 100) / 100,
-    targetRate: Math.round((Number(state.targetRate) || 0) * 100) / 100,
+    activeMinutes: 0,
+    hourlyRate: 0,
+    targetRate: 20,
     weeklyTarget,
     weeklyEarnings,
-    weeklyProgress: Math.round(weeklyProgress * 1000) / 1000,
-    weeklyMinutes: Math.max(0, Math.round(Number(state.weeklyMinutes) || 0)),
-    weeklyRemaining: Math.round((Number(state.weeklyRemaining) || 0) * 100) / 100,
+    weeklyProgress: weeklyTarget > 0 ? fraction(weeklyEarnings / weeklyTarget) : 0,
+    weeklyMinutes: 0,
+    weeklyRemaining,
+    businessMilesToday: pounds(state.businessMilesToday),
+    businessMilesWeek: pounds(state.businessMilesWeek),
     updatedAt: now
   };
 
   try {
-    localStorage.setItem(SHIFT_PROGRESS_KEY, String(dailyProgress));
-    localStorage.setItem(SHIFT_ACTIVE_KEY, active ? "true" : "false");
-    localStorage.setItem(SHIFT_UPDATED_KEY, String(now));
-    localStorage.setItem(SHIFT_STATE_KEY, JSON.stringify(statePayload));
+    localStorage.setItem(keys.progress, String(payload.dailyProgress));
+    localStorage.setItem(keys.active, String(payload.shiftActive));
+    localStorage.setItem(keys.updatedAt, String(now));
+    localStorage.setItem(keys.state, JSON.stringify(payload));
+    window.dispatchEvent(new Event("uber-engine-shift-state-local"));
   } catch (error) {
-    console.warn("Unable to publish shift state:", error);
+    console.warn("Unable to publish shift state", error);
   }
+
+  return payload;
 }
 
-export function publishShiftProgress({ earned, goal, active = true, now = Date.now() } = {}) {
-  const earnedValue = Number(earned) || 0;
-  const goalValue = Number(goal) || 0;
-  const progress = goalValue > 0 ? clampFraction(earnedValue / goalValue) : 0;
-
+function readRequest(key, validator) {
   try {
-    localStorage.setItem(SHIFT_PROGRESS_KEY, String(progress));
-    localStorage.setItem(SHIFT_ACTIVE_KEY, active ? "true" : "false");
-    localStorage.setItem(SHIFT_UPDATED_KEY, String(now));
-  } catch (error) {
-    console.warn("Unable to publish shift progress:", error);
-  }
-}
-
-export function readSyncTotalRequest(readValue = (key) => localStorage.getItem(key)) {
-  try {
-    const raw = readValue(SHIFT_SYNC_REQUEST_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed || typeof parsed.total === "undefined" || parsed.total === null || parsed.total === "") return null;
-    return {
-      date: String(parsed.date || ""),
-      total: Number(parsed.total),
-      requestedAt: Number(parsed.requestedAt) || Date.now()
-    };
-  } catch (error) {
+    const value = JSON.parse(localStorage.getItem(key) || "null");
+    return validator(value) ? value : null;
+  } catch {
     return null;
   }
+}
+
+export function readSyncTotalRequest() {
+  return readRequest(
+    SHIFT_SYNC_REQUEST_KEY,
+    (v) => v && Number.isFinite(Number(v.total))
+  );
+}
+
+export function readMileageRequest() {
+  return readRequest(
+    SHIFT_MILEAGE_REQUEST_KEY,
+    (v) => v && Number.isFinite(Number(v.miles))
+  );
 }
 
 export function clearSyncTotalRequest() {
   try {
     localStorage.removeItem(SHIFT_SYNC_REQUEST_KEY);
-  } catch (error) {
-    console.warn("Unable to clear sync request:", error);
-  }
+  } catch {}
 }
 
-export function buildControlRequest(action, { miles } = {}, now = Date.now()) {
-  const request = {
-    action,
-    requestedAt: now
-  };
-  if (miles !== undefined && miles !== null && miles !== "") {
-    request.miles = Math.max(0, Number(miles) || 0);
-  }
-  return JSON.stringify(request);
-}
-
-export function readControlRequest(readValue = (key) => localStorage.getItem(key)) {
+export function clearMileageRequest() {
   try {
-    const raw = readValue(SHIFT_CONTROL_REQUEST_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    const action = String(parsed?.action || "");
-    if (action !== "start" && action !== "pause" && action !== "resume" && action !== "end") return null;
-    const miles = parsed.miles;
-    if (miles !== undefined && miles !== null && miles !== "" && !Number.isFinite(Number(miles))) return null;
-    return {
-      action,
-      miles: miles === undefined || miles === null || miles === "" ? null : Number(miles),
-      requestedAt: Number(parsed.requestedAt) || Date.now()
-    };
-  } catch (error) {
-    return null;
-  }
-}
-
-export function clearControlRequest() {
-  try {
-    localStorage.removeItem(SHIFT_CONTROL_REQUEST_KEY);
-  } catch (error) {
-    console.warn("Unable to clear control request:", error);
-  }
+    localStorage.removeItem(SHIFT_MILEAGE_REQUEST_KEY);
+  } catch {}
 }

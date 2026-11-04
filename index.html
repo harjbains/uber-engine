@@ -1,611 +1,134 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="icon" href="favicon.ico">
-  <title>Uber Engine</title>
-
-  <link rel="stylesheet" href="css/styles.css?v=2.3.111">
-
-  <meta http-equiv="Cache-Control" content="no-store">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-</head>
-
-<body>
-  <div class="app-container">
-
-    <h1>Uber Engine</h1>
-
-    <h1 id="app-version"></h1>
-    <p id="app-version-notes"></p>
-
-    <div id="sync-status" class="sync-status hidden"></div>
-
-    <div class="tab-bar">
-      <button class="tab-button active" data-tab="day_tab">Day</button>
-      <button class="tab-button" data-tab="month_tab">Month</button>
-      <button class="tab-button" data-tab="fuel_tab">Costs</button>
-      <button class="tab-button" data-tab="settings_tab">Settings</button>
-    </div>
-
-    <!-- ================= DAY TAB ================= -->
-
-    <div id="day_tab" class="tab-content active">
-
-      <section class="dashboard-carousel" aria-label="Day dashboard">
-        <div class="dashboard-carousel__viewport">
-          <div class="dashboard-carousel__slides">
-            <div class="dashboard-slide active" data-dashboard-slide="0" aria-hidden="false">
-              <div class="card target-card">
-                <div class="target-card__header">
-                  <div>
-                    <h2>Weekly Target</h2>
-                    <p id="target_status" class="target-status">Set a target to track this week.</p>
-                  </div>
-                </div>
-
-                <div class="target-plan-grid">
-                  <div class="field">
-                    <div class="target-gross-nav">
-                      <button id="target_prev_week" class="icon-nav-button" type="button" aria-label="Previous week">
-                        <span aria-hidden="true">&lsaquo;</span>
-                      </button>
-                      <div class="target-ladder-hero">
-                        <span>Weekly Target</span>
-                        <strong id="target_hero_value">Weekly target</strong>
-                        <small id="target_hero_hours">Target hours at &pound;20/hr</small>
-                      </div>
-                      <button id="target_next_week" class="icon-nav-button" type="button" aria-label="Next week">
-                        <span aria-hidden="true">&rsaquo;</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="field">
-                    <label>Planned Work Days</label>
-                    <div id="target_workdays" class="target-workdays" aria-label="Planned work days"></div>
-                  </div>
-                </div>
-
-                <div id="target_week_strip" class="target-week-strip" aria-label="Week so far"></div>
-
-                <div id="target_progress_summary" class="target-progress-grid"></div>
-                <div id="target_dynamic_forecast" class="target-dynamic-forecast"></div>
-                <div class="target-remaining-section">
-                  <h3>Weekly Financial Position</h3>
-                </div>
-                <div id="target_summary" class="target-summary-grid"></div>
-              </div>
-            </div>
-
-            <div class="dashboard-slide" data-dashboard-slide="1" aria-hidden="true">
-              <div class="card">
-                <div class="week-header">
-                  <h3 id="week_title">Week to Date</h3>
-                  <div class="week-nav">
-                    <button id="prev_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Previous week">
-                      <span aria-hidden="true">&lsaquo;</span>
-                    </button>
-                    <button id="this_week" class="week-nav__button" type="button">Today</button>
-                    <button id="next_week" class="week-nav__button week-nav__button--icon" type="button" aria-label="Next week">
-                      <span aria-hidden="true">&rsaquo;</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div id="week_summary" class="summary-grid"></div>
-              </div>
-            </div>
-          </div>
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#071318">
+    <meta http-equiv="Cache-Control" content="no-store">
+    <title>Uber Engine - Daily & Weekly Plan</title>
+    <link rel="stylesheet" href="css/styles.css?v=3.1.0">
+    <link rel="stylesheet" href="css/v2-blocks.css?v=3.1.0">
+  </head>
+  <body>
+    <main class="engine-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">UBER ENGINE</p>
+          <h1>Daily &amp; Weekly Plan</h1>
         </div>
+        <div id="sync-status" class="sync-status" aria-live="polite">SYNCING</div>
+      </header>
 
-        <div class="dashboard-carousel__pager" role="tablist" aria-label="Dashboard slides">
-          <button class="dashboard-carousel__dot active" type="button" data-dashboard-dot="0" aria-label="Show Weekly Target" aria-current="true">Target</button>
-          <button class="dashboard-carousel__dot" type="button" data-dashboard-dot="1" aria-label="Show Week to Date">Week</button>
+      <!-- Weekly Target Card -->
+      <section class="target-card" aria-labelledby="weekly-target-title">
+        <p id="weekly-target-title" class="eyebrow">WEEKLY TARGET</p>
+        <output id="weekly-target" class="target-value" title="Tap to enter custom weekly target">£750</output>
+        <div class="target-controls" aria-label="Adjust weekly target">
+          <button type="button" data-target-change="-50">−£50</button>
+          <button type="button" data-target-change="-10">−£10</button>
+          <button type="button" data-target-change="10">+£10</button>
+          <button type="button" data-target-change="50">+£50</button>
         </div>
       </section>
 
-      <details class="card session-card missed-session-accordion">
-        <summary>
-          <span>Add missed session</span>
-          <span class="history-accordion__hint">Manual entry</span>
-        </summary>
-
-        <div class="missed-session-form">
-          <div class="field">
-            <label for="day_date">Work Date</label>
-            <select id="day_date"></select>
-          </div>
-
-          <div class="form-row-2">
-            <div class="field">
-              <label for="day_gross">Uber Total (&pound;)</label>
-              <input id="day_gross" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-            </div>
-
-            <div class="field">
-              <label for="day_miles">Miles Total</label>
-              <input id="day_miles" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0">
-            </div>
-          </div>
-
-          <div class="form-row-3 session-time-row">
-            <div class="field">
-              <label for="day_trip_time">Trip Time (hrs)</label>
-              <input id="day_trip_time" type="number" min="0" step="0.1" inputmode="decimal" placeholder="3.0">
-            </div>
-
-            <div class="field">
-              <label for="day_available_time">Available Time (hrs)</label>
-              <input id="day_available_time" type="number" min="0" step="0.1" inputmode="decimal" placeholder="2.0">
-            </div>
-
-            <div class="field">
-              <label for="day_lost_time">Lost Time (hrs)</label>
-              <input id="day_lost_time" type="number" min="0" step="0.1" inputmode="decimal" placeholder="0.0">
-            </div>
-          </div>
-
-          <div class="field">
-            <label for="day_end_reason">Shift End Reason</label>
-            <select id="day_end_reason">
-              <option value="">Select reason</option>
-              <option value="target_hit">Target hit</option>
-              <option value="planned_end_time">Planned end time reached</option>
-              <option value="genuine_fatigue_safety">Genuine fatigue / safety</option>
-              <option value="family_commitment">Family commitment</option>
-              <option value="car_admin_issue">Car/admin issue</option>
-              <option value="market_clearly_dead">Market clearly dead</option>
-              <option value="quit_early_mood_dipped">Quit early / mood dipped</option>
-              <option value="other">Other</option>
-            </select>
-          </div>
-
-          <button id="save_day" type="button" class="btn-primary">Save Missed Session</button>
+      <!-- Week Summary -->
+      <section class="week-summary" aria-label="Week at a glance">
+        <div>
+          <p class="eyebrow">THIS WEEK</p>
+          <strong id="week-earned">£0 <span>/ £750</span></strong>
         </div>
-      </details>
-
-      <details class="card history-accordion">
-        <summary>
-          <span>Worked Sessions</span>
-          <span class="history-accordion__hint">Show history</span>
-        </summary>
-        <div id="dayList"></div>
-      </details>
-
-    </div>
-
-    <!-- ================= MONTH TAB ================= -->
-
-    <div id="month_tab" class="tab-content">
-
-      <div class="card">
-        <h3>Month</h3>
-        <label for="month_picker">Select Month</label>
-        <div class="month-picker-nav">
-          <button id="month_prev" class="icon-nav-button" type="button" aria-label="Previous month">
-            <span aria-hidden="true">&lsaquo;</span>
-          </button>
-          <input type="month" id="month_picker">
-          <button id="month_next" class="icon-nav-button" type="button" aria-label="Next month">
-            <span aria-hidden="true">&rsaquo;</span>
-          </button>
+        <div>
+          <p class="eyebrow">REMAINING</p>
+          <strong id="week-remaining">£750</strong>
         </div>
-      </div>
-
-      <section class="month-carousel" aria-label="Month dashboard">
-        <div class="dashboard-carousel__viewport">
-          <div class="dashboard-carousel__slides">
-            <div class="dashboard-slide active" data-month-slide="0" aria-hidden="false">
-              <div class="card">
-                <h3>Month Summary</h3>
-                <div id="month_summary" class="summary-grid"></div>
-
-                <div class="month-export-actions">
-                  <button id="export-month" type="button" class="btn-primary">
-                    Export Month
-                  </button>
-
-                  <button id="export-mtd" type="button" class="btn-secondary">
-                    Export MTD
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div class="dashboard-slide" data-month-slide="1" aria-hidden="true">
-              <div class="card statement-card">
-                <h3>Uber Weekly Statement</h3>
-
-                <div class="uber-import">
-                  <label for="uber_statement_import_text">Import Uber Breakdown</label>
-                  <textarea id="uber_statement_import_text" rows="2" placeholder="Paste copied breakdown text"></textarea>
-                  <!--
-                  <div class="uber-import__actions">
-                    <label for="uber_statement_import_image" class="btn-secondary uber-import__file-button">Choose Screenshot</label>
-                    <input id="uber_statement_import_image" class="uber-import__file-input" type="file" accept="image/*">
-                    <button id="read_uber_clipboard" type="button" class="btn-secondary">Read Clipboard</button>
-                    <button id="parse_uber_statement" type="button" class="btn-secondary">Parse Import</button>
-                    <span id="uber_statement_import_status" class="uber-import__status" aria-live="polite"></span>
-                  </div>
-                  -->
-                </div>
-
-                <div class="form-row-2">
-                  <div class="field">
-                    <label for="uber_statement_week_start">Week Start</label>
-                    <input id="uber_statement_week_start" type="date">
-                  </div>
-
-                  <div class="field">
-                    <label for="uber_statement_week_end">Week End</label>
-                    <input id="uber_statement_week_end" type="date">
-                  </div>
-                </div>
-
-                <div class="form-row-2">
-                  <div class="field">
-                    <label for="uber_customer_payments">Customer Payments (&pound;)</label>
-                    <input id="uber_customer_payments" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-                  </div>
-
-                  <div class="field">
-                    <label for="uber_tips">Tips (&pound;)</label>
-                    <input id="uber_tips" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-                  </div>
-                </div>
-
-                <div class="form-row-2">
-                  <div class="field">
-                    <label for="uber_taxes_third_party_fees">Taxes &amp; 3rd Party Fees (&pound;)</label>
-                    <input id="uber_taxes_third_party_fees" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-                  </div>
-
-                  <div class="field">
-                    <label for="uber_service_fee">Uber Service Fee (&pound;)</label>
-                    <input id="uber_service_fee" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-                  </div>
-                </div>
-
-                <div class="form-row-2">
-                  <div class="field">
-                    <label for="uber_earnings">Earnings (&pound;)</label>
-                    <input id="uber_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-                  </div>
-
-                  <div class="field">
-                    <label for="uber_total_earnings">Total Earnings (&pound;)</label>
-                    <input id="uber_total_earnings" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00">
-                  </div>
-                </div>
-
-                <button id="save_uber_weekly" type="button" class="btn-primary">
-                  Save Weekly Statement
-                </button>
-              </div>
-            </div>
-
-            <div class="dashboard-slide" data-month-slide="2" aria-hidden="true">
-              <div class="card">
-                <h3>Uber Weekly Statements</h3>
-                <div id="uber_weekly_history"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="month-carousel__pager" role="tablist" aria-label="Month dashboard slides">
-          <button class="month-carousel__button active" type="button" data-month-dot="0" aria-label="Show Month Summary" aria-current="true">Summary</button>
-          <button class="month-carousel__button" type="button" data-month-dot="1" aria-label="Show Uber Weekly Statement">Add Week</button>
-          <button class="month-carousel__button" type="button" data-month-dot="2" aria-label="Show Uber Weekly Statements">History</button>
+        <div class="miles-summary">
+          <p class="eyebrow">BUSINESS MILES</p>
+          <strong id="week-miles">0.0</strong>
         </div>
       </section>
 
-    </div>
+      <!-- £50 Progress Blocks -->
+      <section class="block-progress" aria-label="Fifty pound weekly progress blocks">
+        <div>
+          <p class="eyebrow">£50 BLOCKS</p>
+          <span id="block-status">BUILDING THE WEEK</span>
+        </div>
+        <div id="week-blocks" class="week-blocks" aria-hidden="true"></div>
+      </section>
 
-    <!-- ================= COSTS TAB ================= -->
-
-    <div id="fuel_tab" class="tab-content">
-
-      <div class="cost-toggle" role="tablist" aria-label="Cost type">
-        <button id="vehicle_cost_toggle" class="cost-toggle__button active" type="button" data-cost-panel="fuel_cost_panel">Fuel</button>
-        <button class="cost-toggle__button" type="button" data-cost-panel="expense_cost_panel">Expense</button>
-      </div>
-
-      <div id="fuel_cost_panel" class="cost-panel active">
-        <div id="petrol_fuel_panel">
-          <div class="card">
-            <h3>Log Fuel</h3>
-
-            <label for="fuel_date">Date</label>
-            <input type="date" id="fuel_date">
-
-            <div class="form-row-2">
-              <div>
-                <label for="fuel_litres">Litres</label>
-                <input type="number" id="fuel_litres" step="0.01" inputmode="decimal">
-              </div>
-
-              <div>
-                <label for="fuel_cost">Cost (&pound;)</label>
-                <input type="number" id="fuel_cost" step="0.01" inputmode="decimal" required>
-              </div>
-            </div>
-
-            <label for="fuel_miles">Mileage</label>
-            <input type="number" id="fuel_miles" inputmode="numeric" required>
-
-            <button id="save_fuel" class="btn-primary" type="button">
-              Save Fuel
-            </button>
+      <!-- Weekly Plan - 7 Day Tiles -->
+      <section class="plan-section" aria-labelledby="plan-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">WEEKLY PLAN</p>
+            <h2 id="plan-title">Your week</h2>
           </div>
+          <p class="section-hint">Tap tile to edit &bull; Tap toggle for work/off</p>
+        </div>
+        <div id="day-tiles" class="day-tiles" aria-live="polite"></div>
+      </section>
 
-          <div class="card">
-            <h3>Fuel History</h3>
-            <div id="fuel_history"></div>
+      <!-- Day Earnings Editor Card (Defaults to Today, selectable to any day) -->
+      <section class="editor-card" aria-labelledby="editor-title">
+        <div class="editor-header">
+          <div>
+            <p id="editor-eyebrow" class="eyebrow">TODAY'S EARNINGS</p>
+            <h2 id="editor-title">Today</h2>
+          </div>
+          <div class="editor-header-actions">
+            <button type="button" id="btn-return-today" class="editor-return-btn" style="display:none;">Return to Today</button>
+            <span id="editor-status" class="status-pill">WORKING</span>
           </div>
         </div>
 
-        <div id="ev_charging_panel" hidden>
-          <div class="card">
-            <h3>Weekly Charging</h3>
-
-            <div class="form-row-2">
-              <div>
-                <label for="charging_week_start">Week Start</label>
-                <input type="date" id="charging_week_start">
-              </div>
-
-              <div>
-                <label for="charging_tariff_name">Tariff / Source</label>
-                <input type="text" id="charging_tariff_name" placeholder="Ohme / Octopus Intelligent Go">
-              </div>
-            </div>
-
-            <div class="form-row-2">
-              <div>
-                <label for="charging_total_kwh">Total kWh</label>
-                <input type="number" id="charging_total_kwh" min="0" step="0.01" inputmode="decimal">
-              </div>
-
-              <div>
-                <label for="charging_total_cost">Total Cost (&pound;)</label>
-                <input type="number" id="charging_total_cost" min="0" step="0.01" inputmode="decimal">
-              </div>
-            </div>
-
-            <div class="form-row-3">
-              <div>
-                <label for="charging_home_cost">Home (&pound;)</label>
-                <input type="number" id="charging_home_cost" min="0" step="0.01" inputmode="decimal">
-              </div>
-
-              <div>
-                <label for="charging_public_cost">Public (&pound;)</label>
-                <input type="number" id="charging_public_cost" min="0" step="0.01" inputmode="decimal">
-              </div>
-
-              <div>
-                <label for="charging_supercharger_cost">Supercharger (&pound;)</label>
-                <input type="number" id="charging_supercharger_cost" min="0" step="0.01" inputmode="decimal">
-              </div>
-            </div>
-
-            <label for="charging_notes">Notes</label>
-            <input type="text" id="charging_notes" placeholder="Optional">
-
-            <button id="save_charging" class="btn-primary" type="button">
-              Save Charging
-            </button>
-          </div>
-
-          <div class="card">
-            <h3>Charging History</h3>
-            <div id="charging_history"></div>
-          </div>
-        </div>
-      </div>
-
-      <div id="expense_cost_panel" class="cost-panel">
-        <div class="card">
-          <h3>Log Expense</h3>
-
-          <form id="expense-form">
-            <label for="expense_date">Date</label>
-            <input type="date" id="expense_date">
-
-            <label for="expense_category">Category</label>
-            <select id="expense_category"></select>
-
-            <label for="expense_amount">Amount (&pound;)</label>
-            <input type="number" step="0.01" id="expense_amount">
-
-            <label for="expense_notes">Notes</label>
-            <input type="text" id="expense_notes">
-
-            <button id="save_expense" class="btn-primary" type="button">Save Expense</button>
-          </form>
+        <div class="today-figures">
+          <div><span>EARNED</span><strong id="editor-earned">£0</strong></div>
+          <div><span>TARGET</span><strong id="editor-target">£0</strong></div>
+          <div><span>TO GO</span><strong id="editor-remaining">£0</strong></div>
+          <div><span>MILES</span><strong id="editor-miles">0.0</strong></div>
         </div>
 
-        <div class="card">
-          <h3>Expense History</h3>
-          <div id="expenseList"></div>
-        </div>
-      </div>
-
-    </div>
-    <!-- ================= SETTINGS TAB ================= -->
-
-    <div id="settings_tab" class="tab-content">
-
-      <div class="card settings-panel">
-        <h2>Settings</h2>
-
-        <div class="settings-section">
-          <h3>Targets</h3>
-          <div class="field">
-            <label for="settings_weekly_target_mode">Weekly Target Mode</label>
-            <select id="settings_weekly_target_mode">
-              <option value="manual">Manual</option>
-              <option value="dynamic">Dynamic</option>
-            </select>
-          </div>
-
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_dynamic_uplift">Dynamic Uplift</label>
-              <select id="settings_dynamic_uplift">
-                <option value="0">0%</option>
-                <option value="5">5%</option>
-                <option value="10">10%</option>
-                <option value="custom">Custom %</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="settings_dynamic_uplift_custom">Custom Uplift (%)</label>
-              <input id="settings_dynamic_uplift_custom" type="number" min="0" step="0.1" inputmode="decimal">
-            </div>
-          </div>
-
-          <div class="field">
-            <label for="settings_weekly_target">Default Weekly Target (£)</label>
-            <input id="settings_weekly_target" type="number" min="0" step="1" inputmode="numeric">
-          </div>
-
-          <div class="field">
-            <label for="settings_desired_hourly_rate">Planning Rate (&pound;/hr)</label>
-            <input id="settings_desired_hourly_rate" type="number" min="1" step="0.50" inputmode="decimal">
-          </div>
+        <div class="today-progress" aria-hidden="true">
+          <i id="editor-progress-bar"></i>
         </div>
 
-        <div class="settings-section">
-          <h3>Vehicle</h3>
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_fuel_type">Fuel Type</label>
-              <select id="settings_fuel_type">
-                <option value="petrol">Petrol</option>
-                <option value="diesel">Diesel</option>
-                <option value="hybrid">Hybrid</option>
-                <option value="ev">EV</option>
-              </select>
+        <!-- Inline Day Earnings & Miles Update Form -->
+        <form id="day-editor-form" class="editor-form-grid" onsubmit="return false;">
+          <div class="editor-field">
+            <label for="input-gross">GROSS EARNINGS (&pound;)</label>
+            <div class="editor-input-wrap">
+              <span class="currency-prefix">&pound;</span>
+              <input id="input-gross" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00" class="editor-input">
             </div>
-
-            <div class="field">
-              <label for="settings_mpg">MPG Estimate</label>
-              <input id="settings_mpg" type="number" min="1" step="0.1" inputmode="decimal">
+            <div class="editor-quick-row">
+              <button type="button" class="quick-btn" data-add-gross="5">+&pound;5</button>
+              <button type="button" class="quick-btn" data-add-gross="10">+&pound;10</button>
+              <button type="button" class="quick-btn" data-add-gross="20">+&pound;20</button>
+              <button type="button" class="quick-btn" data-add-gross="50">+&pound;50</button>
             </div>
           </div>
 
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_vehicle_model">Car Model</label>
-              <input id="settings_vehicle_model" type="text" placeholder="e.g. Toyota Prius">
+          <div class="editor-field">
+            <label for="input-miles">BUSINESS MILES</label>
+            <div class="editor-input-wrap">
+              <input id="input-miles" type="number" step="0.1" min="0" inputmode="decimal" placeholder="0.0" class="editor-input no-prefix">
             </div>
-
-            <div class="field">
-              <label for="settings_vehicle_reg">Reg Number</label>
-              <input id="settings_vehicle_reg" type="text" placeholder="Optional">
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h3>Operating Costs</h3>
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_insurance_monthly">Insurance / Month (£)</label>
-              <input id="settings_insurance_monthly" type="number" min="0" step="0.01" inputmode="decimal">
-            </div>
-
-            <div class="field">
-              <label for="settings_tax_rate">Tax Rate (%)</label>
-              <input id="settings_tax_rate" type="number" min="0" max="100" step="0.1" inputmode="decimal">
+            <div class="editor-quick-row">
+              <button type="button" class="quick-btn" data-add-miles="5">+5 mi</button>
+              <button type="button" class="quick-btn" data-add-miles="10">+10 mi</button>
+              <button type="button" class="quick-btn" data-add-miles="20">+20 mi</button>
             </div>
           </div>
 
-          <div class="field">
-            <label for="settings_fuel_price">Fallback Fuel Price / L (£)</label>
-            <input id="settings_fuel_price" type="number" min="0" step="0.01" inputmode="decimal">
+          <div class="editor-actions">
+            <button type="button" id="btn-save-day" class="btn-save-day">Save Day Earnings</button>
+            <button type="button" id="btn-reset-day" class="btn-reset-day">Reset to &pound;0</button>
           </div>
+        </form>
+      </section>
+    </main>
 
-          <div class="field">
-            <label for="settings_vehicle_expense_method">Vehicle Expense Method</label>
-            <select id="settings_vehicle_expense_method">
-              <option value="mileage">Mileage claim (25p / mile)</option>
-              <option value="actual">Actual vehicle costs</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h3>Net Pay / Operating Costs</h3>
-          <p class="settings-section__note">Driver cashflow estimate only. These provisions do not alter mileage, MTD or Tax Engine calculations.</p>
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_net_pay_tax_retention">Tax Retention (%)</label>
-              <input id="settings_net_pay_tax_retention" type="number" min="0" max="100" step="0.1" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label for="settings_net_pay_insurance_monthly">Insurance / Month (&pound;)</label>
-              <input id="settings_net_pay_insurance_monthly" type="number" min="0" step="0.01" inputmode="decimal">
-            </div>
-          </div>
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_net_pay_electricity_monthly">Electricity / Month (&pound;)</label>
-              <input id="settings_net_pay_electricity_monthly" type="number" min="0" step="0.01" inputmode="decimal">
-            </div>
-            <div class="field">
-              <label for="settings_net_pay_road_tax_monthly">Road Tax / Month (&pound;)</label>
-              <input id="settings_net_pay_road_tax_monthly" type="number" min="0" step="0.01" inputmode="decimal">
-            </div>
-          </div>
-          <div class="field">
-            <label for="settings_net_pay_tyres_monthly">Tyre Provision / Month (&pound;)</label>
-            <input id="settings_net_pay_tyres_monthly" type="number" min="0" step="0.01" inputmode="decimal">
-          </div>
-        </div>
-
-        <div class="settings-section">
-          <h3>EV Charging</h3>
-          <div class="form-row-2">
-            <div class="field">
-              <label for="settings_ev_home_off_peak">Off-Peak Rate (p/kWh)</label>
-              <input id="settings_ev_home_off_peak" type="number" min="0" step="0.1" inputmode="decimal">
-            </div>
-
-            <div class="field">
-              <label for="settings_ev_efficiency">Vehicle Efficiency (mi/kWh)</label>
-              <input id="settings_ev_efficiency" type="number" min="0.1" step="0.1" inputmode="decimal">
-            </div>
-          </div>
-        </div>
-
-        <div class="settings-actions">
-          <button id="save_settings" type="button" class="btn-primary">Save Settings</button>
-          <button id="reset_settings" type="button">Reset Defaults</button>
-        </div>
-
-        <div id="settings_status" class="settings-status" aria-live="polite"></div>
-      </div>
-
-    </div>
-
-  </div>
-
-  <script type="module" src="js/app.js?v=2.3.111"></script>
-</body>
-
+    <div id="celebration" class="celebration" aria-live="assertive" aria-atomic="true"></div>
+    <script type="module" src="js/v2.js?v=3.1.0"></script>
+  </body>
 </html>
-
-
-
-
-
-
-

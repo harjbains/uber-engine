@@ -1,0 +1,6 @@
+.block-progress { display:flex; align-items:center; gap:16px; margin:-16px 0 30px; padding:13px 16px; border:1px solid rgba(255,255,255,.08); border-radius:16px; background:rgba(10,27,35,.58); }
+.block-progress > div:first-child { flex:0 0 auto; }
+.block-progress > div:first-child span { display:block; margin-top:3px; color:#d7ae58; font-size:.63rem; font-weight:900; letter-spacing:.09em; }
+.week-blocks { display:grid; flex:1; grid-template-columns:repeat(auto-fit,minmax(13px,1fr)); gap:4px; }
+.week-blocks i { height:19px; border:1px solid rgba(226,169,59,.26); border-radius:4px; background:rgba(226,169,59,.08); transition:background .35s,box-shadow .35s; }
+.week-blocks i.filled { border-color:#e2a93b; background:linear-gradient(180deg,#ffe09b,#d99426); box-shadow:0 0 12px rgba(226,169,59,.35); }
